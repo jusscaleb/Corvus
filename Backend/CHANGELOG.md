@@ -8,7 +8,6 @@ All notable backend changes are documented here. Versions follow
 ### Added
 
 - Set up the Django backend project with admin, ASGI, and WSGI entry points.
-
 - Add the Accounts app with a custom email-based user model and initial
   migration.
 - Add Newsroom group and membership model scaffolding and Project article and
