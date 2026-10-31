@@ -1,149 +1,94 @@
-import React, { useState } from 'react';
-import {
-  StyleSheet,
-  Text,
-  View,
-  Image,
-  TouchableOpacity,
-  ScrollView,
-  SafeAreaView,
-} from 'react-native';
+import { useRouter } from 'expo-router';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import NewsroomHeader from '../components/NewsroomHeader';
+import PrimaryButton from '../components/PrimaryButton';
+import { colors } from '../theme/colors';
 
-export default function App() {
-  const [language, setLanguage] = useState('Eng');
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-
-  const languages = [
-    { label: 'English (Eng)', value: 'Eng' },
-    { label: 'isiNdebele (Nde)', value: 'Nde' },
-    { label: 'Shona (Sna)', value: 'Sna' },
-  ];
+export default function LandingScreen() {
+  const router = useRouter();
+  const { width } = useWindowDimensions();
+  const narrow = width < 620;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <Image 
-              source={{ uri: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?auto=format&fit=crop&w=100&q=80' }} 
-              style={styles.logoIcon} 
-            />
-            <Text style={styles.logoText}>Corvus</Text>
+        <NewsroomHeader mode="landing" />
+        <View style={styles.page}>
+          <View style={styles.editionLine}>
+            <Text style={styles.editionLabel}>INDEPENDENT REPORTING / SHARED WITH CARE</Text>
+            <Text style={styles.editionNumber}>CORVUS - NO. 01</Text>
           </View>
 
-          <View style={styles.navRight}>
-            {/* Language Dropdown */}
-            <View style={styles.dropdownWrapper}>
-              <TouchableOpacity 
-                style={styles.langButton} 
-                onPress={() => setDropdownOpen(!dropdownOpen)}
-              >
-                <Text style={styles.langButtonText}>🌐 {language} ▼</Text>
-              </TouchableOpacity>
-
-              {dropdownOpen && (
-                <View style={styles.dropdownMenu}>
-                  {languages.map((item) => (
-                    <TouchableOpacity 
-                      key={item.value} 
-                      style={styles.dropdownItem}
-                      onPress={() => {
-                        setLanguage(item.value);
-                        setDropdownOpen(false);
-                      }}
-                    >
-                      <Text style={styles.dropdownItemText}>{item.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </View>
-
-            <TouchableOpacity>
-              <Text style={styles.navLink}>Privacy Policy</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Top Accent Line */}
-        <View style={styles.blueBorderLine} />
-
-        {/* Main Content Area */}
-        <View style={styles.mainSection}>
-          
-          {/* Left Column: Text & CTA */}
-          <View style={styles.leftColumn}>
-            <View style={styles.badgeRow}>
-              <View style={styles.redDash} />
-              <Text style={styles.badgeText}>YOU MADE THE RIGHT CHOICE!</Text>
-            </View>
-
-            <Text style={styles.heroTitle}>
-              Empowering{'\n'}reporters with{'\n'}clarity.
-            </Text>
-            <View style={styles.titleUnderline} />
-
-            <Text style={styles.heroSubtitle}>
-              Analyze facts, collaborate on stories, and bring your reporting into focus.
-            </Text>
-
-            <TouchableOpacity style={styles.ctaButton}>
-              <Text style={styles.ctaText}>Get Started   →</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Right Column: Editorial Collage */}
-          <View style={styles.rightColumn}>
-            
-            {/* Top Newspaper Clipping ("The Story") */}
-            <View style={styles.newspaperCard}>
-              <View style={styles.tapeTop} />
-              <View style={styles.newspaperHeaderRow}>
-                <Text style={styles.newspaperTitle}>THE STORY</Text>
-                <Text style={styles.newspaperFieldNotes}>FIELD NOTES</Text>
+          <View style={[styles.mainSection, narrow && styles.mainSectionNarrow]}>
+            <View style={styles.leftColumn}>
+              <View style={styles.badgeRow}>
+                <View style={styles.redDash} />
+                <Text style={styles.badgeText}>THE EDITORIAL DESK</Text>
               </View>
-              <Text style={styles.newspaperBody}>
-                Look closer.{'\n'}Ask questions.
+
+              <Text style={[styles.heroTitle, narrow && styles.heroTitleNarrow]}>
+                Empowering reporters with clarity.
               </Text>
+              <View style={styles.titleUnderline} />
+
+              <Text style={styles.heroSubtitle}>
+                Analyze facts, collaborate on stories, and bring your reporting into focus.
+              </Text>
+
+              <View style={styles.actions}>
+                <PrimaryButton
+                  title="Get started"
+                  onPress={() => router.push('/signup')}
+                  variant="accent"
+                />
+                <Pressable accessibilityRole="button" onPress={() => router.push('/login')} style={styles.signInLink}>
+                  <Text style={styles.signInText}>I already have an account</Text>
+                </Pressable>
+              </View>
             </View>
 
-            {/* Purple Tape Accent */}
-            <View style={styles.purpleTape} />
-
-            {/* Polaroid Photo Frame */}
-            <View style={styles.polaroidCard}>
-              <Image 
-                source={{ uri: 'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=600&q=80' }} 
-                style={styles.polaroidImage}
-              />
-              <Text style={styles.polaroidCaption}>A CLOSER LOOK AT THE EVERYDAY.</Text>
+            <View style={styles.rightColumn}>
+              <View style={styles.photoFrame}>
+                <View style={styles.photoTopline}>
+                  <Text style={styles.photoSection}>FIELD REPORT</Text>
+                  <Text style={styles.photoNumber}>01 / 03</Text>
+                </View>
+                <View style={styles.photoCrop}>
+                  <Image
+                    source={{ uri: 'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1000&q=85' }}
+                    style={styles.photo}
+                  />
+                </View>
+                <View style={styles.photoCaption}>
+                  <Text style={styles.captionTitle}>A closer look at the everyday.</Text>
+                  <Text style={styles.captionCredit}>REPORTING IS A TEAM SPORT.</Text>
+                </View>
+              </View>
             </View>
-
-            {/* Bottom Yellow Sticky Note */}
-            <View style={styles.stickyNote}>
-              <Text style={styles.stickyNoteSubtitle}>NOTE TO SELF</Text>
-              <Text style={styles.stickyNoteText}>Find the story beneath the noise.</Text>
-            </View>
-
-            {/* Hand-written tags */}
-            <Text style={styles.handwrittenTagTop}>#journalism</Text>
-            <Text style={styles.handwrittenTagBottom}>#breaking news</Text>
           </View>
 
-        </View>
+          <View style={[styles.workflow, narrow && styles.workflowNarrow]}>
+            <View style={styles.workflowItem}>
+              <Text style={styles.workflowNumber}>01</Text>
+              <Text style={styles.workflowTitle}>REPORT</Text>
+              <Text style={styles.workflowText}>Build a clear first draft.</Text>
+            </View>
+            <View style={styles.workflowItem}>
+              <Text style={styles.workflowNumber}>02</Text>
+              <Text style={styles.workflowTitle}>VERIFY</Text>
+              <Text style={styles.workflowText}>Keep sources in view.</Text>
+            </View>
+            <View style={styles.workflowItem}>
+              <Text style={styles.workflowNumber}>03</Text>
+              <Text style={styles.workflowTitle}>REFINE</Text>
+              <Text style={styles.workflowText}>Make the story stronger together.</Text>
+            </View>
+          </View>
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <View style={styles.footerLeft}>
-            <View style={styles.footerSquare} />
+          <View style={styles.footer}>
+            <Text style={styles.footerMasthead}>CORVUS / THE NEWSROOM</Text>
             <Text style={styles.footerQuote}>For the stories worth telling.</Text>
-          </View>
-          <View style={styles.footerTags}>
-            <Text style={styles.footerTag}>#stories</Text>
-            <Text style={styles.footerTag}>#trending</Text>
-            <Text style={styles.footerTag}>#gossip</Text>
           </View>
         </View>
 
@@ -153,328 +98,240 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    backgroundColor: '#f7f4ed',
+    backgroundColor: colors.paper,
   },
   scrollContent: {
-    paddingBottom: 40,
+    flexGrow: 1,
+    paddingBottom: 28,
   },
-  header: {
+  page: {
+    width: '100%',
+    maxWidth: 1240,
+    alignSelf: 'center',
+  },
+  editionLine: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    backgroundColor: '#f7f4ed',
-  },
-  logoContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  logoIcon: {
-    width: 28,
-    height: 28,
-    marginRight: 8,
-    tintColor: '#1a1a1a',
-  },
-  logoText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    fontFamily: 'serif',
-    color: '#1a1a1a',
-  },
-  navRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  dropdownWrapper: {
-    position: 'relative',
-    marginRight: 24,
-  },
-  langButton: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-  },
-  langButtonText: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '500',
-  },
-  dropdownMenu: {
-    position: 'absolute',
-    top: 30,
-    left: 0,
-    backgroundColor: '#ffffff',
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#e0ded6',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
-    width: 140,
-  },
-  dropdownItem: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    gap: 12,
+    marginHorizontal: 44,
+    paddingVertical: 13,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0ede6',
+    borderBottomColor: colors.line,
   },
-  dropdownItemText: {
-    fontSize: 13,
-    color: '#333',
+  editionLabel: {
+    color: colors.muted,
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.8,
   },
-  navLink: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '400',
-  },
-  blueBorderLine: {
-    height: 3,
-    backgroundColor: '#2096ff',
-    width: '100%',
+  editionNumber: {
+    color: colors.orange,
+    fontFamily: 'monospace',
+    fontSize: 9,
+    fontWeight: '700',
   },
   mainSection: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
-    paddingHorizontal: 64,
-    paddingVertical: 60,
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    gap: 40,
+    paddingHorizontal: 44,
+    paddingVertical: 44,
+  },
+  mainSectionNarrow: {
+    paddingHorizontal: 20,
+    paddingVertical: 28,
+    gap: 28,
   },
   leftColumn: {
-    flex: 1.1,
-    paddingRight: 40,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 320,
+    paddingVertical: 16,
   },
   badgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    gap: 9,
+    marginBottom: 15,
   },
   redDash: {
     width: 20,
     height: 2,
-    backgroundColor: '#c84b31',
-    marginRight: 8,
+    backgroundColor: colors.orange,
   },
   badgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#c84b31',
-    letterSpacing: 1.2,
+    color: colors.orange,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
   heroTitle: {
-    fontSize: 54,
+    maxWidth: 540,
+    color: colors.ink,
     fontFamily: 'serif',
+    fontSize: 58,
     fontWeight: '400',
-    color: '#1a1a1a',
-    lineHeight: 60,
+    lineHeight: 64,
+  },
+  heroTitleNarrow: {
+    fontSize: 43,
+    lineHeight: 49,
   },
   titleUnderline: {
-    width: 160,
+    width: 118,
     height: 3,
-    backgroundColor: '#c84b31',
-    marginTop: 12,
-    marginBottom: 24,
+    marginTop: 16,
+    marginBottom: 20,
+    backgroundColor: colors.orange,
   },
   heroSubtitle: {
+    maxWidth: 440,
+    color: colors.muted,
     fontSize: 16,
-    color: '#555555',
-    lineHeight: 24,
-    marginBottom: 32,
-    maxWidth: 420,
+    lineHeight: 25,
   },
-  ctaButton: {
-    backgroundColor: '#c84b31',
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
+  actions: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 16,
+    marginTop: 28,
   },
-  ctaText: {
-    color: '#ffffff',
-    fontSize: 15,
+  signInLink: {
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  signInText: {
+    color: colors.ink,
+    fontSize: 13,
     fontWeight: '600',
+    textDecorationLine: 'underline',
+    textDecorationColor: colors.orange,
   },
   rightColumn: {
-    flex: 1.2,
-    position: 'relative',
-    height: 480,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 360,
+    minWidth: 0,
   },
-  newspaperCard: {
-    position: 'absolute',
-    top: 0,
-    right: 40,
-    width: 280,
-    backgroundColor: '#ffffff',
-    padding: 20,
+  photoFrame: {
+    width: '100%',
+    padding: 11,
     borderWidth: 1,
-    borderColor: '#e5e0d5',
-    transform: [{ rotate: '3deg' }],
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-    zIndex: 2,
+    borderColor: colors.line,
+    backgroundColor: colors.white,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 4,
   },
-  tapeTop: {
-    position: 'absolute',
-    top: -10,
-    right: 80,
-    width: 50,
-    height: 18,
-    backgroundColor: '#e3dcce',
-    opacity: 0.8,
-  },
-  newspaperHeaderRow: {
+  photoTopline: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#1a1a1a',
-    paddingBottom: 6,
-    marginBottom: 12,
+    paddingHorizontal: 2,
+    paddingBottom: 9,
   },
-  newspaperTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    fontFamily: 'serif',
+  photoSection: {
+    color: colors.orange,
+    fontSize: 9,
+    fontWeight: '800',
     letterSpacing: 1,
   },
-  newspaperFieldNotes: {
-    fontSize: 9,
-    color: '#777',
-    letterSpacing: 0.5,
-  },
-  newspaperBody: {
-    fontSize: 18,
-    fontFamily: 'serif',
-    color: '#1a1a1a',
-    lineHeight: 22,
-  },
-  purpleTape: {
-    position: 'absolute',
-    top: 60,
-    left: 20,
-    width: 70,
-    height: 24,
-    backgroundColor: '#d2c5e5',
-    transform: [{ rotate: '-12deg' }],
-    zIndex: 4,
-  },
-  polaroidCard: {
-    position: 'absolute',
-    top: 90,
-    left: 40,
-    width: 320,
-    backgroundColor: '#ffffff',
-    padding: 12,
-    paddingBottom: 24,
-    borderWidth: 1,
-    borderColor: '#e5e0d5',
-    transform: [{ rotate: '-4deg' }],
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 5,
-    zIndex: 3,
-  },
-  polaroidImage: {
-    width: '100%',
-    height: 180,
-    resizeMode: 'cover',
-    marginBottom: 10,
-  },
-  polaroidCaption: {
-    fontSize: 9,
-    letterSpacing: 1,
-    color: '#666',
+  photoNumber: {
+    color: colors.muted,
     fontFamily: 'monospace',
+    fontSize: 9,
   },
-  stickyNote: {
-    position: 'absolute',
-    bottom: 20,
-    right: 20,
-    width: 200,
-    backgroundColor: '#eae5d5',
-    padding: 16,
-    transform: [{ rotate: '4deg' }],
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
-    zIndex: 4,
+  photoCrop: {
+    width: '100%',
+    aspectRatio: 1.08,
+    overflow: 'hidden',
+    backgroundColor: colors.note,
   },
-  stickyNoteSubtitle: {
-    fontSize: 8,
-    color: '#888',
-    letterSpacing: 1,
-    marginBottom: 4,
+  photo: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
   },
-  stickyNoteText: {
-    fontSize: 14,
+  photoCaption: {
+    paddingTop: 11,
+    paddingBottom: 3,
+  },
+  captionTitle: {
+    color: colors.ink,
     fontFamily: 'serif',
-    color: '#1a1a1a',
-    fontStyle: 'italic',
+    fontSize: 17,
   },
-  handwrittenTagTop: {
-    position: 'absolute',
-    top: 10,
-    right: 0,
-    fontSize: 16,
-    color: '#c84b31',
-    fontStyle: 'italic',
-    transform: [{ rotate: '6deg' }],
+  captionCredit: {
+    marginTop: 5,
+    color: colors.muted,
+    fontFamily: 'monospace',
+    fontSize: 8,
+    letterSpacing: 0.8,
   },
-  handwrittenTagBottom: {
-    position: 'absolute',
-    bottom: 0,
-    left: 80,
-    fontSize: 16,
-    color: '#c84b31',
-    fontStyle: 'italic',
-    transform: [{ rotate: '-4deg' }],
+  workflow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: colors.line,
+    marginHorizontal: 44,
+  },
+  workflowNarrow: {
+    marginHorizontal: 20,
+  },
+  workflowItem: {
+    flexGrow: 1,
+    flexBasis: 180,
+    paddingVertical: 15,
+    paddingHorizontal: 12,
+  },
+  workflowNumber: {
+    color: colors.orange,
+    fontFamily: 'monospace',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  workflowTitle: {
+    marginTop: 6,
+    color: colors.ink,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  workflowText: {
+    marginTop: 5,
+    color: colors.muted,
+    fontSize: 11,
+    lineHeight: 16,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 64,
-    paddingVertical: 24,
-    borderTopWidth: 1,
-    borderTopColor: '#e0ded6',
-    marginTop: 40,
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 26,
+    marginHorizontal: 44,
+    paddingTop: 14,
   },
-  footerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  footerSquare: {
-    width: 8,
-    height: 8,
-    backgroundColor: '#c84b31',
-    marginRight: 10,
+  footerMasthead: {
+    color: colors.orange,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
   footerQuote: {
-    fontSize: 14,
-    color: '#444',
+    color: colors.muted,
     fontFamily: 'serif',
-  },
-  footerTags: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  footerTag: {
-    fontSize: 14,
-    color: '#777',
-    marginLeft: 24,
-    fontStyle: 'italic',
+    fontSize: 12,
   },
 });

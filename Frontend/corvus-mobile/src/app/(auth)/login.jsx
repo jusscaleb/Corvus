@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import EditorialAuthPage from '../../components/EditorialAuthPage';
 import PrimaryButton from '../../components/PrimaryButton';
 import TextField from '../../components/TextField';
 import { colors } from '../../theme/colors';
@@ -21,100 +21,71 @@ export default function LoginScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Pressable accessibilityRole="button" onPress={() => router.replace('/')} style={styles.back}>
-          <Text style={styles.backText}>Back to Corvus</Text>
-        </Pressable>
-        <Text style={styles.eyebrow}>WELCOME BACK</Text>
-        <Text style={styles.title}>Good stories start here.</Text>
-        <Text style={styles.description}>Sign in to return to your newsroom.</Text>
+    <EditorialAuthPage
+      mode="signin"
+      eyebrow="REPORTER ACCESS"
+      headline="Pick up where the story left off."
+      description="Your newsroom, your collaborators, and your next good question are waiting."
+      noteLabel="DESK NOTE / 02"
+      noteTitle="Keep the story moving."
+      noteText="Return to your drafts, source notes, and editorial conversations."
+      formLabel="NEWSROOM ACCESS"
+      formTitle="Sign in"
+      formDescription="Enter your details to return to your desk."
+    >
+      <View style={styles.form}>
+        <TextField
+          label="Email"
+          value={email}
+          onChangeText={setEmail}
+          placeholder="you@newsroom.org"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          textContentType="emailAddress"
+        />
+        <TextField
+          label="Password"
+          value={password}
+          onChangeText={setPassword}
+          placeholder="Your password"
+          secureTextEntry
+          textContentType="password"
+        />
+        <PrimaryButton title="Sign in" onPress={handleSignIn} variant="accent" />
+      </View>
 
-        <View style={styles.form}>
-          <TextField
-            label="Email"
-            value={email}
-            onChangeText={setEmail}
-            placeholder="you@newsroom.org"
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-          <TextField
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Your password"
-            secureTextEntry
-            textContentType="password"
-          />
-          <PrimaryButton title="Sign in" onPress={handleSignIn} />
-        </View>
-
-        <Pressable accessibilityRole="button" onPress={() => router.push('/signup')} style={styles.switchLink}>
-          <Text style={styles.switchText}>New to Corvus? <Text style={styles.switchEmphasis}>Create an account</Text></Text>
+      <View style={styles.formFooter}>
+        <Text style={styles.footerText}>New to Corvus?</Text>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/signup')}>
+          <Text style={styles.footerLink}>Create an account</Text>
         </Pressable>
-      </ScrollView>
-    </SafeAreaView>
+      </View>
+    </EditorialAuthPage>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.paper,
-  },
-  content: {
-    flexGrow: 1,
-    width: '100%',
-    maxWidth: 520,
-    alignSelf: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 18,
-    paddingBottom: 28,
-  },
-  back: {
-    alignSelf: 'flex-start',
-    paddingVertical: 12,
-    marginBottom: 42,
-  },
-  backText: {
-    color: colors.forest,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  eyebrow: {
-    color: colors.orange,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1,
-  },
-  title: {
-    marginTop: 12,
-    color: colors.ink,
-    fontFamily: 'serif',
-    fontSize: 38,
-    lineHeight: 45,
-  },
-  description: {
-    marginTop: 10,
-    color: colors.muted,
-    fontSize: 15,
-    lineHeight: 23,
-  },
   form: {
-    gap: 20,
-    marginTop: 34,
+    gap: 18,
+    marginTop: 24,
   },
-  switchLink: {
+  formFooter: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
-    paddingVertical: 22,
+    gap: 6,
+    marginTop: 18,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
   },
-  switchText: {
+  footerText: {
     color: colors.muted,
-    fontSize: 14,
+    fontSize: 12,
   },
-  switchEmphasis: {
-    color: colors.forest,
+  footerLink: {
+    color: colors.orange,
+    fontSize: 12,
     fontWeight: '700',
   },
 });
