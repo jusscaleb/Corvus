@@ -26,18 +26,32 @@ load_dotenv(BASE_DIR/ ".env")
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('SECRET_KEY')
 
+GROQ_API_KEY = os.getenv('GROQ_API_KEY')
+GROQ_GUARD_MODEL = os.getenv('GROQ_GUARD_MODEL', 'meta-llama/llama-prompt-guard-2-22m')
+GROQ_CHAT_MODEL = os.getenv('GROQ_CHAT_MODEL', 'llama-3.3-70b-versatile')
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 't')
+
+# MongoDB Settings
+MONGODB_URI = os.getenv('MONGODB_URI') or 'mongodb://127.0.0.1:27017'
+MONGODB_DATABASE = os.getenv('MONGODB_DATABASE', 'corvus_chats')
+MONGODB_SERVER_SELECTION_TIMEOUT_MS = int(os.getenv('MONGODB_SERVER_SELECTION_TIMEOUT_MS', '3000'))
+
+
 
 ALLOWED_HOSTS = ['*']
 
 
 # Application definition
 INSTALLED_APPS = [
+    'daphne',
     'accounts',
     'Newsroom',
     'Project',
     'AI',
+    'chats',
+    'channels',
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
@@ -78,7 +92,13 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'corvus.wsgi.application'
+ASGI_APPLICATION = 'corvus.asgi.application'
 
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    },
+}
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases

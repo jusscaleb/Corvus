@@ -34,6 +34,34 @@ if (Test-Path "requirements.txt") {
     Write-Warning "requirements.txt not found in the current directory. Skipping pip install."
 }
 
+$envFile = Join-Path -Path (Get-Location) -ChildPath ".env"
+
+if (-not (Test-Path $envFile)) {
+    Write-Host "Creating .env file..." -ForegroundColor Cyan
+    New-Item -Path $envFile -ItemType File -Force | Out-Null
+}
+
+$envContent = Get-Content -Path $envFile -Raw -ErrorAction SilentlyContinue
+
+if ($envContent -notmatch "SECRET_KEY\s*=\s*.+") {
+    Write-Host "Generating cryptographically secure Django SECRET_KEY..." -ForegroundColor Cyan
+    $newSecretKey = python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+    
+    if ($newSecretKey) {
+        if ($envContent -match "SECRET_KEY\s*=") {
+            $updatedContent = $envContent -replace "SECRET_KEY\s*=.*", "SECRET_KEY=$newSecretKey"
+            Set-Content -Path $envFile -Value $updatedContent -NoNewline
+        } else {
+            Add-Content -Path $envFile -Value "`nSECRET_KEY=$newSecretKey"
+        }
+        Write-Host "SECRET_KEY successfully configured in .env!" -ForegroundColor Green
+    } else {
+        Write-Warning "Could not auto-generate SECRET_KEY via Python. Ensure django is installed."
+    }
+} else {
+    Write-Host "SECRET_KEY already present in .env." -ForegroundColor Yellow
+}
+
 if (Test-Path "manage.py") {
     Write-Host "Running Django database migrations..." -ForegroundColor Cyan
     python manage.py migrate
