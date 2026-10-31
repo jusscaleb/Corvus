@@ -15,5 +15,7 @@ All notable backend changes are documented here. Versions follow
 - Add backend dependency declarations for Django, REST framework, JWT, Channels,
   CORS, PostgreSQL, MongoDB, and Groq integrations.
 - User authentication flow using Django REST Framework and SimpleJWT.
+- Newsroom group and member management with group creation, listing, member addition, and deletion.
+- Project article and branch management with scoped group permissions, automatic root branch seeding, and draft content editing.
 
 
