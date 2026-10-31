@@ -1,5 +1,4 @@
 from django.db import models
-from ..Newsroom.models import *
 
 # Create your models here.
 class Article(models.Model):
@@ -8,7 +7,7 @@ class Article(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     group = models.ForeignKey(
-        Group,
+        'Newsroom.Group',
         on_delete=models.CASCADE,
         related_name='articles',
     )
