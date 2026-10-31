@@ -26,6 +26,10 @@ load_dotenv(BASE_DIR/ ".env")
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('SECRET_KEY')
 
+GROQ_API_KEY = os.getenv('GROQ_API_KEY')
+GROQ_GUARD_MODEL = os.getenv('GROQ_GUARD_MODEL', 'meta-llama/llama-prompt-guard-2-22m')
+GROQ_CHAT_MODEL = os.getenv('GROQ_CHAT_MODEL', 'llama-3.3-70b-versatile')
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 't')
 
