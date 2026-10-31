@@ -14,3 +14,6 @@ All notable backend changes are documented here. Versions follow
   branch model scaffolding.
 - Add backend dependency declarations for Django, REST framework, JWT, Channels,
   CORS, PostgreSQL, MongoDB, and Groq integrations.
+- User authentication flow using Django REST Framework and SimpleJWT.
+
+
