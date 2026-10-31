@@ -30,7 +30,10 @@ def is_prompt_safe(text: str) -> bool:
             temperature=0.0,
         )
         content = (response.choices[0].message.content or "").lower()
-        if "injection" in content or "jailbreak" in content or "violation" in content:
+        # Flags if injection/jailbreak is present, or if violation is confirmed (not 'no violation' or '0')
+        if "injection" in content or "jailbreak" in content:
+            return False
+        if "violation" in content and "no violation" not in content and "violation: 0" not in content:
             return False
         return True
     except Exception as exc:

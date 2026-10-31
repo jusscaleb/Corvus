@@ -4,6 +4,10 @@ from AI.groq_service import is_prompt_safe, chat_with_groq, get_groq_client
 
 
 class GroqChatbotTests(TestCase):
+    def setUp(self):
+        import AI.groq_service as gs
+        gs._groq_client = None
+
     @override_settings(GROQ_API_KEY="test-mock-api-key")
     @patch('AI.groq_service.Groq')
     def test_prompt_guard_allows_safe_user_message(self, mock_groq_class):
@@ -12,7 +16,7 @@ class GroqChatbotTests(TestCase):
 
         # Mock safe response from llama-prompt-guard-2-22m
         mock_choice = MagicMock()
-        mock_choice.message.content = "Safe content, no violations detected."
+        mock_choice.message.content = "Safe content. No violations detected."
         mock_client.chat.completions.create.return_value = MagicMock(choices=[mock_choice])
 
         safe = is_prompt_safe("Hello! Can you help me plan my weekly schedule?")
