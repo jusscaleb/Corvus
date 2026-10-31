@@ -14,6 +14,10 @@ All notable backend changes are documented here. Versions follow
   - WebSocket routing under `ws/chat/<conversation_id>/`.
   - `ChatConsumer` with JWT query string authentication, MongoDB message persistence, and live channel layer broadcasting.
 - REST API endpoints for conversations and message history (`/api/chats/conversations/` and `/api/chats/conversations/<id>/messages/`).
+- Automated LangGraph Agent integration within `/api/chats/conversations/<id>/messages/` to generate autonomous AI replies and persist them to MongoDB.
+- Automated cryptographic `SECRET_KEY` generation in `setup.ps1` before executing migrations.
+- Test suite in `chats/tests.py` verifying relational models, permission validation, and REST API flows.
+- Automated pre-push test validation hook (`.git/hooks/pre-push`) and GitHub Actions CI workflow (`.github/workflows/backend-ci.yml`).
 
 ## [1.0.0] - 2026-10-30
 

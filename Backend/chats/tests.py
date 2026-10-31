@@ -156,7 +156,7 @@ class ChatsTestSuite(APITestCase):
         url = reverse('conversation_messages', kwargs={'conversation_id': 'conv_test_123'})
         response = self.client.post(url, {"content": "New headline draft ready."})
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data["content"], "New headline draft ready.")
+        self.assertEqual(response.data["user_message"]["content"], "New headline draft ready.")
 
     def test_unauthenticated_chat_access_rejected(self):
         """Tests that requests without a JWT token receive 401 Unauthorized."""

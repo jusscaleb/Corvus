@@ -84,14 +84,68 @@ class MessageListCreateView(APIView):
             return Response({"detail": "Message content cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            msg = save_chat_message(
+            # 1. Save user message
+            user_msg = save_chat_message(
                 conversation_id=conversation_id,
                 sender_id=request.user.pk,
                 sender_type="user",
                 content=content,
             )
-            if hasattr(msg["created_at"], "isoformat"):
-                msg["created_at"] = msg["created_at"].isoformat()
-            return Response(msg, status=status.HTTP_201_CREATED)
+            if hasattr(user_msg["created_at"], "isoformat"):
+                user_msg["created_at"] = user_msg["created_at"].isoformat()
+
+            # 2. Check if this is an AI conversation
+            from .models import ChatConversation
+            conv = ChatConversation.objects.filter(pk=conversation_id).first()
+            ai_msg_data = None
+
+            if conv and conv.type == 'ai':
+                try:
+                    # Dynamically load Agent runner without coupling frameworks
+                    import sys
+                    from pathlib import Path
+                    agent_path = str(Path(__file__).resolve().parent.parent.parent / "Agent")
+                    if agent_path not in sys.path:
+                        sys.path.append(agent_path)
+                    from Agent.main import run_agent
+
+                    auth_header = request.headers.get('Authorization', '')
+                    token = auth_header.split(' ')[1] if ' ' in auth_header else ''
+
+                    # Fetch previous conversation context
+                    past_messages, _ = get_conversation_messages_page(conversation_id, limit=10)
+                    history = [
+                        {"role": "user" if m.get("sender_type") == "user" else "assistant", "content": m.get("content", "")}
+                        for m in past_messages[:-1]
+                    ]
+
+                    # Execute Agent reasoning and tools
+                    agent_reply = run_agent(
+                        user_message=content,
+                        token=token,
+                        chat_history=history,
+                    )
+
+                    # Save AI message to MongoDB
+                    ai_msg = save_chat_message(
+                        conversation_id=conversation_id,
+                        sender_id=None,
+                        sender_type="ai",
+                        content=agent_reply,
+                    )
+                    if hasattr(ai_msg["created_at"], "isoformat"):
+                        ai_msg["created_at"] = ai_msg["created_at"].isoformat()
+                    ai_msg_data = ai_msg
+                except Exception as agent_err:
+                    print(f"[Warning] Agent execution error: {agent_err}")
+
+            return Response(
+                {
+                    "user_message": user_msg,
+                    "ai_message": ai_msg_data,
+                },
+                status=status.HTTP_201_CREATED,
+            )
         except MongoChatStoreUnavailable:
             return Response({"detail": "Chat database unavailable."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
