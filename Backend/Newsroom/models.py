@@ -7,7 +7,11 @@ class Group(models.Model):
     group_description = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    numberofMembers = models.IntegerField(blank=True, default=1)
+
+
+    @property
+    def member_number(self):
+        return self.memberships.count()
 
     def __str__(self):
         return self.group_name
