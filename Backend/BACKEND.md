@@ -1,8 +1,9 @@
 # Backend Architecture & Technical Documentation
 
-**Version:** `1.0.0`  
-**Framework:** Django 6.0.6, Django REST Framework, SimpleJWT  
+**Version:** `2.0.0`  
+**Framework:** Django 6.0.6, Django REST Framework, SimpleJWT, Django Channels, Daphne  
 **Runtime:** Python 3.12+ (Virtualenv at `Backend/core`)  
+**Databases:** SQLite/PostgreSQL (RDBMS) + MongoDB (NoSQL)
 
 ---
 
@@ -13,8 +14,9 @@ The Corvus backend powers a branch-driven, collaborative newsroom system. It is 
 - **`accounts`**: Authentication, custom user profiles, multilingual preferences, and JWT security.
 - **`Newsroom`**: Newsroom desk isolation, member rosters, and collaborative group access control.
 - **`Project`**: Articles and version-controlled editorial drafting through branches.
+- **`chats`**: Real-time communication (User-to-User, User-to-Group, User-to-AI) using Django Channels & MongoDB.
 - **`AI`**: Scaffolding for translation and Groq-powered editorial assistants.
-- **`corvus`**: Core project settings, ASGI/WSGI entrypoints, and root routing.
+- **`corvus`**: Core project settings, ASGI entrypoints, Channel layers, and root routing.
 
 ---
 
