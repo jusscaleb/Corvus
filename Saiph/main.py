@@ -13,7 +13,7 @@ def get_agent():
 
 def run_agent(user_message: str, token: str = "", chat_history: list = None) -> str:
     """
-    Executes the Sirius agent:
+    Executes the Saiph agent:
     - user_message: String prompt from the user
     - token: JWT access token from the Django backend (for authorizing tool calls)
     - chat_history: Optional list of previous {'role': 'user'|'assistant', 'content': '...'}
@@ -42,7 +42,7 @@ def run_agent(user_message: str, token: str = "", chat_history: list = None) -> 
 
 if __name__ == "__main__":
     import sys
-    print("Sirius AI Agent CLI (Type 'exit' to quit)")
+    print("Saiph AI Agent CLI (Type 'exit' to quit)")
     print("-" * 50)
     history = []
     while True:

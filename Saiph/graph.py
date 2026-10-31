@@ -33,7 +33,7 @@ def call_model(state: AgentState):
     # Prepend system instruction if not already present
     if not messages or not isinstance(messages[0], SystemMessage):
         system_prompt = (
-            "You are Sirius, the autonomous newsroom and workspace AI agent for Corvus. "
+            "You are Saiph, the autonomous newsroom and workspace AI agent for Corvus. "
             "You can converse naturally as a friendly, intelligent assistant about any general topic, "
             "AND you have tools to inspect newsroom groups, read article drafts, fork branches, "
             "and update editorial content by making requests to the Corvus Backend.\n\n"

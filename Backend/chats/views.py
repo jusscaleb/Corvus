@@ -101,13 +101,25 @@ class MessageListCreateView(APIView):
 
             if conv and conv.type == 'ai':
                 try:
-                    # Dynamically load Agent runner without coupling frameworks
+                    # Dynamically load Agent runner from Saiph or Agent directory
                     import sys
                     from pathlib import Path
-                    agent_path = str(Path(__file__).resolve().parent.parent.parent / "Agent")
-                    if agent_path not in sys.path:
+                    root_dir = Path(__file__).resolve().parent.parent.parent
+                    saiph_path = str(root_dir / "Saiph")
+                    agent_path = str(root_dir / "Agent")
+
+                    if Path(saiph_path).exists() and saiph_path not in sys.path:
+                        sys.path.append(saiph_path)
+                    elif Path(agent_path).exists() and agent_path not in sys.path:
                         sys.path.append(agent_path)
-                    from Agent.main import run_agent
+
+                    try:
+                        from Saiph.main import run_agent
+                    except ImportError:
+                        try:
+                            from Agent.main import run_agent
+                        except ImportError:
+                            from main import run_agent
 
                     auth_header = request.headers.get('Authorization', '')
                     token = auth_header.split(' ')[1] if ' ' in auth_header else ''

@@ -1,6 +1,6 @@
-# Sirius — Autonomous AI Agent for Corvus
+# Saiph — Autonomous AI Agent for Corvus
 
-**Name:** Sirius  
+**Name:** Saiph  
 **Engine:** LangGraph StateGraph + Groq (`llama-3.3-70b-versatile`)  
 **Architecture:** Pure HTTP client communicating with Corvus Backend REST APIs  
 **Memory & History:** MongoDB (`corvus_chats`)  
@@ -9,7 +9,7 @@
 
 ## 1. Overview
 
-**Sirius** is the unified intelligence layer of the Corvus newsroom platform. Rather than a chain of disconnected models, Sirius operates as an **autonomous agent** capable of:
+**Saiph** is the unified intelligence layer of the Corvus newsroom platform. Rather than a chain of disconnected models, Saiph operates as an **autonomous agent** capable of:
 1. **Conversational Fluidity**: Conversing naturally as a friendly, intelligent chatbot about any general subject.
 2. **Contextual Reasoning**: Detecting when a user wants to inspect, create, or modify newsroom content.
 3. **Tool Execution**: Formulating and executing authorized HTTP requests against the Corvus Django REST API on behalf of the authenticated user.
@@ -19,7 +19,7 @@
 
 ## 2. Architecture & Control Flow
 
-Sirius runs an autonomous ReAct loop built with **LangGraph**:
+Saiph runs an autonomous ReAct loop built with **LangGraph**:
 
 ```
                        User Prompt + JWT Token
@@ -32,7 +32,7 @@ Sirius runs an autonomous ReAct loop built with **LangGraph**:
                                  │
                                  ▼
                      ┌───────────────────────┐
-                     │  Sirius Reasoning LLM │
+                     │  Saiph Reasoning LLM │
                      │ llama-3.3-70b (Groq)  │
                      └───────────┬───────────┘
                                  │
@@ -63,7 +63,7 @@ Sirius runs an autonomous ReAct loop built with **LangGraph**:
                  │                               │
                  │                               ▼
                  │                    Sends Tool Observation
-                 │                    Back into Sirius Brain
+                 │                    Back into Saiph Brain
                  │                               │
                  └───────────────┬───────────────┘
                                  │
@@ -76,7 +76,7 @@ Sirius runs an autonomous ReAct loop built with **LangGraph**:
 
 ## 3. Tool Catalog (`Agent/tools.py`)
 
-Sirius interacts with Corvus exclusively through standard HTTP endpoints, respecting the user's role and permissions:
+Saiph interacts with Corvus exclusively through standard HTTP endpoints, respecting the user's role and permissions:
 
 ### Newsroom Tools
 | Tool Name | Backend Endpoint | Purpose |
@@ -103,7 +103,7 @@ Sirius interacts with Corvus exclusively through standard HTTP endpoints, respec
 ## 4. Standalone Execution & Usage
 
 ### Running Locally via CLI
-Sirius can be run standalone via the interactive terminal interface:
+Saiph can be run standalone via the interactive terminal interface:
 
 ```powershell
 # From the project root

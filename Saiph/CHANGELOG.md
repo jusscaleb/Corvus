@@ -1,14 +1,14 @@
 # Changelog
 
-All notable changes to the Sirius AI Agent are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+All notable changes to the Saiph AI Agent are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [1.0.0] - 2026-10-31
 
 ### Added
 
-- **Sirius (LangGraph StateGraph Agent)**:
+- **Saiph (LangGraph StateGraph Agent)**:
   - Autonomous single-agent loop powered by `langgraph` and Groq's `llama-3.3-70b-versatile`.
-  - Named **Sirius**: converses fluently on general topics while autonomously reasoning and invoking tools for newsroom workspace operations.
+  - Named **Saiph**: converses fluently on general topics while autonomously reasoning and invoking tools for newsroom workspace operations.
   - Multi-turn conversational memory tracking previous user and assistant messages.
 - **Pure HTTP Backend Tools**:
   - Independent tool client using `httpx` connecting directly to the Django REST Backend (`/api/`) using user JWT tokens.
