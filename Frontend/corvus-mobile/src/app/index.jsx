@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useRouter } from 'expo-router';
 import {
   StyleSheet,
   Text,
@@ -10,6 +11,7 @@ import {
 } from 'react-native';
 
 export default function App() {
+  const router = useRouter();
   const [language, setLanguage] = useState('Eng');
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
@@ -89,7 +91,7 @@ export default function App() {
               Analyze facts, collaborate on stories, and bring your reporting into focus.
             </Text>
 
-            <TouchableOpacity style={styles.ctaButton}>
+            <TouchableOpacity style={styles.ctaButton} onPress={() => router.push('/signup')}>
               <Text style={styles.ctaText}>Get Started   →</Text>
             </TouchableOpacity>
           </View>

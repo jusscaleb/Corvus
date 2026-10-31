@@ -3,6 +3,7 @@ import { colors } from '../theme/colors';
 
 export default function PrimaryButton({ title, onPress, variant = 'primary' }) {
   const secondary = variant === 'secondary';
+  const accent = variant === 'accent';
 
   return (
     <Pressable
@@ -10,7 +11,7 @@ export default function PrimaryButton({ title, onPress, variant = 'primary' }) {
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
-        secondary ? styles.secondary : styles.primary,
+        secondary ? styles.secondary : accent ? styles.accent : styles.primary,
         pressed && styles.pressed,
       ]}
     >
@@ -29,6 +30,9 @@ const styles = StyleSheet.create({
   },
   primary: {
     backgroundColor: colors.forest,
+  },
+  accent: {
+    backgroundColor: '#c84b31',
   },
   secondary: {
     borderWidth: 1,
