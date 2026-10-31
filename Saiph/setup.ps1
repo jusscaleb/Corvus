@@ -1,5 +1,5 @@
 Write-Host "==========================================" -ForegroundColor Cyan
-Write-Host " Setting up Sirius AI Agent..." -ForegroundColor Cyan
+Write-Host " Setting up Saiph AI Agent..." -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
 
 # Locate system Python executable
@@ -23,10 +23,10 @@ if (-not $pythonExe) {
 
 Write-Host "Found Python at: $pythonExe" -ForegroundColor Green
 
-# Create dedicated virtual environment for Sirius
+# Create dedicated virtual environment for Saiph
 $venvDir = Join-Path -Path (Get-Location) -ChildPath "venv"
 if (-not (Test-Path $venvDir)) {
-    Write-Host "Creating virtual environment 'venv' for Sirius..." -ForegroundColor Cyan
+    Write-Host "Creating virtual environment 'venv' for Saiph..." -ForegroundColor Cyan
     & $pythonExe -m venv venv
 } else {
     Write-Host "Virtual environment 'venv' already exists." -ForegroundColor Yellow
@@ -42,9 +42,9 @@ if (Test-Path $venvActivate) {
     exit 1
 }
 
-# Install Sirius dependencies
+# Install Saiph dependencies
 if (Test-Path "requirements.txt") {
-    Write-Host "Installing Sirius dependencies from requirements.txt..." -ForegroundColor Cyan
+    Write-Host "Installing Saiph dependencies from requirements.txt..." -ForegroundColor Cyan
     pip install --upgrade pip
     pip install -r requirements.txt
 } else {
@@ -56,7 +56,7 @@ $envFile = Join-Path -Path (Get-Location) -ChildPath ".env"
 $backendEnv = Join-Path -Path (Get-Location) -ChildPath "..\Backend\.env"
 
 if (-not (Test-Path $envFile)) {
-    Write-Host "Creating .env file for Sirius..." -ForegroundColor Cyan
+    Write-Host "Creating .env file for Saiph..." -ForegroundColor Cyan
     
     # If Backend/.env exists and has GROQ_API_KEY, copy it over automatically
     $backendGroqKey = ""
@@ -75,13 +75,13 @@ MONGO_URI=mongodb://127.0.0.1:27017
 MONGO_DB_NAME=corvus_chats
 "@
     Set-Content -Path $envFile -Value $defaultEnv
-    Write-Host ".env successfully generated for Sirius!" -ForegroundColor Green
+    Write-Host ".env successfully generated for Saiph!" -ForegroundColor Green
 } else {
     Write-Host ".env already exists." -ForegroundColor Yellow
 }
 
 Write-Host "==========================================" -ForegroundColor Green
-Write-Host " Sirius setup complete!" -ForegroundColor Green
+Write-Host " Saiph setup complete!" -ForegroundColor Green
 Write-Host " Run interactive CLI test with:" -ForegroundColor Cyan
 Write-Host "   python -m main" -ForegroundColor White
 Write-Host "==========================================" -ForegroundColor Green
