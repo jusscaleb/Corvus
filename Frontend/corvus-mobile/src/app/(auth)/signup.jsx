@@ -4,6 +4,7 @@ import { Alert, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions
 import EditorialAuthPage from '../../components/EditorialAuthPage';
 import PrimaryButton from '../../components/PrimaryButton';
 import TextField from '../../components/TextField';
+import { colors } from '../../theme/colors';
 
 export default function SignupScreen() {
   const router = useRouter();
