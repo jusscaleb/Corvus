@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import NewsroomHeader from '../../../components/NewsroomHeader';
 import { colors } from '../../../theme/colors';
 
 const initialMessages = [
@@ -36,14 +37,15 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <NewsroomHeader mode="chat" />
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={12}
       >
-        <View style={styles.header}>
+        <View style={styles.chatToolbar}>
           <View>
-            <Text style={styles.brand}>CORVUS</Text>
+            <Text style={styles.chatEyebrow}>EDITORIAL DESK / CHAT</Text>
             <Text style={styles.headerTitle}>Newsroom chat</Text>
           </View>
           <Pressable accessibilityRole="button" onPress={() => router.replace('/')} style={styles.signOut}>
@@ -103,21 +105,21 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
-  header: {
-    minHeight: 72,
+  chatToolbar: {
+    minHeight: 64,
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingVertical: 9,
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  brand: {
+  chatEyebrow: {
     color: colors.orange,
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '800',
-    letterSpacing: 1.2,
+    letterSpacing: 1,
   },
   headerTitle: {
     marginTop: 3,

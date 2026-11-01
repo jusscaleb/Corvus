@@ -1,0 +1,60 @@
+name: Backend CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - 'backend*'
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+      - master
+      - 'backend*'
+
+jobs:
+  test:
+    name: Run Backend Unit Tests
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: Backend
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: Backend/requirements.txt
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Verify Django Configurations & Checks
+        env:
+          SECRET_KEY: 'ci-secret-key-for-running-tests-only'
+          DEBUG: 'True'
+        run: |
+          python manage.py check
+
+      - name: Run Migrations
+        env:
+          SECRET_KEY: 'ci-secret-key-for-running-tests-only'
+          DEBUG: 'True'
+        run: |
+          python manage.py migrate
+
+      - name: Run Unit Tests
+        env:
+          SECRET_KEY: 'ci-secret-key-for-running-tests-only'
+          DEBUG: 'True'
+        run: |
+          python manage.py test --verbosity=2
