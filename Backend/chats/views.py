@@ -2,6 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from django.contrib.auth import get_user_model
 from Newsroom.models import Member
 
 from .mongo_store import (
@@ -11,6 +12,57 @@ from .mongo_store import (
     save_chat_message,
     get_conversation_messages_page,
 )
+
+User = get_user_model()
+
+
+class InboxView(APIView):
+    """
+    GET: Returns all active direct message threads and newsroom chats
+    for the user's inbox, with participant details and the last message.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            # 1. Fetch group IDs user has access to
+            group_ids = list(
+                Member.objects.filter(member=request.user).values_list('group_id', flat=True)
+            )
+
+            # 2. Query MongoDB for conversations
+            conversations = get_user_conversations(request.user.pk, group_ids)
+
+            # 3. Batch-fetch participant profile info (avoids N+1 query loop)
+            other_user_ids = set()
+            for c in conversations:
+                for p in c.get('participants', []):
+                    if p != str(request.user.pk):
+                        other_user_ids.add(p)
+
+            users_map = {
+                str(u.pk): {
+                    "user_id": str(u.pk),
+                    "username": u.username,
+                    "full_name": u.full_name or u.username,
+                }
+                for u in User.objects.filter(pk__in=other_user_ids)
+            }
+
+            # 4. Hydrate profiles and format dates
+            for c in conversations:
+                for date_key in ('created_at', 'updated_at'):
+                    val = c.get(date_key)
+                    if hasattr(val, 'isoformat'):
+                        c[date_key] = val.isoformat()
+
+                c['other_participants'] = [
+                    users_map[p] for p in c.get('participants', []) if p in users_map
+                ]
+
+            return Response(conversations, status=status.HTTP_200_OK)
+        except MongoChatStoreUnavailable:
+            return Response({"detail": "Chat database unavailable."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
 class ConversationListCreateView(APIView):
@@ -160,4 +212,3 @@ class MessageListCreateView(APIView):
             )
         except MongoChatStoreUnavailable:
             return Response({"detail": "Chat database unavailable."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-

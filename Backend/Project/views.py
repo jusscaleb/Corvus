@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.db import transaction
+from django.db.models import Q
 
 from Newsroom.models import Group
 from .models import Article, Branch
@@ -12,6 +13,26 @@ from .serializer import ArticleSerializer, BranchSerializer
 
 def check_group_membership(user, group):
     return group.memberships.filter(member=user).exists()
+
+
+class UserArticleListView(APIView):
+    """
+    GET: List all articles belonging to any newsroom group the authenticated
+    user is a member of, plus any articles authored by the user.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        articles = (
+            Article.objects.filter(
+                Q(group__memberships__member=request.user) | Q(author=request.user)
+            )
+            .select_related('group', 'author')
+            .prefetch_related('branches')
+            .distinct()
+        )
+        serializer = ArticleSerializer(articles, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class GroupArticleListCreateView(APIView):

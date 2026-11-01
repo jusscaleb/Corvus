@@ -66,6 +66,25 @@ class ProjectTests(APITestCase):
         post_res = self.client.post(url, {"title": "Unauthorized Article"})
         self.assertEqual(post_res.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_user_article_list(self):
+        # Create an article in user1's group
+        Article.objects.create(
+            title="Harare Infrastructure Report",
+            group=self.group,
+            author=self.user1,
+        )
+        url = reverse('user_article_list')
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 1)
+        self.assertEqual(res.data[0]['title'], "Harare Infrastructure Report")
+
+        # Outsider user has no access to user1's group articles
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token2}')
+        res2 = self.client.get(url)
+        self.assertEqual(res2.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res2.data), 0)
+
     def test_fork_branch_and_update_content(self):
         # Create article first
         article = Article.objects.create(

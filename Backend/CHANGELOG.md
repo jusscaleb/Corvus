@@ -3,6 +3,17 @@
 All notable backend changes are documented here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.1.0] - 2026-11-01
+
+### Added
+
+- `GET /api/project/articles/` via `UserArticleListView`:
+  - Retrieves all articles across all newsrooms the authenticated user belongs to, plus authored articles.
+  - Optimized with `select_related('group', 'author')` and `prefetch_related('branches')` to prevent N+1 queries.
+- `GET /api/chats/inbox/` via `InboxView`:
+  - Serves direct message and newsroom conversations for the user's inbox with hydrated participant profiles (`user_id`, `username`, `full_name`) and last message previews.
+  - Performs batch participant resolution in \(O(1)\) database queries.
+
 ## [2.0.0] - 2026-10-31
 
 ### Added
@@ -31,6 +42,3 @@ All notable backend changes are documented here. Versions follow
 - User authentication flow using Django REST Framework and SimpleJWT.
 - Newsroom group and member management with group creation, listing, member addition, and deletion.
 - Project article and branch management with scoped group permissions, automatic root branch seeding, and draft content editing.
-
-
-
