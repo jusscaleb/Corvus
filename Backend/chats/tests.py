@@ -56,6 +56,35 @@ class ChatsTestSuite(APITestCase):
         self.assertEqual(conv.type, "direct")
         self.assertTrue(ChatConversation.objects.filter(pk=conv.pk).exists())
 
+    @patch('chats.views.get_user_conversations')
+    def test_inbox_view_hydrates_participants(self, mock_get_convs):
+        """Tests GET /api/chats/inbox/ hydrates participant profiles and handles dates."""
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        mock_get_convs.return_value = [
+            {
+                "_id": "conv_inbox_1",
+                "conversation_id": "conv_inbox_1",
+                "type": "direct",
+                "title": "",
+                "participants": [self.user1.pk, self.user2.pk],
+                "newsroom_group_id": None,
+                "created_at": now,
+                "updated_at": now,
+            }
+        ]
+
+        url = reverse('chat_inbox')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        conv = response.data[0]
+        self.assertEqual(conv["conversation_id"], "conv_inbox_1")
+        self.assertIn("other_participants", conv)
+        self.assertEqual(len(conv["other_participants"]), 1)
+        self.assertEqual(conv["other_participants"][0]["user_id"], str(self.user2.pk))
+        self.assertEqual(conv["other_participants"][0]["username"], "editor2")
+
     @patch('chats.views.create_conversation')
     def test_create_direct_conversation_api(self, mock_create_conv):
         """Tests POST /api/chats/conversations/ for direct user-to-user chat."""
