@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import EditorialAuthPage from '../../components/EditorialAuthPage';
 import PrimaryButton from '../../components/PrimaryButton';
 import TextField from '../../components/TextField';
@@ -8,6 +8,9 @@ import { colors } from '../../theme/colors';
 
 export default function SignupScreen() {
   const router = useRouter();
+  const { width, height } = useWindowDimensions();
+  const compact = width < 520;
+  const dense = compact || (Platform.OS === 'web' && height < 820);
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -19,7 +22,12 @@ export default function SignupScreen() {
       return;
     }
 
-    Alert.alert('Not connected yet', 'The sign-up screen is ready for the Django API connection.');
+    if (password.length < 8) {
+      Alert.alert('Password too short', 'Use at least 8 characters.');
+      return;
+    }
+
+    router.replace('/dashboard');
   }
 
   return (
@@ -35,9 +43,10 @@ export default function SignupScreen() {
       formTitle="Create your account"
       formDescription="Add your details to get started."
     >
-      <View style={styles.form}>
+      <View style={[styles.form, dense && styles.formCompact]}>
         <TextField
           label="Username"
+          compact={dense}
           value={username}
           onChangeText={setUsername}
           placeholder="Choose a username"
@@ -46,6 +55,7 @@ export default function SignupScreen() {
         />
         <TextField
           label="Email"
+          compact={dense}
           value={email}
           onChangeText={setEmail}
           placeholder="you@newsroom.org"
@@ -55,6 +65,7 @@ export default function SignupScreen() {
         />
         <TextField
           label="Phone number"
+          compact={dense}
           value={phoneNumber}
           onChangeText={setPhoneNumber}
           placeholder="Your phone number"
@@ -63,16 +74,17 @@ export default function SignupScreen() {
         />
         <TextField
           label="Password"
+          compact={dense}
           value={password}
           onChangeText={setPassword}
           placeholder="At least 8 characters"
           secureTextEntry
           textContentType="newPassword"
         />
-        <PrimaryButton title="Create account" onPress={handleCreateAccount} variant="accent" />
+        <PrimaryButton title="Create account" onPress={handleCreateAccount} variant="accent" compact={dense} />
       </View>
 
-      <View style={styles.formFooter}>
+      <View style={[styles.formFooter, dense && styles.formFooterCompact]}>
         <Text style={styles.footerText}>Already have a newsroom account?</Text>
         <Pressable accessibilityRole="button" onPress={() => router.push('/login')}>
           <Text style={styles.footerLink}>Sign in</Text>
@@ -87,6 +99,10 @@ const styles = StyleSheet.create({
     gap: 15,
     marginTop: 22,
   },
+  formCompact: {
+    gap: 9,
+    marginTop: 14,
+  },
   formFooter: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -96,6 +112,11 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     borderTopWidth: 1,
     borderTopColor: colors.line,
+  },
+  formFooterCompact: {
+    gap: 5,
+    marginTop: 10,
+    paddingTop: 9,
   },
   footerText: {
     color: colors.muted,

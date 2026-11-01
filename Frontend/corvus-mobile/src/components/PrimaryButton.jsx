@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { colors } from '../theme/colors';
 
-export default function PrimaryButton({ title, onPress, variant = 'primary' }) {
+export default function PrimaryButton({ title, onPress, variant = 'primary', compact = false }) {
   const secondary = variant === 'secondary';
   const accent = variant === 'accent';
 
@@ -11,6 +11,7 @@ export default function PrimaryButton({ title, onPress, variant = 'primary' }) {
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
+        compact && styles.compactButton,
         secondary ? styles.secondary : accent ? styles.accent : styles.primary,
         pressed && styles.pressed,
       ]}
@@ -27,6 +28,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 20,
     borderRadius: 6,
+  },
+  compactButton: {
+    minHeight: 46,
   },
   primary: {
     backgroundColor: colors.forest,
