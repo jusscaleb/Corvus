@@ -187,6 +187,55 @@ export async function fetchArticles() {
   return await apiRequest('/api/project/articles/', { requireAuth: true });
 }
 
+export async function createArticle({ groupId, title, content = '', summary = '' }) {
+  // If groupId is provided, post to group endpoint. Otherwise post to personal user articles endpoint.
+  const endpoint = groupId
+    ? `/api/project/groups/${groupId}/articles/`
+    : '/api/project/articles/';
+
+  const article = await apiRequest(endpoint, {
+    method: 'POST',
+    requireAuth: true,
+    body: { title },
+  });
+
+  const mainBranch = article.branches?.find((b) => b.is_main) || article.branches?.[0];
+  if (mainBranch && (content || summary)) {
+    try {
+      const updatedBranch = await apiRequest(`/api/project/branches/${mainBranch.branch_id}/`, {
+        method: 'PATCH',
+        requireAuth: true,
+        body: { content, branch_description: summary },
+      });
+      article.branches = [updatedBranch];
+    } catch (err) {
+      console.warn('Could not update initial branch content:', err);
+    }
+  }
+
+  return article;
+}
+
+export async function updateArticle(articleId, { title }) {
+  return await apiRequest(`/api/project/articles/${articleId}/`, {
+    method: 'PATCH',
+    requireAuth: true,
+    body: { title },
+  });
+}
+
+export async function updateBranchContent(branchId, { content, summary }) {
+  const body = {};
+  if (content !== undefined) body.content = content;
+  if (summary !== undefined) body.branch_description = summary;
+
+  return await apiRequest(`/api/project/branches/${branchId}/`, {
+    method: 'PATCH',
+    requireAuth: true,
+    body,
+  });
+}
+
 // ─── Chats ─────────────────────────────────────────────────────────────────────
 
 export async function fetchInbox() {

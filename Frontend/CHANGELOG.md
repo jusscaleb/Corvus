@@ -5,6 +5,38 @@ All notable changes to the frontend will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.0] - 2026-11-02
+
+### Added
+
+- **In-App Article Editor & Live Content Saving (`MainScreen.jsx`, `api.js`)**:
+  - Implemented an editorial in-app story editor allowing reporters to compose and refine draft copy directly inside the reading pane.
+  - Added live word and character counters that recalculate in real-time as text is typed.
+  - Added `💾 Save Story` action which patches content and lead summary to the branch via `PATCH /api/project/branches/<branch_id>/`.
+  - Added cancel safeguards to safely discard unsaved revisions.
+
+- **Editable Story Headlines (`MainScreen.jsx`, `api.js`)**:
+  - Added `✏️ Edit Headline` trigger enabling reporters to update article titles on the fly.
+  - Dispatches title changes via `PATCH /api/project/articles/<article_id>/` and updates local state without page reload.
+
+- **Personal (Private) vs Newsroom Desk Articles (`CreateArticleModal.jsx`, `MainScreen.jsx`)**:
+  - Added `🔒 Personal Draft (Only You)` scope in the article creation modal alongside collaborative newsroom desks.
+  - Automatically identifies whether an article is personal or group-assigned.
+  - Displays appropriate authorship badges and bylines:
+    - Personal: `🔒 PERSONAL DRAFT`, showing user as sole author with private workspace indicator.
+    - Newsroom: `👥 [DESK] DESK`, showing author plus newsroom desk colleagues and subscriber count.
+
+- **Prototype PDF Storage & Export Engine (`pdfExporter.js`, `CreateArticleModal.jsx`)**:
+  - Added dual-mode creation in `CreateArticleModal`: Write story copy or attach an existing investigative PDF document.
+  - Added PDF file upload supporting drag-and-drop and native file picking up to 15MB.
+  - Implemented zero-dependency printable newspaper styling with Corvus masthead, classification stamps, bylines, and justified columns.
+  - Added `🖨 Save as PDF` trigger leveraging native print dialogs to export crisp PDF documents.
+  - Added dedicated `PDF ARCHIVE` cards in reader allowing users to view and download attached PDF documents.
+
+- **Dedicated SVG Icon System (`AppIcons.jsx`)**:
+  - Created standalone SVG vector icons (`LockIcon`, `UsersIcon`, `EditIcon`, `FileTextIcon`, `FilePdfIcon`, `PrinterIcon`, `EyeIcon`, `SaveIcon`, `PaperclipIcon`, `CalendarIcon`, `ClipboardIcon`, `AlertTriangleIcon`).
+  - Replaced all non-keyboard UI emojis across the application with clean, theme-aware vector icons.
+
 ## [3.2.1] - 2026-11-02
 
 ### Fixed

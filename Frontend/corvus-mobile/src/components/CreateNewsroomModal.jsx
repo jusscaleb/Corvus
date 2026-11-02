@@ -187,7 +187,7 @@ export default function CreateNewsroomModal({ visible, onClose, onCreated }) {
               <Text style={[styles.requirementText, hasMinMembers && styles.requirementTextValid]}>
                 {hasMinMembers
                   ? `✓ Newsroom quota met: ${totalMembers} colleagues (including you)`
-                  : `⚠️ Minimum 3 members required: You + ${selectedUsers.length} selected (${2 - selectedUsers.length} more needed)`}
+                  : `Notice: Minimum 3 members required: You + ${selectedUsers.length} selected (${2 - selectedUsers.length} more needed)`}
               </Text>
             </View>
 

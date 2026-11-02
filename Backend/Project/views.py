@@ -19,6 +19,7 @@ class UserArticleListView(APIView):
     """
     GET: List all articles belonging to any newsroom group the authenticated
     user is a member of, plus any articles authored by the user.
+    POST: Create a personal (user-only) article without a newsroom group.
     """
     permission_classes = [IsAuthenticated]
 
@@ -33,6 +34,23 @@ class UserArticleListView(APIView):
         )
         serializer = ArticleSerializer(articles, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        serializer = ArticleSerializer(data=request.data)
+        if serializer.is_valid():
+            with transaction.atomic():
+                article = serializer.save(group=None, author=request.user)
+                # Seed default root 'main' branch
+                Branch.objects.create(
+                    branch_name='main',
+                    branch_description='Personal editorial draft',
+                    content='',
+                    is_main=True,
+                    article=article,
+                    created_by=request.user,
+                )
+            return Response(ArticleSerializer(article).data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class GroupArticleListCreateView(APIView):
@@ -82,9 +100,11 @@ class ArticleDetailView(APIView):
 
     def get_article(self, article_id, user):
         article = get_object_or_404(Article, pk=article_id)
-        if not check_group_membership(user, article.group):
-            return None
-        return article
+        if article.author == user:
+            return article
+        if article.group and check_group_membership(user, article.group):
+            return article
+        return None
 
     def get(self, request, article_id):
         article = self.get_article(article_id, request.user)
@@ -121,9 +141,11 @@ class ArticleBranchListCreateView(APIView):
 
     def get_article(self, article_id, user):
         article = get_object_or_404(Article, pk=article_id)
-        if not check_group_membership(user, article.group):
-            return None
-        return article
+        if article.author == user:
+            return article
+        if article.group and check_group_membership(user, article.group):
+            return article
+        return None
 
     def get(self, request, article_id):
         article = self.get_article(article_id, request.user)
@@ -158,9 +180,11 @@ class BranchDetailView(APIView):
 
     def get_branch(self, branch_id, user):
         branch = get_object_or_404(Branch, pk=branch_id)
-        if not check_group_membership(user, branch.article.group):
-            return None
-        return branch
+        if branch.article.author == user:
+            return branch
+        if branch.article.group and check_group_membership(user, branch.article.group):
+            return branch
+        return None
 
     def get(self, request, branch_id):
         branch = self.get_branch(branch_id, request.user)

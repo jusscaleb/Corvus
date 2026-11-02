@@ -13,6 +13,8 @@ class Article(models.Model):
         'Newsroom.Group',
         on_delete=models.CASCADE,
         related_name='articles',
+        null=True,
+        blank=True,
     )
     author = models.ForeignKey(
         'accounts.User',
@@ -32,7 +34,7 @@ class Article(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.title} ({self.group.group_name})"
+        return f"{self.title} ({self.group.group_name if self.group else 'Personal'})"
 
 
 class Branch(models.Model):
