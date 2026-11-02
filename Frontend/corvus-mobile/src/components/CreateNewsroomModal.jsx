@@ -69,10 +69,13 @@ export default function CreateNewsroomModal({ visible, onClose, onCreated }) {
     setSearching(true);
     try {
       const results = await searchUsers(query);
+      const userList = Array.isArray(results)
+        ? results
+        : (Array.isArray(results?.results) ? results.results : []);
       const myId = currentUser?.user_id;
       const myUsername = currentUser?.username;
       const myEmail = currentUser?.email;
-      const filtered = (results || []).filter(
+      const filtered = userList.filter(
         (u) =>
           (!myId || String(u.user_id) !== String(myId)) &&
           (!myUsername || u.username !== myUsername) &&

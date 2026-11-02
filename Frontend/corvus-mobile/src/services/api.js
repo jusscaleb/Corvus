@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 
 export const API_BASE_URL = Platform.select({
   web: 'http://localhost:8000',
-  default: 'http://192.168.88.206:8000',
+  default: 'http://10.10.181.65:8000',
 });
 
 let currentTokens = { access: null, refresh: null };
@@ -20,7 +20,7 @@ export const authStorage = {
   },
   getUser: () => currentUser,
   setUser: (user) => {
-    currentUser = user;
+    currentUser = user;0
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
         window.localStorage.setItem('corvus_user', JSON.stringify(currentUser));
