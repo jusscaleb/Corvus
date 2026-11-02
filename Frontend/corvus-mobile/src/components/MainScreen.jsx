@@ -18,6 +18,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import NewsroomHeader from './NewsroomHeader';
 import CreateNewsroomModal from './CreateNewsroomModal';
 import NewDMModal from './NewDMModal';
+import CreateArticleModal from './CreateArticleModal';
+import { LockIcon, UsersIcon, EditIcon, FilePdfIcon, PrinterIcon, EyeIcon, SaveIcon } from './AppIcons';
+import { exportArticleToPdf, openPdfDocument } from '../utils/pdfExporter';
 import { useTheme } from '../context/ThemeContext';
 import { VoiceChatProvider, ChatScreenHeader } from './VoiceChat';
 import { useAuth } from '../context/AuthContext';
@@ -28,6 +31,8 @@ import {
   fetchArticles,
   fetchMessages,
   sendChatMessage,
+  updateArticle,
+  updateBranchContent,
 } from '../services/api';
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -172,6 +177,13 @@ function MainScreenContent() {
   // Modals
   const [createNewsroomModalOpen, setCreateNewsroomModalOpen] = useState(false);
   const [newDMModalOpen, setNewDMModalOpen] = useState(false);
+  const [createArticleModalOpen, setCreateArticleModalOpen] = useState(false);
+  const [isEditingArticle, setIsEditingArticle] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editContent, setEditContent] = useState('');
+  const [editSummary, setEditSummary] = useState('');
+  const [savingArticle, setSavingArticle] = useState(false);
 
   // ── Animated values for expanding & retracting panels ───────────
   const leftAnim = useRef(new Animated.Value(1)).current;
@@ -234,18 +246,27 @@ function MainScreenContent() {
 
       if (articlesRes.status === 'fulfilled' && Array.isArray(articlesRes.value)) {
         setArticles(
-          articlesRes.value.map((a) => ({
-            id: a.article_id,
-            type: 'article',
-            title: a.title,
-            category: a.group_name || 'Editorial',
-            timestamp: a.created_at ? new Date(a.created_at).toLocaleDateString() : 'Draft',
-            author: a.author_name || 'Reporter',
-            readTime: `${a.branch_count || 1} branch${a.branch_count !== 1 ? 'es' : ''}`,
-            symbol: '◎',
-            summary: a.branches?.[0]?.content?.slice(0, 160) || 'Editorial draft in progress...',
-            content: a.branches?.[0]?.content || 'Draft content in progress...',
-          }))
+          articlesRes.value.map((a) => {
+            const mainBranch = a.branches?.[0];
+            const isPersonal = !a.group && !a.group_name;
+            const groupId = typeof a.group === 'string' ? a.group : a.group?.group_id;
+            return {
+              id: a.article_id,
+              type: 'article',
+              title: a.title,
+              category: isPersonal ? 'Personal Draft' : (a.group_name || 'Newsroom Desk'),
+              isPersonal,
+              groupId: groupId || null,
+              branchId: mainBranch?.branch_id,
+              timestamp: a.created_at ? new Date(a.created_at).toLocaleDateString() : 'Draft',
+              author: a.author_name || a.author?.full_name || a.author?.username || 'Reporter',
+              authorId: a.author?.user_id,
+              readTime: `${a.branch_count || 1} branch${a.branch_count !== 1 ? 'es' : ''}`,
+              symbol: '◎',
+              summary: mainBranch?.branch_description || mainBranch?.content?.slice(0, 160) || 'Editorial draft in progress...',
+              content: mainBranch?.content || 'Draft content in progress...',
+            };
+          })
         );
       }
     } catch (err) {
@@ -399,6 +420,64 @@ function MainScreenContent() {
     setSelectedItem(item);
     if (drawer) closeDrawer();
     setReplyText('');
+    if (item?.type === 'article') {
+      setEditTitle(item.title || '');
+      setEditContent(item.content || '');
+      setEditSummary(item.summary || '');
+      setIsEditingArticle(false);
+      setIsEditingTitle(false);
+    }
+  }
+
+  async function handleSaveArticleTitle() {
+    const cleanTitle = editTitle.trim();
+    if (!cleanTitle || !selectedItem?.id) return;
+    setSavingArticle(true);
+    try {
+      await updateArticle(selectedItem.id, { title: cleanTitle });
+      setArticles((prev) =>
+        prev.map((a) => (a.id === selectedItem.id ? { ...a, title: cleanTitle } : a))
+      );
+      setSelectedItem((prev) => ({ ...prev, title: cleanTitle }));
+      setIsEditingTitle(false);
+      showToast({ message: 'Headline updated.', type: 'info' });
+    } catch (err) {
+      showToast({ message: err?.message || 'Could not update headline.', type: 'error' });
+    } finally {
+      setSavingArticle(false);
+    }
+  }
+
+  async function handleSaveArticleContent() {
+    if (!selectedItem?.branchId) {
+      showToast({ message: 'No editable branch found.', type: 'error' });
+      return;
+    }
+    setSavingArticle(true);
+    try {
+      await updateBranchContent(selectedItem.branchId, {
+        content: editContent,
+        summary: editSummary,
+      });
+      setArticles((prev) =>
+        prev.map((a) =>
+          a.id === selectedItem.id
+            ? { ...a, content: editContent, summary: editSummary }
+            : a
+        )
+      );
+      setSelectedItem((prev) => ({
+        ...prev,
+        content: editContent,
+        summary: editSummary,
+      }));
+      setIsEditingArticle(false);
+      showToast({ message: 'Article content saved!', type: 'info' });
+    } catch (err) {
+      showToast({ message: err?.message || 'Could not save article content.', type: 'error' });
+    } finally {
+      setSavingArticle(false);
+    }
   }
 
   async function sendMessage() {
@@ -424,6 +503,12 @@ function MainScreenContent() {
   }
 
   // ── Modal Creation Callbacks ────────────────────────────────────
+  function handleArticleCreated(newArticle) {
+    setArticles((prev) => [newArticle, ...prev]);
+    selectItem(newArticle);
+    loadWorkspaceData();
+  }
+
   function handleNewsroomCreated(newGroup) {
     const item = {
       id: newGroup.group_id,
@@ -520,7 +605,16 @@ function MainScreenContent() {
     if (drawer === 'articles') {
       return (
         <>
-          <SectionHeading title="Articles" count={articles.length} styles={styles} />
+          <SectionHeading
+            title="Articles"
+            count={articles.length}
+            onAdd={() => {
+              closeDrawer();
+              setCreateArticleModalOpen(true);
+            }}
+            addLabel="Draft new story or PDF"
+            styles={styles}
+          />
           {renderArticleList()}
         </>
       );
@@ -588,10 +682,16 @@ function MainScreenContent() {
           </Text>
           <View style={styles.welcomeActions}>
             <Pressable
-              onPress={() => setCreateNewsroomModalOpen(true)}
+              onPress={() => setCreateArticleModalOpen(true)}
               style={styles.welcomePrimaryBtn}
             >
-              <Text style={styles.welcomePrimaryBtnText}>+ Establish Newsroom (3+ People)</Text>
+              <Text style={styles.welcomePrimaryBtnText}>+ Draft Story or Attach PDF</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setCreateNewsroomModalOpen(true)}
+              style={styles.welcomeSecondaryBtn}
+            >
+              <Text style={styles.welcomeSecondaryBtnText}>+ Establish Newsroom (3+ People)</Text>
             </Pressable>
             <Pressable
               onPress={() => setNewDMModalOpen(true)}
@@ -605,30 +705,231 @@ function MainScreenContent() {
     }
 
     if (selectedItem.type === 'article') {
+      let pdfData = null;
+      try {
+        if (typeof selectedItem.content === 'string' && selectedItem.content.trim().startsWith('{')) {
+          const parsed = JSON.parse(selectedItem.content);
+          if (parsed && parsed.isPdfFile) {
+            pdfData = parsed;
+          }
+        }
+      } catch (e) {}
+
+      const isPersonal = selectedItem.isPersonal || !selectedItem.groupId;
+      const targetNewsroom = newsrooms.find((g) => g.id === selectedItem.groupId);
+
       return (
         <Animated.View style={[{ flex: 1 }, { opacity: contentFadeAnim }]}>
           <ScrollView contentContainerStyle={styles.articleScroll}>
+            {/* Header / Category & Actions Line */}
             <View style={styles.articleHeaderLine}>
-              <View style={styles.articleCategory}>
-                <Text style={styles.articleCategoryText}>{selectedItem.category}</Text>
+              <View style={[styles.articleCategory, isPersonal && styles.articleCategoryPersonal, { flexDirection: 'row', alignItems: 'center', gap: 5 }]}>
+                {isPersonal ? (
+                  <LockIcon size={10} color={colors.paper} />
+                ) : (
+                  <UsersIcon size={10} color={colors.paper} />
+                )}
+                <Text style={styles.articleCategoryText}>
+                  {isPersonal ? 'PERSONAL DRAFT' : `${targetNewsroom?.title?.toUpperCase() || 'NEWSROOM'} DESK`}
+                </Text>
               </View>
               <Text style={styles.articleMeta}>{selectedItem.timestamp}</Text>
               <Text style={styles.articleMeta}>{selectedItem.readTime}</Text>
+
+              <View style={{ flex: 1 }} />
+
+              {/* Action buttons bar */}
+              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                {!pdfData && (
+                  isEditingArticle ? (
+                    <>
+                      <Pressable
+                        onPress={() => {
+                          setIsEditingArticle(false);
+                          setEditContent(selectedItem.content || '');
+                          setEditSummary(selectedItem.summary || '');
+                        }}
+                        style={styles.articleCancelEditBtn}
+                      >
+                        <Text style={styles.articleCancelEditBtnText}>Cancel</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={handleSaveArticleContent}
+                        disabled={savingArticle}
+                        style={styles.articleSaveBtn}
+                      >
+                        {savingArticle ? (
+                          <ActivityIndicator size="small" color="#FFF" />
+                        ) : (
+                          <>
+                            <SaveIcon size={12} color="#FFF" style={{ marginRight: 5 }} />
+                            <Text style={styles.articleSaveBtnText}>Save Story</Text>
+                          </>
+                        )}
+                      </Pressable>
+                    </>
+                  ) : (
+                    <Pressable
+                      onPress={() => setIsEditingArticle(true)}
+                      style={styles.articleActionBtn}
+                    >
+                      <EditIcon size={12} color={colors.ink} style={{ marginRight: 5 }} /><Text style={styles.articleActionBtnText}>Edit Story</Text>
+                    </Pressable>
+                  )
+                )}
+
+                {pdfData ? (
+                  <Pressable
+                    onPress={() => openPdfDocument(pdfData.fileName, pdfData.dataUrl)}
+                    style={styles.articleActionBtn}
+                  >
+                    <FilePdfIcon size={12} color={colors.ink} style={{ marginRight: 5 }} /><Text style={styles.articleActionBtnText}>Open PDF</Text>
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    onPress={() => exportArticleToPdf({
+                      ...selectedItem,
+                      content: isEditingArticle ? editContent : selectedItem.content,
+                      summary: isEditingArticle ? editSummary : selectedItem.summary,
+                    })}
+                    style={styles.articleActionBtn}
+                  >
+                    <PrinterIcon size={12} color={colors.ink} style={{ marginRight: 5 }} /><Text style={styles.articleActionBtnText}>Save as PDF</Text>
+                  </Pressable>
+                )}
+              </View>
             </View>
-            <Text style={styles.articleTitle}>{selectedItem.title}</Text>
+
+            {/* Editable or Display Headline */}
+            {isEditingTitle ? (
+              <View style={styles.titleEditRow}>
+                <TextInput
+                  value={editTitle}
+                  onChangeText={setEditTitle}
+                  onSubmitEditing={handleSaveArticleTitle}
+                  autoFocus
+                  style={styles.titleInput}
+                />
+                <Pressable
+                  onPress={handleSaveArticleTitle}
+                  disabled={savingArticle}
+                  style={styles.titleSaveBtn}
+                >
+                  <Text style={styles.titleSaveBtnText}>Save</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    setIsEditingTitle(false);
+                    setEditTitle(selectedItem.title || '');
+                  }}
+                  style={styles.titleCancelBtn}
+                >
+                  <Text style={styles.titleCancelBtnText}>✕</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={styles.titleRow}>
+                <Text style={styles.articleTitle}>{selectedItem.title}</Text>
+                <Pressable
+                  onPress={() => setIsEditingTitle(true)}
+                  style={styles.editTitleMiniBtn}
+                >
+                  <EditIcon size={10} color={colors.muted} style={{ marginRight: 4 }} /><Text style={styles.editTitleMiniText}>Edit Headline</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {/* Authorship Row (Personal vs Newsroom Members) */}
             <View style={styles.authorRow}>
-              <View style={styles.authorAvatar}>
-                <Text style={styles.authorInitial}>{selectedItem.author?.charAt(0)}</Text>
+              <View style={[styles.authorAvatar, isPersonal && styles.authorAvatarPersonal]}>
+                {isPersonal ? (
+                  <Text style={[styles.authorInitial, styles.authorInitialPersonal]}>
+                    {user?.full_name?.charAt(0) || user?.username?.charAt(0) || 'U'}
+                  </Text>
+                ) : (
+                  <UsersIcon size={16} color={colors.ink} />
+                )}
               </View>
-              <View>
-                <Text style={styles.authorName}>{selectedItem.author}</Text>
-                <Text style={styles.authorRole}>Corvus Correspondent</Text>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.authorName}>
+                  {isPersonal
+                    ? `${user?.full_name || user?.username || 'You'} (Personal Draft)`
+                    : `Reported by ${selectedItem.author || 'Reporter'} • ${targetNewsroom?.title || 'Newsroom'} Desk`}
+                </Text>
+                <Text style={styles.authorRole}>
+                  {isPersonal
+                    ? 'Private Workspace • Only visible to you'
+                    : `Collaborative Investigation • ${targetNewsroom?.subscribers || 'Desk Members'}`}
+                </Text>
               </View>
             </View>
-            <View style={styles.summaryBox}>
-              <Text style={styles.summaryText}>{selectedItem.summary}</Text>
-            </View>
-            <Text style={styles.articleBody}>{selectedItem.content}</Text>
+
+            {/* PDF File Banner */}
+            {pdfData ? (
+              <View style={styles.pdfArticleBanner}>
+                <View style={styles.pdfBannerBadge}>
+                  <Text style={styles.pdfBannerBadgeText}>PDF ARCHIVE</Text>
+                </View>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={styles.pdfBannerTitle}>{pdfData.fileName}</Text>
+                  <Text style={styles.pdfBannerMeta}>
+                    Document Size: {pdfData.fileSize} • Secured in newsroom archive
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => openPdfDocument(pdfData.fileName, pdfData.dataUrl)}
+                  style={styles.pdfViewButton}
+                >
+                  <EyeIcon size={13} color="#FFF" style={{ marginRight: 5 }} /><Text style={styles.pdfViewButtonText}>View PDF</Text>
+                </Pressable>
+              </View>
+            ) : null}
+
+            {/* Lead Summary (Editable or Display) */}
+            {!pdfData && (
+              isEditingArticle ? (
+                <View style={styles.editSummaryBlock}>
+                  <Text style={styles.editSectionLabel}>LEAD SUMMARY / SCOPE</Text>
+                  <TextInput
+                    value={editSummary}
+                    onChangeText={setEditSummary}
+                    placeholder="Editorial lead summary..."
+                    placeholderTextColor={colors.muted}
+                    multiline
+                    style={styles.editSummaryInput}
+                  />
+                </View>
+              ) : selectedItem.summary ? (
+                <View style={styles.summaryBox}>
+                  <Text style={styles.summaryText}>{selectedItem.summary}</Text>
+                </View>
+              ) : null
+            )}
+
+            {/* Article Body (Editable in-app or Display) */}
+            {!pdfData && (
+              isEditingArticle ? (
+                <View style={styles.editBodyBlock}>
+                  <View style={styles.editBodyLabelRow}>
+                    <Text style={styles.editSectionLabel}>ARTICLE COPY / REPORT</Text>
+                    <Text style={styles.editBodyCount}>
+                      {editContent.length} chars • {editContent.trim() ? editContent.trim().split(/\s+/).length : 0} words
+                    </Text>
+                  </View>
+                  <TextInput
+                    value={editContent}
+                    onChangeText={setEditContent}
+                    placeholder="Type article copy here..."
+                    placeholderTextColor={colors.muted}
+                    multiline
+                    textAlignVertical="top"
+                    style={styles.editBodyInput}
+                  />
+                </View>
+              ) : (
+                <Text style={styles.articleBody}>{selectedItem.content}</Text>
+              )
+            )}
           </ScrollView>
         </Animated.View>
       );
@@ -738,6 +1039,8 @@ function MainScreenContent() {
           expanded={leftOpen}
           onToggle={() => setLeftOpen(false)}
           toggleLabel="Collapse articles panel"
+          onAdd={() => setCreateArticleModalOpen(true)}
+          addLabel="Draft new story or PDF"
           styles={styles}
         />
         <ScrollView contentContainerStyle={styles.sidebarList}>
@@ -961,6 +1264,14 @@ function MainScreenContent() {
         visible={newDMModalOpen}
         onClose={() => setNewDMModalOpen(false)}
         onCreated={handleDMCreated}
+      />
+
+      {/* Create Article / PDF Modal */}
+      <CreateArticleModal
+        visible={createArticleModalOpen}
+        onClose={() => setCreateArticleModalOpen(false)}
+        onCreated={handleArticleCreated}
+        newsrooms={newsrooms}
       />
     </SafeAreaView>
   );
@@ -1244,6 +1555,138 @@ function makeStyles(colors) {
       backgroundColor: colors.ink,
     },
     articleCategoryText: { color: colors.paper, fontSize: 9, fontWeight: '800', textTransform: 'uppercase' },
+    articleCategoryPersonal: { backgroundColor: colors.forest },
+    authorAvatarPersonal: { backgroundColor: colors.forest },
+    authorInitialPersonal: { color: '#FFFFFF' },
+    titleRow: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      gap: 12,
+      marginTop: 19,
+      flexWrap: 'wrap',
+    },
+    titleEditRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 16,
+    },
+    titleInput: {
+      flex: 1,
+      minHeight: 44,
+      borderWidth: 1,
+      borderColor: colors.forest,
+      borderRadius: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      fontSize: 22,
+      fontWeight: '700',
+      color: colors.ink,
+      backgroundColor: colors.inputBg,
+    },
+    titleSaveBtn: {
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      backgroundColor: colors.forest,
+      borderRadius: 6,
+    },
+    titleSaveBtnText: {
+      color: '#FFFFFF',
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    titleCancelBtn: {
+      paddingHorizontal: 10,
+      paddingVertical: 10,
+    },
+    titleCancelBtnText: {
+      color: colors.muted,
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    editTitleMiniBtn: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 4,
+      backgroundColor: colors.note,
+    },
+    editTitleMiniText: {
+      color: colors.muted,
+      fontSize: 11,
+      fontWeight: '600',
+    },
+    articleSaveBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 7,
+      borderRadius: 6,
+      backgroundColor: colors.forest,
+    },
+    articleSaveBtnText: {
+      color: '#FFFFFF',
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    articleCancelEditBtn: {
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 6,
+      backgroundColor: colors.note,
+    },
+    articleCancelEditBtnText: {
+      color: colors.ink,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    editSummaryBlock: {
+      marginTop: 18,
+      gap: 6,
+    },
+    editSectionLabel: {
+      color: colors.orange,
+      fontSize: 9,
+      fontWeight: '800',
+      letterSpacing: 1,
+    },
+    editSummaryInput: {
+      minHeight: 64,
+      padding: 12,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: colors.line,
+      backgroundColor: colors.inputBg,
+      color: colors.ink,
+      fontStyle: 'italic',
+      fontSize: 14,
+      lineHeight: 20,
+    },
+    editBodyBlock: {
+      marginTop: 20,
+      gap: 6,
+    },
+    editBodyLabelRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    editBodyCount: {
+      fontSize: 10,
+      color: colors.muted,
+      fontFamily: 'monospace',
+    },
+    editBodyInput: {
+      minHeight: 280,
+      padding: 16,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.line,
+      backgroundColor: colors.inputBg,
+      color: colors.ink,
+      fontSize: 15,
+      lineHeight: 25,
+      fontFamily: 'serif',
+    },
     articleMeta: { color: colors.muted, fontSize: 10 },
     articleTitle: {
       marginTop: 19,
@@ -1288,6 +1731,65 @@ function makeStyles(colors) {
       lineHeight: 21,
     },
     articleBody: { marginTop: 20, color: colors.ink, fontFamily: 'serif', fontSize: 15, lineHeight: 25 },
+    articleActionBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 5,
+      borderWidth: 1,
+      borderColor: colors.line,
+      backgroundColor: colors.cardBg,
+    },
+    articleActionBtnText: {
+      color: colors.ink,
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    pdfArticleBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      padding: 14,
+      marginTop: 18,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.line,
+      backgroundColor: colors.note,
+    },
+    pdfBannerBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 5,
+      borderRadius: 4,
+      backgroundColor: colors.orange,
+    },
+    pdfBannerBadgeText: {
+      color: '#FFFFFF',
+      fontSize: 10,
+      fontWeight: '900',
+      letterSpacing: 1,
+    },
+    pdfBannerTitle: {
+      color: colors.ink,
+      fontFamily: 'serif',
+      fontSize: 15,
+      fontWeight: '700',
+    },
+    pdfBannerMeta: {
+      color: colors.muted,
+      fontSize: 11,
+    },
+    pdfViewButton: {
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 6,
+      backgroundColor: colors.forest,
+    },
+    pdfViewButtonText: {
+      color: '#FFFFFF',
+      fontSize: 12,
+      fontWeight: '700',
+    },
     chatPane: { flex: 1, minHeight: 0, backgroundColor: colors.cardBg },
     chatHeader: {
       minHeight: 70,

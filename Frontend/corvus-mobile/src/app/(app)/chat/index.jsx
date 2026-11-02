@@ -16,6 +16,7 @@ import {
 import NewsroomHeader from '../../../components/NewsroomHeader';
 import { useTheme } from '../../../context/ThemeContext';
 import { sendChatMessage, fetchMessages } from '../../../services/api';
+import { PaperclipIcon, CalendarIcon, ClipboardIcon } from '../../../components/AppIcons';
 
 // ─── Quick emoji picks shown in the toolbar ────────────────────────────────────
 const QUICK_EMOJIS = ['👍', '❤️', '🔥', '✅', '⚠️', '📌', '🎯', '💬'];
@@ -25,7 +26,7 @@ function StatusDot({ status, colors }) {
   if (status === 'sent') return null;
   return (
     <Text style={{ fontSize: 10, color: status === 'error' ? colors.orange : colors.muted, marginTop: 3 }}>
-      {status === 'sending' ? 'Sending…' : '⚠ Failed — tap to retry'}
+      {status === 'sending' ? 'Sending…' : 'Failed — tap to retry'}
     </Text>
   );
 }
@@ -224,13 +225,13 @@ export default function ChatScreen() {
               </View>
               <View style={styles.toolbarActions}>
                 <Pressable style={styles.toolbarAction}>
-                  <Text style={styles.toolbarActionText}>📎 Attach</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}><PaperclipIcon size={12} color={colors.ink} /><Text style={styles.toolbarActionText}>Attach</Text></View>
                 </Pressable>
                 <Pressable style={styles.toolbarAction}>
-                  <Text style={styles.toolbarActionText}>🗓 Schedule</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}><CalendarIcon size={12} color={colors.ink} /><Text style={styles.toolbarActionText}>Schedule</Text></View>
                 </Pressable>
                 <Pressable style={styles.toolbarAction}>
-                  <Text style={styles.toolbarActionText}>📋 Template</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}><ClipboardIcon size={12} color={colors.ink} /><Text style={styles.toolbarActionText}>Template</Text></View>
                 </Pressable>
               </View>
             </View>

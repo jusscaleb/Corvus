@@ -117,3 +117,22 @@ class ProjectTests(APITestCase):
         patch_res = self.client.patch(detail_url, {"content": "Updated comprehensive investigative findings."})
         self.assertEqual(patch_res.status_code, status.HTTP_200_OK)
         self.assertEqual(patch_res.data['content'], "Updated comprehensive investigative findings.")
+
+    def test_create_personal_article_without_group(self):
+        url = reverse('user_article_list')
+        data = {"title": "My Private Confidential Lead"}
+        response = self.client.post(url, data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['title'], "My Private Confidential Lead")
+        self.assertIsNone(response.data['group'])
+        self.assertEqual(response.data['branch_count'], 1)
+
+        article_id = response.data['article_id']
+        main_branch = Branch.objects.get(article_id=article_id, is_main=True)
+        self.assertEqual(main_branch.branch_name, 'main')
+
+        # Outsider user cannot view this personal article
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token2}')
+        detail_url = reverse('article_detail', kwargs={'article_id': article_id})
+        res = self.client.get(detail_url)
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)

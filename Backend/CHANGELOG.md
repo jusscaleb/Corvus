@@ -3,6 +3,21 @@
 All notable backend changes are documented here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.3.1] - 2026-11-02
+
+### Added
+
+- **Personal (User-Only) Article Creation (`POST /api/project/articles/`)**:
+  - Added `post` handler in `UserArticleListView` enabling authenticated reporters to draft private investigative articles and notes without requiring assignment to a newsroom desk.
+  - Automatically provisions root `main` branch with description `Personal editorial draft`.
+  - Updated `Article.group` ForeignKey in `Project/models.py` to allow `null=True, blank=True` (`0003_alter_article_group` migration).
+  - Updated article string representation to safely display `'Personal'` when `group` is `None`.
+
+### Fixed
+
+- **Article & Branch Access Checks for Personal Drafts (`Project/views.py`)**:
+  - Updated `ArticleDetailView.get_article`, `ArticleBranchListCreateView.get_article`, and `BranchDetailView.get_branch` to grant access if `article.author == request.user`, resolving `403 Forbidden` and `AttributeError` for personal drafts without a group.
+
 ## [2.3.0] - 2026-11-02
 
 ### Added
