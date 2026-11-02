@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Voice Chat UI Implementation**
+  -Include a phone icon and an AI toggle.
+
 - **Newsroom Creation Workflow & Modal (`CreateNewsroomModal.jsx`)**:
   - Added '+' trigger on the Newsrooms sidebar and mobile drawer to create newsroom desks.
   - Implemented live colleague search by username (`@username`) and full name.
