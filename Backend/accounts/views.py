@@ -3,6 +3,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth import get_user_model
+from django.db.models import Q
 
 from .serializer import (
     UserRegistrationSerializer,
@@ -10,6 +12,8 @@ from .serializer import (
     PasswordResetRequestSerializer,
     PasswordResetConfirmSerializer,
 )
+
+User = get_user_model()
 
 
 class RegisterView(APIView):
@@ -47,6 +51,36 @@ class ProfileView(APIView):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class UserSearchView(APIView):
+    """
+    GET: Search active users by username or full name.
+    Strictly excludes the requesting user and does not leak private email credentials.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        query = request.query_params.get('search', '').strip()
+        users_qs = (
+            User.objects.filter(is_active=True)
+            .exclude(user_id=request.user.user_id)
+            .exclude(email=request.user.email)
+        )
+        if query:
+            users_qs = users_qs.filter(
+                Q(username__icontains=query) | Q(full_name__icontains=query)
+            )
+        users = users_qs.only('user_id', 'username', 'full_name')[:25]
+        data = [
+            {
+                "user_id": str(u.user_id),
+                "username": u.username,
+                "full_name": u.full_name or u.username,
+            }
+            for u in users
+        ]
+        return Response(data, status=status.HTTP_200_OK)
 
 
 class PasswordResetRequestView(APIView):

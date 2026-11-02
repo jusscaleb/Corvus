@@ -18,9 +18,7 @@ export default function ChatScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const styles = makeStyles(colors);
-  const [messages, setMessages] = useState([
-    { id: 'welcome', role: 'assistant', text: 'Good morning. What are we working on today?' },
-  ]);
+  const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
 
   function sendMessage() {
@@ -48,22 +46,30 @@ export default function ChatScreen() {
           </Pressable>
         </View>
 
-        <FlatList
-          contentContainerStyle={styles.messages}
-          data={messages}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => {
-            const isUser = item.role === 'user';
-            return (
-              <View style={[styles.messageRow, isUser && styles.userRow]}>
-                <View style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}>
-                  {!isUser && <Text style={styles.sender}>CORVUS</Text>}
-                  <Text style={[styles.messageText, isUser && styles.userMessageText]}>{item.text}</Text>
+        {messages.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyIcon}>◇</Text>
+            <Text style={styles.emptyTitle}>No messages yet</Text>
+            <Text style={styles.emptySubtitle}>Send a message to begin the newsroom conversation.</Text>
+          </View>
+        ) : (
+          <FlatList
+            contentContainerStyle={styles.messages}
+            data={messages}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => {
+              const isUser = item.role === 'user';
+              return (
+                <View style={[styles.messageRow, isUser && styles.userRow]}>
+                  <View style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}>
+                    {!isUser && <Text style={styles.sender}>CORVUS</Text>}
+                    <Text style={[styles.messageText, isUser && styles.userMessageText]}>{item.text}</Text>
+                  </View>
                 </View>
-              </View>
-            );
-          }}
-        />
+              );
+            }}
+          />
+        )}
 
         <View style={styles.composerRow}>
           <TextInput
@@ -133,6 +139,29 @@ function makeStyles(colors) {
       color: colors.forest,
       fontSize: 14,
       fontWeight: '700',
+    },
+    emptyContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 32,
+      gap: 8,
+    },
+    emptyIcon: {
+      fontSize: 32,
+      color: colors.muted,
+      marginBottom: 4,
+    },
+    emptyTitle: {
+      color: colors.ink,
+      fontFamily: 'serif',
+      fontSize: 18,
+      fontWeight: '700',
+    },
+    emptySubtitle: {
+      color: colors.muted,
+      fontSize: 12,
+      textAlign: 'center',
     },
     messages: {
       flexGrow: 1,

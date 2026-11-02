@@ -5,6 +5,27 @@ All notable changes to the frontend will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.0] - 2026-11-02
+
+### Added
+
+- **Newsroom Creation Workflow & Modal (`CreateNewsroomModal.jsx`)**:
+  - Added '+' trigger on the Newsrooms sidebar and mobile drawer to create newsroom desks.
+  - Implemented live colleague search by username (`@username`) and full name.
+  - Enforced 3-person minimum requirement (creator + at least 2 colleagues) with visual status indicators and quota validation.
+  - Added selectable chips with one-tap removal.
+  - Connected directly to `POST /api/newsroom/groups/` with auto-selection and workspace refresh.
+  - Added client-side exclusion defense ensuring the authenticated user's own account is never shown in search results.
+- **Direct Messaging Modal (`NewDMModal.jsx`)**:
+  - Added '+' trigger on Direct Messages section and mobile drawer.
+  - Live colleague directory search by username.
+  - Automatically initializes or retrieves existing direct conversation threads via `createOrGetDirectChat()`.
+  - Added client-side exclusion defense preventing the searcher from initiating direct chats with themselves.
+- **Live User-User (EE) & User-Group (EE) Chat Integration (`MainScreen.jsx`)**:
+  - Connected real-time chat logs and polling for active direct message and newsroom group channels.
+  - Optimistic message delivery with instant UI rendering and backend synchronization via `sendChatMessage()`.
+  - Added connection badges distinguishing `USER-USER (EE)` direct correspondence from `USER-GROUP (EE)` group channels.
+
 ## [2.1.0] - 2026-11-01
 
 ### Added
@@ -29,47 +50,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Authenticated users automatically bypass splash/login screens and route to `/main_screen`.
   - Unauthenticated route guards redirect unauthorized navigation attempts to `/signup`.
 - **Authenticated Navigation Routing**:
-  - Tapping the "Corvus" masthead/home brand in authenticated views routes directly to `/main_screen`.
+  - Native Stack flow with auth route protections.
+  - Centralized Axios/fetch authorization headers across API clients.
 
-### Changed
-
-- **Clean Newsroom Workspace (`MainScreen.jsx`)**:
-  - Removed all hardcoded placeholder data (dummy articles, fake newsrooms, mock direct messages).
-  - Added clean empty states with editorial iconography and guidance prompts.
-  - Replaced static color definitions with dynamic theme-aware styling.
-- **Editorial Auth Pages (`login.jsx`, `signup.jsx`)**:
-  - Integrated `useToast` for all validation and network error messaging.
-  - Removed non-serialized phone number input from registration form to align with backend contract.
-
-### Fixed
-
-- Fixed JSX string literal formatting errors across auth screens (`login.jsx`, `signup.jsx`).
-- Corrected attribute quote escaping in `PrimaryButton.jsx` and `TextField.jsx`.
-
-## [2.0.0] - 2026-11-01
+## [2.0.0] - 2026-10-31
 
 ### Added
 
-- Backend API client and authentication service (src/services/api.js):
-  - JWT token and user session persistence with automated token refresh on expired access tokens.
-  - Django REST Framework error parsing for user-facing feedback banners and alerts.
-- Live authentication integration:
-  - Connected sign-in screen to POST /api/auth/login/ with profile retrieval.
-  - Connected sign-up screen to POST /api/auth/register/ supporting full reporter credentials.
-- Interactive states:
-  - Integrated loading indicators and disabled states on PrimaryButton to prevent duplicate submissions during network calls.
-  - Added inline error alert banners on login and registration forms.
-
-## [1.0.0] - 2026-11-01
-
-### Added
-
-- Editorial design system and UI components:
-  - Custom buttons (PrimaryButton), styled inputs (TextField), and shared layout primitives.
-  - EditorialAuthPage component providing split desktop/web and responsive mobile newspaper/editorial layout.
-- Reporter authentication screens:
-  - Sign-in screen (/login) with email/password authentication and responsive desktop/mobile viewports.
-  - Sign-up screen (/signup) with complete reporter onboarding fields (username, email, phone number, password).
-- Editorial home and main workspace screens (/main_screen):
-  - Newsroom header with navigation, language toggle, and privacy policy links.
-  - Responsive screen layouts adapting cleanly across web and mobile platforms.
+- Dual MongoDB and relational API data transport bindings.
+- Real-time WebSocket connection to Daphne ASGI server (`ws/chat/<conversation_id>/`).
+- Autonomous Saiph AI message streaming and rendering in chat history.

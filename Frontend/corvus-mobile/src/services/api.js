@@ -1,8 +1,8 @@
-﻿import { Platform } from 'react-native';
+import { Platform } from 'react-native';
 
 export const API_BASE_URL = Platform.select({
   web: 'http://localhost:8000',
-  default: 'http://10.10.181.65:8000',
+  default: 'http://10.10.181.65:8081',
 });
 
 let currentTokens = { access: null, refresh: null };

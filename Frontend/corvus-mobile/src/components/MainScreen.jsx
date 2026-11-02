@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useWindowDimensions } from 'react-native';
 import {
+  ActivityIndicator,
   Animated,
   Easing,
   KeyboardAvoidingView,
@@ -15,8 +16,19 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import NewsroomHeader from './NewsroomHeader';
+import CreateNewsroomModal from './CreateNewsroomModal';
+import NewDMModal from './NewDMModal';
 import { useTheme } from '../context/ThemeContext';
 import { VoiceChatProvider, ChatScreenHeader } from './VoiceChat';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+import {
+  fetchNewsrooms,
+  fetchInbox,
+  fetchArticles,
+  fetchMessages,
+  sendChatMessage,
+} from '../services/api';
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -28,30 +40,53 @@ function SymbolIcon({ symbol, color, size = 18 }) {
   );
 }
 
-function SectionHeading({ title, count, onToggle, toggleLabel, expanded = true, styles }) {
+function SectionHeading({
+  title,
+  count,
+  onToggle,
+  toggleLabel,
+  onAdd,
+  addLabel,
+  expanded = true,
+  styles,
+}) {
   return (
     <View style={styles.sectionHeading}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {count !== undefined && (
-        <Text style={styles.sectionCount}>{String(count).padStart(2, '0')}</Text>
-      )}
-      {onToggle && (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={toggleLabel}
-          onPress={onToggle}
-          style={styles.panelToggle}
-        >
-          <Text style={styles.panelToggleText}>{expanded ? '−' : '+'}</Text>
-        </Pressable>
-      )}
+      <View style={styles.headingTitleRow}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        {count !== undefined && (
+          <Text style={styles.sectionCount}>{String(count).padStart(2, '0')}</Text>
+        )}
+      </View>
+      <View style={styles.headingActionsRow}>
+        {onAdd && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={addLabel || `Create ${title}`}
+            onPress={onAdd}
+            style={styles.panelAddBtn}
+          >
+            <Text style={styles.panelAddText}>+</Text>
+          </Pressable>
+        )}
+        {onToggle && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={toggleLabel}
+            onPress={onToggle}
+            style={styles.panelToggle}
+          >
+            <Text style={styles.panelToggleText}>{expanded ? '−' : '+'}</Text>
+          </Pressable>
+        )}
+      </View>
     </View>
   );
 }
 
 function SelectableRow({ item, selected, onPress, compact = false, styles }) {
   const latestMessage = item.type === 'chat' ? item.lastMessage : item.timestamp;
-  const symbol = item.symbol || item.avatar?.slice(0, 1) || '•';
+  const symbol = item.symbol || item.avatar?.slice(0, 2) || '•';
 
   return (
     <Pressable
@@ -86,12 +121,17 @@ function SelectableRow({ item, selected, onPress, compact = false, styles }) {
 
 // ─── Empty state ──────────────────────────────────────────────────────────────
 
-function EmptyState({ icon, title, subtitle, styles }) {
+function EmptyState({ icon, title, subtitle, actionLabel, onAction, styles }) {
   return (
     <View style={styles.emptyState}>
       <Text style={styles.emptyIcon}>{icon}</Text>
       <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={styles.emptySubtitle}>{subtitle}</Text>
+      {actionLabel && onAction && (
+        <Pressable onPress={onAction} style={styles.emptyActionBtn}>
+          <Text style={styles.emptyActionText}>{actionLabel}</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -108,16 +148,30 @@ export default function MainScreen() {
 
 function MainScreenContent() {
   const { colors } = useTheme();
+  const { user } = useAuth();
+  const { showToast } = useToast();
   const styles = makeStyles(colors);
   const { width } = useWindowDimensions();
   const wide = width >= 1080;
 
+  // Workspace selection & panel states
   const [selectedItem, setSelectedItem] = useState(null);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [drawer, setDrawer] = useState(null);
   const [replyText, setReplyText] = useState('');
   const [chatLogs, setChatLogs] = useState({});
+  const [sendingMessage, setSendingMessage] = useState(false);
+
+  // Live data states
+  const [articles, setArticles] = useState([]);
+  const [newsrooms, setNewsrooms] = useState([]);
+  const [directMessages, setDirectMessages] = useState([]);
+  const [loadingInitial, setLoadingInitial] = useState(true);
+
+  // Modals
+  const [createNewsroomModalOpen, setCreateNewsroomModalOpen] = useState(false);
+  const [newDMModalOpen, setNewDMModalOpen] = useState(false);
 
   // ── Animated values for expanding & retracting panels ───────────
   const leftAnim = useRef(new Animated.Value(1)).current;
@@ -126,6 +180,123 @@ function MainScreenContent() {
   const contentFadeAnim = useRef(new Animated.Value(1)).current;
   const drawerSlideAnim = useRef(new Animated.Value(300)).current;
   const drawerBackdropAnim = useRef(new Animated.Value(0)).current;
+
+  // ── Initial Live Data Loading ──────────────────────────────────
+  const loadWorkspaceData = useCallback(async () => {
+    try {
+      const [groupsRes, inboxRes, articlesRes] = await Promise.allSettled([
+        fetchNewsrooms(),
+        fetchInbox(),
+        fetchArticles(),
+      ]);
+
+      if (groupsRes.status === 'fulfilled' && Array.isArray(groupsRes.value)) {
+        setNewsrooms(
+          groupsRes.value.map((g) => ({
+            id: g.group_id,
+            type: 'chat',
+            chatType: 'group',
+            title: g.group_name,
+            tagline: g.group_description || 'Newsroom desk channel',
+            subscribers: `${g.member_number || 1} members`,
+            symbol: '▤',
+            avatar: g.group_name.slice(0, 2).toUpperCase(),
+          }))
+        );
+      }
+
+      if (inboxRes.status === 'fulfilled' && Array.isArray(inboxRes.value)) {
+        setDirectMessages(
+          inboxRes.value.map((c) => {
+            const other = (c.other_participants && c.other_participants[0]) || {};
+            const title =
+              c.type === 'direct'
+                ? other.full_name || other.username || 'Colleague'
+                : c.title || 'Conversation';
+            return {
+              id: c.conversation_id || c._id,
+              type: 'chat',
+              chatType: c.type,
+              title,
+              role: c.type === 'direct' ? `@${other.username || 'reporter'}` : 'Newsroom group',
+              avatar: title.slice(0, 2).toUpperCase(),
+              status: 'online',
+              lastMessage: c.last_message?.content || 'No messages yet',
+              time: c.last_message?.created_at
+                ? new Date(c.last_message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                : 'Recent',
+              unread: 0,
+              otherUser: other,
+            };
+          })
+        );
+      }
+
+      if (articlesRes.status === 'fulfilled' && Array.isArray(articlesRes.value)) {
+        setArticles(
+          articlesRes.value.map((a) => ({
+            id: a.article_id,
+            type: 'article',
+            title: a.title,
+            category: a.group_name || 'Editorial',
+            timestamp: a.created_at ? new Date(a.created_at).toLocaleDateString() : 'Draft',
+            author: a.author_name || 'Reporter',
+            readTime: `${a.branch_count || 1} branch${a.branch_count !== 1 ? 'es' : ''}`,
+            symbol: '◎',
+            summary: a.branches?.[0]?.content?.slice(0, 160) || 'Editorial draft in progress...',
+            content: a.branches?.[0]?.content || 'Draft content in progress...',
+          }))
+        );
+      }
+    } catch (err) {
+      console.log('Error loading workspace data:', err);
+    } finally {
+      setLoadingInitial(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadWorkspaceData();
+  }, [loadWorkspaceData]);
+
+  // ── Poll messages for active chat conversation ──────────────────
+  const activeConversationId = selectedItem?.type === 'chat' ? selectedItem.id : null;
+  useEffect(() => {
+    if (!activeConversationId) return;
+
+    let isMounted = true;
+    async function loadChatMessages() {
+      try {
+        const res = await fetchMessages(activeConversationId);
+        if (res?.messages && isMounted) {
+          const formatted = res.messages.map((m) => {
+            const isMe = String(m.sender_id) === String(user?.user_id);
+            return {
+              sender: isMe ? 'You' : m.sender_type === 'ai' ? 'Corvus Wire' : 'Colleague',
+              text: m.content,
+              time: m.created_at
+                ? new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                : 'Recent',
+              rawId: m.message_id || m._id,
+            };
+          });
+          setChatLogs((prev) => ({
+            ...prev,
+            [activeConversationId]: formatted,
+          }));
+        }
+      } catch {
+        // Chat service might be offline or empty
+      }
+    }
+
+    loadChatMessages();
+    const interval = setInterval(loadChatMessages, 4000); // 4-second live poll
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [activeConversationId, user?.user_id]);
 
   // Animate left sidebar collapse / expand
   useEffect(() => {
@@ -224,37 +395,84 @@ function MainScreenContent() {
     ]).start(() => setDrawer(null));
   }
 
-  // Live data (empty by default; populated via API)
-  const articles = [];
-  const newsrooms = [];
-  const directMessages = [];
-
   function selectItem(item) {
     setSelectedItem(item);
     if (drawer) closeDrawer();
     setReplyText('');
   }
 
-  function sendMessage() {
+  async function sendMessage() {
     const text = replyText.trim();
-    if (!text || !selectedItem || selectedItem.type !== 'chat') return;
+    if (!text || !selectedItem || selectedItem.type !== 'chat' || sendingMessage) return;
+
+    // Optimistic UI append
+    const optimisticMsg = { sender: 'You', text, time: 'Just now' };
     setChatLogs((current) => ({
       ...current,
-      [selectedItem.id]: [
-        ...(current[selectedItem.id] || []),
-        { sender: 'You', text, time: 'Just now' },
-      ],
+      [selectedItem.id]: [...(current[selectedItem.id] || []), optimisticMsg],
     }));
     setReplyText('');
+    setSendingMessage(true);
+
+    try {
+      await sendChatMessage(selectedItem.id, text);
+    } catch (err) {
+      showToast({ message: 'Message delivery failed.', type: 'error' });
+    } finally {
+      setSendingMessage(false);
+    }
+  }
+
+  // ── Modal Creation Callbacks ────────────────────────────────────
+  function handleNewsroomCreated(newGroup) {
+    const item = {
+      id: newGroup.group_id,
+      type: 'chat',
+      chatType: 'group',
+      title: newGroup.group_name,
+      tagline: newGroup.group_description || 'Newsroom desk channel',
+      subscribers: `${newGroup.member_number || 3} members`,
+      symbol: '▤',
+      avatar: newGroup.group_name.slice(0, 2).toUpperCase(),
+    };
+    setNewsrooms((prev) => [item, ...prev]);
+    selectItem(item);
+    loadWorkspaceData();
+  }
+
+  function handleDMCreated(conv) {
+    const other = conv.targetUser || (conv.other_participants && conv.other_participants[0]) || {};
+    const title = other.full_name || other.username || 'Colleague';
+    const item = {
+      id: conv.conversation_id || conv._id,
+      type: 'chat',
+      chatType: 'direct',
+      title,
+      role: `@${other.username || 'reporter'}`,
+      avatar: title.slice(0, 2).toUpperCase(),
+      status: 'online',
+      lastMessage: conv.last_message?.content || 'Correspondence initiated',
+      time: 'Just now',
+      unread: 0,
+      otherUser: other,
+    };
+    setDirectMessages((prev) => {
+      const exists = prev.some((d) => d.id === item.id);
+      return exists ? prev : [item, ...prev];
+    });
+    selectItem(item);
   }
 
   function renderArticleList() {
+    if (loadingInitial) {
+      return <ActivityIndicator color={colors.forest} style={{ paddingVertical: 20 }} />;
+    }
     if (articles.length === 0) {
       return (
         <EmptyState
           icon="◎"
           title="No articles yet"
-          subtitle="Your newsroom stories will appear here."
+          subtitle="Newsroom investigative pieces and stories will appear here."
           styles={styles}
         />
       );
@@ -270,13 +488,18 @@ function MainScreenContent() {
     ));
   }
 
-  function renderChatList(items, emptyTitle, emptySubtitle) {
+  function renderChatList(items, emptyTitle, emptySubtitle, onAction, actionLabel) {
+    if (loadingInitial) {
+      return <ActivityIndicator color={colors.forest} style={{ paddingVertical: 20 }} />;
+    }
     if (items.length === 0) {
       return (
         <EmptyState
           icon="◇"
           title={emptyTitle}
           subtitle={emptySubtitle}
+          actionLabel={actionLabel}
+          onAction={onAction}
           styles={styles}
         />
       );
@@ -305,15 +528,51 @@ function MainScreenContent() {
     if (drawer === 'messages') {
       return (
         <>
-          <SectionHeading title="Direct messages" styles={styles} />
-          {renderChatList(directMessages, 'No messages', 'Start a conversation with a colleague.')}
+          <SectionHeading
+            title="Direct messages"
+            count={directMessages.length}
+            onAdd={() => {
+              closeDrawer();
+              setNewDMModalOpen(true);
+            }}
+            addLabel="Start new direct message"
+            styles={styles}
+          />
+          {renderChatList(
+            directMessages,
+            'No messages',
+            'Start an end-to-end conversation with a colleague.',
+            () => {
+              closeDrawer();
+              setNewDMModalOpen(true);
+            },
+            '+ New Conversation'
+          )}
         </>
       );
     }
     return (
       <>
-        <SectionHeading title="Newsrooms" styles={styles} />
-        {renderChatList(newsrooms, 'No newsrooms', 'Join a newsroom to collaborate with your team.')}
+        <SectionHeading
+          title="Newsrooms"
+          count={newsrooms.length}
+          onAdd={() => {
+            closeDrawer();
+            setCreateNewsroomModalOpen(true);
+          }}
+          addLabel="Establish newsroom"
+          styles={styles}
+        />
+        {renderChatList(
+          newsrooms,
+          'No newsrooms',
+          'A newsroom requires at least 3 colleagues to establish.',
+          () => {
+            closeDrawer();
+            setCreateNewsroomModalOpen(true);
+          },
+          '+ Launch Newsroom'
+        )}
       </>
     );
   }
@@ -323,10 +582,24 @@ function MainScreenContent() {
       return (
         <Animated.View style={[styles.welcomePane, { opacity: contentFadeAnim }]}>
           <Text style={styles.welcomeIcon}>◎</Text>
-          <Text style={styles.welcomeTitle}>The Newsroom</Text>
+          <Text style={styles.welcomeTitle}>The Newsroom Workspace</Text>
           <Text style={styles.welcomeSubtitle}>
-            Select an article, newsroom, or direct message from the panels to get started.
+            Select an article, join a collaborative newsroom desk, or start an end-to-end direct correspondence.
           </Text>
+          <View style={styles.welcomeActions}>
+            <Pressable
+              onPress={() => setCreateNewsroomModalOpen(true)}
+              style={styles.welcomePrimaryBtn}
+            >
+              <Text style={styles.welcomePrimaryBtnText}>+ Establish Newsroom (3+ People)</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setNewDMModalOpen(true)}
+              style={styles.welcomeSecondaryBtn}
+            >
+              <Text style={styles.welcomeSecondaryBtnText}>+ New Direct Message</Text>
+            </Pressable>
+          </View>
         </Animated.View>
       );
     }
@@ -349,7 +622,7 @@ function MainScreenContent() {
               </View>
               <View>
                 <Text style={styles.authorName}>{selectedItem.author}</Text>
-                <Text style={styles.authorRole}>Corvus Senior Correspondent</Text>
+                <Text style={styles.authorRole}>Corvus Correspondent</Text>
               </View>
             </View>
             <View style={styles.summaryBox}>
@@ -361,7 +634,9 @@ function MainScreenContent() {
       );
     }
 
-    // Chat view
+    // Chat view (User-User EE Direct Message or User-Group EE Newsroom Desk)
+    const isDirect = selectedItem.chatType === 'direct';
+
     return (
       <Animated.View style={[styles.chatPane, { opacity: contentFadeAnim }]}>
         <ChatScreenHeader
@@ -370,12 +645,32 @@ function MainScreenContent() {
           avatar={selectedItem.avatar || selectedItem.title?.slice(0, 2)}
           memberCount={selectedItem.subscribers || selectedItem.status}
         />
+        <View style={styles.chatHeader}>
+          <View style={[styles.chatAvatar, isDirect && styles.chatAvatarDirect]}>
+            <Text style={styles.chatAvatarText}>
+              {selectedItem.avatar || selectedItem.title?.slice(0, 2)}
+            </Text>
+          </View>
+          <View style={styles.chatHeadingCopy}>
+            <Text style={styles.chatTitle}>{selectedItem.title}</Text>
+            <Text style={styles.chatSubtitle}>
+              {isDirect ? `Correspondence with ${selectedItem.role}` : selectedItem.tagline || 'Newsroom Group Desk'}
+            </Text>
+          </View>
+          <View style={styles.badgeContainer}>
+            <View style={[styles.badgeDot, isDirect ? styles.badgeDotDirect : styles.badgeDotGroup]} />
+            <Text style={styles.memberCount}>
+              {isDirect ? 'USER-USER (EE)' : 'USER-GROUP (EE)'}
+            </Text>
+          </View>
+        </View>
+
         <ScrollView contentContainerStyle={styles.messageList}>
           {(chatLogs[selectedItem.id] || []).map((message, index) => {
             const isMe = message.sender === 'You';
             return (
               <View
-                key={selectedItem.id + '-' + index}
+                key={message.rawId || `${selectedItem.id}-${index}`}
                 style={[styles.messageRow, isMe && styles.messageRowMe]}
               >
                 <Text style={styles.messageSender}>{message.sender}</Text>
@@ -390,16 +685,21 @@ function MainScreenContent() {
           })}
           {(chatLogs[selectedItem.id] || []).length === 0 && (
             <View style={styles.emptyChatHint}>
-              <Text style={styles.emptyChatText}>No messages yet. Say hello!</Text>
+              <Text style={styles.emptyChatText}>
+                {isDirect
+                  ? 'No direct messages yet. Send a note to begin correspondence.'
+                  : 'Welcome to the newsroom desk channel. Introduce your story!'}
+              </Text>
             </View>
           )}
         </ScrollView>
+
         <View style={styles.composerRow}>
           <TextInput
             accessibilityLabel="Write a newsroom message"
             onChangeText={setReplyText}
             onSubmitEditing={sendMessage}
-            placeholder={'Message ' + selectedItem.title + '...'}
+            placeholder={`Message ${selectedItem.title}...`}
             placeholderTextColor={colors.muted}
             returnKeyType="send"
             style={styles.composerInput}
@@ -409,16 +709,24 @@ function MainScreenContent() {
             accessibilityRole="button"
             accessibilityLabel="Send message"
             onPress={sendMessage}
-            style={styles.sendButton}
+            disabled={sendingMessage || !replyText.trim()}
+            style={[
+              styles.sendButton,
+              (!replyText.trim() || sendingMessage) && styles.sendButtonDisabled,
+            ]}
           >
-            <SymbolIcon symbol="↑" color={colors.white} size={20} />
+            {sendingMessage ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <SymbolIcon symbol="↑" color={colors.white} size={20} />
+            )}
           </Pressable>
         </View>
       </Animated.View>
     );
   }
 
-  // ── Left Sidebar with Animated Expand/Retract Width & Opacity ───
+  // ── Left Sidebar with Animated Expand/Retract ────────────────────
   const leftSidebarWidth = leftAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [0, 260],
@@ -459,10 +767,10 @@ function MainScreenContent() {
     </Animated.View>
   );
 
-  // ── Right Sidebar with Animated Expand/Retract Width & Opacity ───
+  // ── Right Sidebar with Animated Expand/Retract ───────────────────
   const rightSidebarWidth = rightAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, 286],
+    outputRange: [0, 290],
   });
   const rightSidebarOpacity = rightAnim.interpolate({
     inputRange: [0, 0.35, 1],
@@ -485,33 +793,46 @@ function MainScreenContent() {
       ]}
     >
       <View style={styles.rightSidebar}>
+        {/* Newsrooms Section with '+' Add Button */}
         <View style={styles.sidebarSection}>
           <SectionHeading
             title="Newsrooms"
+            count={newsrooms.length}
             expanded={rightOpen}
             onToggle={() => setRightOpen(false)}
             toggleLabel="Collapse newsrooms panel"
+            onAdd={() => setCreateNewsroomModalOpen(true)}
+            addLabel="Create new newsroom desk"
             styles={styles}
           />
           <ScrollView contentContainerStyle={styles.sidebarList}>
-            {renderChatList(newsrooms, 'No newsrooms', 'Join a newsroom to collaborate.')}
+            {renderChatList(
+              newsrooms,
+              'No newsrooms',
+              'A newsroom requires at least 3 people.',
+              () => setCreateNewsroomModalOpen(true),
+              '+ Launch Newsroom'
+            )}
           </ScrollView>
         </View>
+
+        {/* Direct Messages Section with '+' Add Button */}
         <View style={styles.dmSection}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setDrawer('messages')}
-            style={styles.dmHeading}
-          >
-            <SectionHeading
-              title="Direct messages"
-              count={directMessages.length}
-              styles={styles}
-            />
-            <Text style={styles.mobileLink}>View</Text>
-          </Pressable>
+          <SectionHeading
+            title="Direct messages"
+            count={directMessages.length}
+            onAdd={() => setNewDMModalOpen(true)}
+            addLabel="New direct message"
+            styles={styles}
+          />
           <ScrollView contentContainerStyle={styles.sidebarList}>
-            {renderChatList(directMessages, 'No messages', 'Start a conversation.')}
+            {renderChatList(
+              directMessages,
+              'No messages',
+              'Start an end-to-end correspondence.',
+              () => setNewDMModalOpen(true),
+              '+ Message Colleague'
+            )}
           </ScrollView>
         </View>
       </View>
@@ -540,13 +861,13 @@ function MainScreenContent() {
             <View style={styles.mobileTabsBar}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mobileTabs}>
                 <Pressable accessibilityRole="button" onPress={() => setDrawer('articles')} style={styles.mobileTab}>
-                  <Text style={styles.mobileTabText}>Articles</Text>
+                  <Text style={styles.mobileTabText}>Articles ({articles.length})</Text>
                 </Pressable>
                 <Pressable accessibilityRole="button" onPress={() => setDrawer('newsrooms')} style={styles.mobileTab}>
-                  <Text style={styles.mobileTabText}>Newsrooms</Text>
+                  <Text style={styles.mobileTabText}>Newsrooms ({newsrooms.length})</Text>
                 </Pressable>
                 <Pressable accessibilityRole="button" onPress={() => setDrawer('messages')} style={styles.mobileTab}>
-                  <Text style={styles.mobileTabText}>Direct messages</Text>
+                  <Text style={styles.mobileTabText}>Direct messages ({directMessages.length})</Text>
                 </Pressable>
               </ScrollView>
             </View>
@@ -647,6 +968,20 @@ function MainScreenContent() {
           </Animated.View>
         </View>
       </Modal>
+
+      {/* Create Newsroom Modal (Minimum 3 Members) */}
+      <CreateNewsroomModal
+        visible={createNewsroomModalOpen}
+        onClose={() => setCreateNewsroomModalOpen(false)}
+        onCreated={handleNewsroomCreated}
+      />
+
+      {/* New Direct Message Modal */}
+      <NewDMModal
+        visible={newDMModalOpen}
+        onClose={() => setNewDMModalOpen(false)}
+        onCreated={handleDMCreated}
+      />
     </SafeAreaView>
   );
 }
@@ -689,7 +1024,7 @@ function makeStyles(colors) {
       backgroundColor: colors.sidebarBg,
     },
     rightSidebar: {
-      width: 286,
+      width: 290,
       height: '100%',
       padding: 12,
       borderLeftWidth: 1,
@@ -698,8 +1033,8 @@ function makeStyles(colors) {
     },
     sidebarSection: { flex: 1, minHeight: 0 },
     dmSection: {
-      height: 230,
-      minHeight: 140,
+      height: 250,
+      minHeight: 160,
       borderTopWidth: 1,
       borderTopColor: colors.line,
       paddingTop: 8,
@@ -713,15 +1048,39 @@ function makeStyles(colors) {
       borderBottomColor: colors.line,
       marginBottom: 8,
     },
+    headingTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    headingActionsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
     panelToggle: {
-      width: 30,
-      height: 30,
+      width: 28,
+      height: 28,
       alignItems: 'center',
       justifyContent: 'center',
       borderRadius: 4,
       backgroundColor: colors.note,
     },
     panelToggleText: { color: colors.ink, fontSize: 17, fontWeight: '700' },
+    panelAddBtn: {
+      width: 28,
+      height: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 4,
+      backgroundColor: colors.forest,
+    },
+    panelAddText: {
+      color: '#FFFFFF',
+      fontSize: 16,
+      fontWeight: '800',
+      lineHeight: 18,
+    },
     sectionTitle: {
       color: colors.ink,
       fontSize: 11,
@@ -745,15 +1104,15 @@ function makeStyles(colors) {
     selectableRowCompact: { minHeight: 54, padding: 7 },
     selectableRowSelected: { borderColor: colors.selectedBg, backgroundColor: colors.selectedBg },
     rowSymbol: {
-      width: 30,
-      height: 30,
+      width: 32,
+      height: 32,
       alignItems: 'center',
       justifyContent: 'center',
-      borderRadius: 15,
+      borderRadius: 16,
       backgroundColor: colors.note,
     },
     rowSymbolSelected: { backgroundColor: 'rgba(255,255,255,0.18)' },
-    rowSymbolText: { color: colors.ink, fontSize: 15, fontWeight: '700' },
+    rowSymbolText: { color: colors.ink, fontSize: 13, fontWeight: '700' },
     rowSymbolTextSelected: { color: colors.selectedText },
     rowCopy: { flex: 1, minWidth: 0, gap: 4 },
     rowTitle: { color: colors.ink, fontFamily: 'serif', fontSize: 13, fontWeight: '700' },
@@ -817,7 +1176,40 @@ function makeStyles(colors) {
       fontSize: 13,
       lineHeight: 20,
       textAlign: 'center',
-      maxWidth: 320,
+      maxWidth: 360,
+    },
+    welcomeActions: {
+      marginTop: 22,
+      gap: 10,
+      alignItems: 'center',
+    },
+    welcomePrimaryBtn: {
+      minHeight: 44,
+      paddingHorizontal: 18,
+      borderRadius: 6,
+      backgroundColor: colors.forest,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    welcomePrimaryBtnText: {
+      color: '#fff',
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    welcomeSecondaryBtn: {
+      minHeight: 40,
+      paddingHorizontal: 16,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: colors.line,
+      backgroundColor: colors.cardBg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    welcomeSecondaryBtnText: {
+      color: colors.ink,
+      fontSize: 13,
+      fontWeight: '600',
     },
     emptyState: {
       alignItems: 'center',
@@ -841,6 +1233,19 @@ function makeStyles(colors) {
       fontSize: 11,
       lineHeight: 16,
       textAlign: 'center',
+      marginBottom: 8,
+    },
+    emptyActionBtn: {
+      marginTop: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 4,
+      backgroundColor: colors.forest,
+    },
+    emptyActionText: {
+      color: '#fff',
+      fontSize: 11,
+      fontWeight: '700',
     },
     articleScroll: { width: '100%', maxWidth: 840, alignSelf: 'center', padding: 22, paddingBottom: 40 },
     articleHeaderLine: {
@@ -915,18 +1320,37 @@ function makeStyles(colors) {
       backgroundColor: colors.headerBg,
     },
     chatAvatar: {
-      width: 38,
-      height: 38,
+      width: 40,
+      height: 40,
       alignItems: 'center',
       justifyContent: 'center',
-      borderRadius: 19,
+      borderRadius: 20,
       backgroundColor: colors.ink,
     },
-    chatAvatarText: { color: colors.paper, fontSize: 11, fontWeight: '800' },
+    chatAvatarDirect: {
+      backgroundColor: colors.forest,
+    },
+    chatAvatarText: { color: colors.paper, fontSize: 13, fontWeight: '800' },
     chatHeadingCopy: { flex: 1, minWidth: 0 },
     chatTitle: { color: colors.ink, fontSize: 14, fontWeight: '700' },
-    chatSubtitle: { marginTop: 4, color: colors.muted, fontSize: 10 },
-    memberCount: { maxWidth: 85, color: colors.muted, fontFamily: 'monospace', fontSize: 9, textAlign: 'right' },
+    chatSubtitle: { marginTop: 3, color: colors.muted, fontSize: 11 },
+    badgeContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 12,
+      backgroundColor: colors.note,
+    },
+    badgeDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+    },
+    badgeDotDirect: { backgroundColor: colors.forest },
+    badgeDotGroup: { backgroundColor: colors.blue },
+    memberCount: { color: colors.ink, fontFamily: 'monospace', fontSize: 9, fontWeight: '700' },
     messageList: { flexGrow: 1, gap: 12, padding: 14 },
     messageRow: { maxWidth: '84%', alignSelf: 'flex-start', gap: 4 },
     messageRowMe: { alignSelf: 'flex-end', alignItems: 'flex-end' },
@@ -939,11 +1363,11 @@ function makeStyles(colors) {
       backgroundColor: colors.sidebarBg,
     },
     messageBubbleMe: { borderColor: colors.ink, backgroundColor: colors.ink },
-    messageText: { color: colors.ink, fontSize: 12, lineHeight: 18 },
+    messageText: { color: colors.ink, fontSize: 13, lineHeight: 19 },
     messageTextMe: { color: colors.paper },
     messageTime: { color: colors.muted, fontSize: 9 },
-    emptyChatHint: { flex: 1, alignItems: 'center', paddingTop: 40 },
-    emptyChatText: { color: colors.muted, fontSize: 12, fontStyle: 'italic' },
+    emptyChatHint: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60, paddingHorizontal: 24 },
+    emptyChatText: { color: colors.muted, fontSize: 12, fontStyle: 'italic', textAlign: 'center', lineHeight: 18 },
     composerRow: {
       flexDirection: 'row',
       alignItems: 'flex-end',
@@ -963,7 +1387,7 @@ function makeStyles(colors) {
       borderColor: colors.line,
       borderRadius: 5,
       color: colors.ink,
-      fontSize: 12,
+      fontSize: 13,
       backgroundColor: colors.inputBg,
     },
     sendButton: {
@@ -974,8 +1398,9 @@ function makeStyles(colors) {
       borderRadius: 5,
       backgroundColor: colors.forest,
     },
-    mobileLink: { color: colors.orange, fontSize: 10, fontWeight: '700' },
-    dmHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    sendButtonDisabled: {
+      backgroundColor: colors.line,
+    },
     modalBackdrop: { flex: 1, justifyContent: 'flex-end' },
     drawerPanel: {
       maxHeight: '80%',

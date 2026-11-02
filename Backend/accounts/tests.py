@@ -1,3 +1,4 @@
+import uuid
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -82,3 +83,50 @@ class AccountsAuthTests(APITestCase):
             "password": "brandNewPassword123!"
         })
         self.assertEqual(login_res.status_code, status.HTTP_200_OK)
+
+    def test_user_search_by_username_and_exclusion_of_self(self):
+        reg_res = self.client.post(self.register_url, self.user_data)
+        token = reg_res.data['tokens']['access']
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+
+        colleague = User.objects.create_user(
+            user_id=str(uuid.uuid4()),
+            username="investigator_jane",
+            full_name="Jane Doe",
+            email="jane@example.com",
+            password="passWord123!",
+        )
+        User.objects.create_user(
+            user_id=str(uuid.uuid4()),
+            username="investigator_ghost",
+            full_name="Ghost User",
+            email="ghost@example.com",
+            password="passWord123!",
+            is_active=False,
+        )
+
+        search_url = reverse('user_search')
+
+        # 1. Search matching "jane"
+        res = self.client.get(f"{search_url}?search=jane")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 1)
+        self.assertEqual(res.data[0]['username'], "investigator_jane")
+        self.assertEqual(res.data[0]['user_id'], str(colleague.pk))
+        # Ensure private credentials (email) are NOT leaked
+        self.assertNotIn("email", res.data[0])
+
+        # 2. Search matching "investigator" -> matches jane, excludes inactive ghost
+        res_active = self.client.get(f"{search_url}?search=investigator")
+        self.assertEqual(res_active.status_code, status.HTTP_200_OK)
+        usernames = [u['username'] for u in res_active.data]
+        self.assertIn("investigator_jane", usernames)
+        self.assertNotIn("investigator_ghost", usernames)
+
+        # 3. Requester (testuser) should never appear in results
+        self.assertNotIn(self.user_data['username'], usernames)
+
+    def test_user_search_unauthenticated_forbidden(self):
+        search_url = reverse('user_search')
+        res = self.client.get(search_url)
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)

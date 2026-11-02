@@ -2,7 +2,9 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from django.contrib.auth import get_user_model
 from Newsroom.models import Member
+from .models import ChatConversation
 
 from .mongo_store import (
     MongoChatStoreUnavailable,
@@ -10,7 +12,59 @@ from .mongo_store import (
     get_user_conversations,
     save_chat_message,
     get_conversation_messages_page,
+    get_conversations_collection,
 )
+
+User = get_user_model()
+
+
+class InboxView(APIView):
+    """
+    GET: Returns all active direct message threads and newsroom chats
+    for the user's inbox, with participant details and the last message.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            # 1. Fetch group IDs user has access to
+            group_ids = list(
+                Member.objects.filter(member=request.user).values_list('group_id', flat=True)
+            )
+
+            # 2. Query MongoDB for conversations
+            conversations = get_user_conversations(request.user.pk, group_ids)
+
+            # 3. Batch-fetch participant profile info (avoids N+1 query loop)
+            other_user_ids = set()
+            for c in conversations:
+                for p in c.get('participants', []):
+                    if p != str(request.user.pk):
+                        other_user_ids.add(p)
+
+            users_map = {
+                str(u.pk): {
+                    "user_id": str(u.pk),
+                    "username": u.username,
+                    "full_name": u.full_name or u.username,
+                }
+                for u in User.objects.filter(pk__in=other_user_ids)
+            }
+
+            # 4. Hydrate profiles and format dates
+            for c in conversations:
+                for date_key in ('created_at', 'updated_at'):
+                    val = c.get(date_key)
+                    if hasattr(val, 'isoformat'):
+                        c[date_key] = val.isoformat()
+
+                c['other_participants'] = [
+                    users_map[p] for p in c.get('participants', []) if p in users_map
+                ]
+
+            return Response(conversations, status=status.HTTP_200_OK)
+        except MongoChatStoreUnavailable:
+            return Response({"detail": "Chat database unavailable."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
 class ConversationListCreateView(APIView):
@@ -37,14 +91,39 @@ class ConversationListCreateView(APIView):
         if conv_type not in ('direct', 'group', 'ai'):
             return Response({"detail": "Invalid conversation type."}, status=status.HTTP_400_BAD_REQUEST)
 
-        participants = [request.user.pk]
+        participants = [str(request.user.pk)]
         newsroom_group_id = None
 
         if conv_type == 'direct':
-            recipient_id = request.data.get("recipient_id")
+            recipient_id = str(request.data.get("recipient_id", "")).strip()
             if not recipient_id:
                 return Response({"detail": "recipient_id required for direct chat."}, status=status.HTTP_400_BAD_REQUEST)
+
+            recipient = User.objects.filter(pk=recipient_id).first()
+            if not recipient:
+                return Response({"detail": "Recipient user not found."}, status=status.HTTP_404_NOT_FOUND)
+
             participants.append(recipient_id)
+
+            # Check if direct conversation already exists in MongoDB
+            try:
+                existing = get_conversations_collection().find_one({
+                    "type": "direct",
+                    "participants": {"$all": [str(request.user.pk), recipient_id]},
+                })
+                if existing:
+                    if hasattr(existing.get("created_at"), "isoformat"):
+                        existing["created_at"] = existing["created_at"].isoformat()
+                    if hasattr(existing.get("updated_at"), "isoformat"):
+                        existing["updated_at"] = existing["updated_at"].isoformat()
+                    existing["other_participants"] = [{
+                        "user_id": str(recipient.pk),
+                        "username": recipient.username,
+                        "full_name": recipient.full_name or recipient.username,
+                    }]
+                    return Response(existing, status=status.HTTP_200_OK)
+            except Exception:
+                pass
 
         elif conv_type == 'group':
             newsroom_group_id = request.data.get("newsroom_group_id")
@@ -60,6 +139,22 @@ class ConversationListCreateView(APIView):
             )
             doc["created_at"] = doc["created_at"].isoformat()
             doc["updated_at"] = doc["updated_at"].isoformat()
+
+            # Also ensure relational record exists
+            try:
+                rel_conv, _ = ChatConversation.objects.get_or_create(
+                    conversation_id=doc["conversation_id"],
+                    defaults={
+                        "type": conv_type,
+                        "title": doc["title"],
+                        "newsroom_group_id": newsroom_group_id,
+                    },
+                )
+                if conv_type == 'direct':
+                    rel_conv.participants.add(request.user.pk, recipient_id)
+            except Exception:
+                pass
+
             return Response(doc, status=status.HTTP_201_CREATED)
         except MongoChatStoreUnavailable:
             return Response({"detail": "Chat database unavailable."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
@@ -95,7 +190,6 @@ class MessageListCreateView(APIView):
                 user_msg["created_at"] = user_msg["created_at"].isoformat()
 
             # 2. Check if this is an AI conversation
-            from .models import ChatConversation
             conv = ChatConversation.objects.filter(pk=conversation_id).first()
             ai_msg_data = None
 
@@ -160,4 +254,3 @@ class MessageListCreateView(APIView):
             )
         except MongoChatStoreUnavailable:
             return Response({"detail": "Chat database unavailable."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-

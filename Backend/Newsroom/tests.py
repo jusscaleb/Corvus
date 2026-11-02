@@ -51,6 +51,50 @@ class NewsroomTests(APITestCase):
         group_id = response.data['group_id']
         self.assertTrue(Member.objects.filter(group_id=group_id, member=self.user1).exists())
 
+    def test_create_newsroom_with_minimum_three_members_success(self):
+        user3 = User.objects.create_user(
+            user_id=str(uuid.uuid4()),
+            username="editor3",
+            full_name="Editor Three",
+            email="editor3@example.com",
+            password="testPassword123!",
+        )
+        url = reverse('group_list_create')
+        data = {
+            "group_name": "Investigative Desk",
+            "group_description": "Cross-border reporting.",
+            "member_ids": [str(self.user2.pk), str(user3.pk)],
+        }
+        response = self.client.post(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['group_name'], "Investigative Desk")
+        self.assertEqual(response.data['member_number'], 3)
+
+        group_id = response.data['group_id']
+        members = Member.objects.filter(group_id=group_id)
+        self.assertEqual(members.count(), 3)
+        member_user_ids = {str(m.member.pk) for m in members}
+        self.assertEqual(member_user_ids, {str(self.user1.pk), str(self.user2.pk), str(user3.pk)})
+
+    def test_create_newsroom_fails_if_less_than_three_members(self):
+        url = reverse('group_list_create')
+        # Only providing 1 other colleague (total members = 2)
+        data = {
+            "group_name": "Understaffed Desk",
+            "member_ids": [str(self.user2.pk)],
+        }
+        response = self.client.post(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("A newsroom requires at least 3 members", response.data['detail'])
+
+        # Providing duplicates of the same member
+        dup_data = {
+            "group_name": "Duplicate Desk",
+            "member_ids": [str(self.user2.pk), str(self.user2.pk)],
+        }
+        dup_response = self.client.post(url, dup_data, format='json')
+        self.assertEqual(dup_response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_list_groups_only_shows_user_groups(self):
         # User 1 creates group A
         group_a = Group.objects.create(
