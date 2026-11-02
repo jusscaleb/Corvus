@@ -210,109 +210,24 @@ export default function ArticleHeader({
     themeColors = lightColors;
   }
 
-  const branchMeta = {
-    main: { tag: 'Default', desc: 'Canonical editorial line', color: '#10b981' },
-    dev: { tag: 'Staging', desc: 'Work in progress revisions', color: '#f59e0b' },
-    'feature/article-draft': { tag: 'Investigation', desc: 'Draft source angle', color: '#6366f1' },
-    'release/v1.0': { tag: 'Publish', desc: 'Reviewed & ready to print', color: '#ec4899' },
-  };
-
   const versionCommands = [
-    {
-      id: 'pull',
-      label: 'Pull latest changes',
-      description: 'Fetch new edits and sources from upstream desk',
-      badge: 'SYNC',
-      Icon: GitPullIcon,
-    },
-    {
-      id: 'status',
-      label: 'Check status',
-      description: 'Review active draft changes against base branch',
-      badge: 'CHECK',
-      Icon: ActivityIcon,
-    },
-    {
-      id: 'commit',
-      label: 'Save local changes',
-      description: 'Snapshot story state into editorial history',
-      badge: 'SNAPSHOT',
-      Icon: GitCommitIcon,
-    },
-    {
-      id: 'push',
-      label: 'Push changes',
-      description: 'Transmit draft updates to team newsroom',
-      badge: 'UPLOAD',
-      Icon: GitPushIcon,
-    },
-    {
-      id: 'diff',
-      label: 'View differences',
-      description: 'Compare side-by-side modifications with canonical',
-      badge: 'COMPARE',
-      Icon: GitDiffIcon,
-    },
+    { id: 'pull', label: 'Pull latest changes', Icon: GitPullIcon },
+    { id: 'status', label: 'Check status', Icon: ActivityIcon },
+    { id: 'commit', label: 'Save local changes', Icon: GitCommitIcon },
+    { id: 'push', label: 'Push changes', Icon: GitPushIcon },
+    { id: 'diff', label: 'View differences', Icon: GitDiffIcon },
   ];
 
-  // 2-Column Grid Word Tools Menu
+  // 2-Column Grid Word Tools Menu: symbol + name only
   const wordTools = [
-    {
-      label: 'Bold',
-      action: 'bold',
-      syntax: '**text**',
-      description: 'Strong emphasis for names & key statements',
-      Icon: BoldIcon,
-    },
-    {
-      label: 'Italic',
-      action: 'italic',
-      syntax: '*text*',
-      description: 'Subtle slant for terms, book titles & sources',
-      Icon: ItalicIcon,
-    },
-    {
-      label: 'Underline',
-      action: 'underline',
-      syntax: '<u>text</u>',
-      description: 'Draw immediate focus to critical details',
-      Icon: UnderlineIcon,
-    },
-    {
-      label: 'Heading 1',
-      action: 'h1',
-      syntax: '# Title',
-      description: 'Major section division for primary storylines',
-      Icon: Heading1Icon,
-    },
-    {
-      label: 'Heading 2',
-      action: 'h2',
-      syntax: '## Subtitle',
-      description: 'Secondary sub-header for topic breakdowns',
-      Icon: Heading2Icon,
-    },
-    {
-      label: 'Bullet List',
-      action: 'bullet',
-      syntax: '• item',
-      description: 'Structured evidence, timeline, or key facts',
-      Icon: ListIcon,
-    },
-    {
-      label: 'Blockquote',
-      action: 'quote',
-      syntax: '> quote',
-      description: 'Highlighted callout for witness or expert quotes',
-      Icon: QuoteIcon,
-    },
-    {
-      label: 'Inline Code',
-      action: 'code',
-      syntax: '`code`',
-      description: 'Monospace format for data points or references',
-      Icon: CodeIcon,
-    },
+    { label: 'Bold', action: 'bold', Icon: BoldIcon },
+    { label: 'Italic', action: 'italic', Icon: ItalicIcon },
+    { label: 'Underline', action: 'underline', Icon: UnderlineIcon },
+    { label: 'Heading 1', action: 'h1', Icon: Heading1Icon },
+    { label: 'Heading 2', action: 'h2', Icon: Heading2Icon },
+    { label: 'Bullet List', action: 'bullet', Icon: ListIcon },
+    { label: 'Blockquote', action: 'quote', Icon: QuoteIcon },
+    { label: 'Inline Code', action: 'code', Icon: CodeIcon },
   ];
 
   const openMenu = (type, ref) => {
@@ -343,7 +258,7 @@ export default function ArticleHeader({
         top: anchorRect ? Math.max(anchorRect.y, 64) : 74,
         left: 12,
         right: 12,
-        maxWidth: 560,
+        maxWidth: 440,
         alignSelf: 'center',
       };
     }
@@ -352,8 +267,8 @@ export default function ArticleHeader({
       return {
         position: 'absolute',
         top: anchorRect.y,
-        left: Math.max(12, Math.min(anchorRect.x, windowWidth - 340)),
-        width: 330,
+        left: Math.max(12, Math.min(anchorRect.x, windowWidth - 260)),
+        width: 250,
       };
     }
 
@@ -361,8 +276,8 @@ export default function ArticleHeader({
       return {
         position: 'absolute',
         top: anchorRect.y,
-        left: Math.max(12, Math.min(anchorRect.x - 20, windowWidth - 380)),
-        width: 360,
+        left: Math.max(12, Math.min(anchorRect.x - 20, windowWidth - 300)),
+        width: 270,
       };
     }
 
@@ -370,8 +285,8 @@ export default function ArticleHeader({
     return {
       position: 'absolute',
       top: anchorRect.y,
-      left: Math.max(12, Math.min(anchorRect.x - 140, windowWidth - 540)),
-      width: Math.min(520, windowWidth - 24),
+      left: Math.max(12, Math.min(anchorRect.x - 120, windowWidth - 360)),
+      width: Math.min(340, windowWidth - 24),
     };
   };
 
@@ -497,15 +412,11 @@ export default function ArticleHeader({
                     <GitBranchIcon size={14} color={themeColors.forest || '#0066cc'} />
                     <Text style={[styles.menuHeader, { color: themeColors.ink || '#0f172a' }]}>Select Branch</Text>
                   </View>
-                  <Text style={[styles.menuSubtitle, { color: themeColors.muted || '#64748b' }]}>
-                    Active editorial revision line
-                  </Text>
                 </View>
 
-                <ScrollView style={{ maxHeight: 300 }}>
+                <ScrollView style={{ maxHeight: 260 }}>
                   {branches.map((branch) => {
                     const isCurrent = branch === activeBranch;
-                    const meta = branchMeta[branch] || { tag: 'Branch', desc: 'Editorial workline', color: '#64748b' };
                     return (
                       <TouchableOpacity
                         key={branch}
@@ -523,31 +434,18 @@ export default function ArticleHeader({
                         }}
                         activeOpacity={0.7}
                       >
-                        <View style={[styles.branchIconBadge, { backgroundColor: isCurrent ? (themeColors.cardBg || '#fff') : (themeColors.sidebarBg || '#f1f5f9') }]}>
-                          <GitBranchIcon size={14} color={isCurrent ? (themeColors.forest || '#0066cc') : '#64748b'} />
-                        </View>
-                        <View style={styles.branchCopyCol}>
-                          <View style={styles.branchNameRow}>
-                            <Text
-                              style={[
-                                styles.branchNameText,
-                                { color: themeColors.ink || '#0f172a' },
-                                isCurrent && { fontWeight: '700', color: themeColors.forest || '#0066cc' },
-                              ]}
-                            >
-                              {branch}
-                            </Text>
-                            <View style={[styles.tagBadge, { backgroundColor: meta.color + '18' }]}>
-                              <Text style={[styles.tagBadgeText, { color: meta.color }]}>{meta.tag}</Text>
-                            </View>
-                          </View>
-                          <Text style={[styles.branchDescText, { color: themeColors.muted || '#64748b' }]}>
-                            {meta.desc}
-                          </Text>
-                        </View>
+                        <Text
+                          style={[
+                            styles.branchNameText,
+                            { color: themeColors.ink || '#0f172a' },
+                            isCurrent && { fontWeight: '700', color: themeColors.forest || '#0066cc' },
+                          ]}
+                        >
+                          {branch}
+                        </Text>
                         {isCurrent && (
                           <View style={styles.checkIconWrapper}>
-                            <CheckIcon size={16} color={themeColors.forest || '#10b981'} />
+                            <CheckIcon size={15} color={themeColors.forest || '#10b981'} />
                           </View>
                         )}
                       </TouchableOpacity>
@@ -565,12 +463,9 @@ export default function ArticleHeader({
                     <TerminalIcon size={14} color={themeColors.ink || '#0f172a'} />
                     <Text style={[styles.menuHeader, { color: themeColors.ink || '#0f172a' }]}>Version Commands</Text>
                   </View>
-                  <Text style={[styles.menuSubtitle, { color: themeColors.muted || '#64748b' }]}>
-                    Revision control actions on {activeBranch}
-                  </Text>
                 </View>
 
-                <ScrollView style={{ maxHeight: 340 }}>
+                <ScrollView style={{ maxHeight: 280 }}>
                   {versionCommands.map((cmd) => {
                     const CmdIcon = cmd.Icon;
                     return (
@@ -584,23 +479,11 @@ export default function ArticleHeader({
                         activeOpacity={0.7}
                       >
                         <View style={[styles.cmdIconBadge, { backgroundColor: themeColors.sidebarBg || '#f1f5f9' }]}>
-                          <CmdIcon size={15} color={themeColors.ink || '#0f172a'} />
+                          <CmdIcon size={14} color={themeColors.ink || '#0f172a'} />
                         </View>
-                        <View style={styles.cmdCopyCol}>
-                          <View style={styles.cmdTitleRow}>
-                            <Text style={[styles.cmdLabel, { color: themeColors.ink || '#0f172a' }]}>
-                              {cmd.label}
-                            </Text>
-                            <View style={[styles.cmdTagBadge, { backgroundColor: themeColors.sidebarBg || '#e2e8f0' }]}>
-                              <Text style={[styles.cmdTagBadgeText, { color: themeColors.muted || '#475569' }]}>
-                                {cmd.badge}
-                              </Text>
-                            </View>
-                          </View>
-                          <Text style={[styles.cmdDescText, { color: themeColors.muted || '#64748b' }]} numberOfLines={1}>
-                            {cmd.description}
-                          </Text>
-                        </View>
+                        <Text style={[styles.cmdLabel, { color: themeColors.ink || '#0f172a' }]}>
+                          {cmd.label}
+                        </Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -608,7 +491,7 @@ export default function ArticleHeader({
               </View>
             )}
 
-            {/* ─── WORD TOOLS: ROWS & COLUMNS GRID MENU ─────────────── */}
+            {/* ─── WORD TOOLS: ROWS & COLUMNS GRID MENU (SYMBOL + NAME ONLY) ─ */}
             {activeModal === 'tools' && (
               <View>
                 <View style={[styles.menuHeaderBar, { borderBottomColor: themeColors.line || '#f1f5f9' }]}>
@@ -616,12 +499,9 @@ export default function ArticleHeader({
                     <TypeToolsIcon size={15} color={themeColors.orange || '#ea580c'} />
                     <Text style={[styles.menuHeader, { color: themeColors.ink || '#0f172a' }]}>Text Formatting Tools</Text>
                   </View>
-                  <Text style={[styles.menuSubtitle, { color: themeColors.muted || '#64748b' }]}>
-                    Select formatting to insert markdown tags into your draft
-                  </Text>
                 </View>
 
-                <ScrollView style={{ maxHeight: 360 }} contentContainerStyle={{ paddingVertical: 4 }}>
+                <ScrollView style={{ maxHeight: 300 }} contentContainerStyle={{ paddingVertical: 2 }}>
                   <View style={styles.gridContainer}>
                     {wordTools.map((tool) => {
                       const ToolIcon = tool.Icon;
@@ -642,28 +522,16 @@ export default function ArticleHeader({
                           activeOpacity={0.7}
                         >
                           <View style={[styles.toolIconBadge, { backgroundColor: themeColors.sidebarBg || '#f1f5f9' }]}>
-                            <ToolIcon size={16} color={themeColors.forest || themeColors.ink || '#0f172a'} />
+                            <ToolIcon size={15} color={themeColors.forest || themeColors.ink || '#0f172a'} />
                           </View>
-                          <View style={styles.toolCopy}>
-                            <View style={styles.toolTitleRow}>
-                              <Text style={[styles.toolTitle, { color: themeColors.ink || '#0f172a' }]}>{tool.label}</Text>
-                              <Text style={[styles.toolSyntaxTag, { color: themeColors.muted || '#64748b' }]}>{tool.syntax}</Text>
-                            </View>
-                            <Text style={[styles.toolDescription, { color: themeColors.muted || '#64748b' }]} numberOfLines={2}>
-                              {tool.description}
-                            </Text>
-                          </View>
+                          <Text style={[styles.toolTitle, { color: themeColors.ink || '#0f172a' }]} numberOfLines={1}>
+                            {tool.label}
+                          </Text>
                         </TouchableOpacity>
                       );
                     })}
                   </View>
                 </ScrollView>
-
-                <View style={[styles.toolsFooter, { borderTopColor: themeColors.line || '#f1f5f9', backgroundColor: themeColors.sidebarBg || '#f8fafc' }]}>
-                  <Text style={[styles.toolsFooterTip, { color: themeColors.muted || '#64748b' }]}>
-                    💡 In edit mode, click any tool to instantly inject markdown tags into your active story.
-                  </Text>
-                </View>
               </View>
             )}
           </Pressable>
@@ -744,7 +612,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    padding: 14,
+    padding: 12,
     shadowColor: '#0f172a',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.16,
@@ -752,8 +620,8 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   menuHeaderBar: {
-    paddingBottom: 10,
-    marginBottom: 8,
+    paddingBottom: 8,
+    marginBottom: 6,
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
   },
@@ -763,188 +631,93 @@ const styles = StyleSheet.create({
     gap: 7,
   },
   menuHeader: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: '#0f172a',
     letterSpacing: 0.3,
-  },
-  menuSubtitle: {
-    fontSize: 11,
-    color: '#64748b',
-    marginTop: 2,
+    textTransform: 'uppercase',
   },
 
   // ── Branch Menu Styling ──────────────────────────────────────────────────
   branchMenuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    borderRadius: 7,
+    justifyContent: 'space-between',
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    borderRadius: 6,
     borderBottomWidth: 1,
     borderBottomColor: '#f8fafc',
-    gap: 10,
   },
   selectedBranchMenuItem: {
     backgroundColor: '#f8fafc',
   },
-  branchIconBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f1f5f9',
-  },
-  branchCopyCol: {
-    flex: 1,
-    minWidth: 0,
-  },
-  branchNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
   branchNameText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#0f172a',
     fontFamily: 'monospace',
   },
-  tagBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  tagBadgeText: {
-    fontSize: 9,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  branchDescText: {
-    fontSize: 11,
-    color: '#64748b',
-    marginTop: 2,
-  },
   checkIconWrapper: {
-    marginLeft: 6,
+    marginLeft: 8,
   },
 
   // ── Commands Menu Styling ────────────────────────────────────────────────
   cmdMenuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 8,
     paddingHorizontal: 8,
-    borderRadius: 7,
+    borderRadius: 6,
     borderBottomWidth: 1,
     borderBottomColor: '#f8fafc',
-    gap: 10,
+    gap: 9,
   },
   cmdIconBadge: {
-    width: 30,
-    height: 30,
-    borderRadius: 7,
+    width: 28,
+    height: 28,
+    borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#f1f5f9',
   },
-  cmdCopyCol: {
-    flex: 1,
-    minWidth: 0,
-  },
-  cmdTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 6,
-  },
   cmdLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#0f172a',
   },
-  cmdTagBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    backgroundColor: '#e2e8f0',
-  },
-  cmdTagBadgeText: {
-    fontSize: 9,
-    fontWeight: '800',
-    fontFamily: 'monospace',
-    color: '#475569',
-  },
-  cmdDescText: {
-    fontSize: 11,
-    color: '#64748b',
-    marginTop: 2,
-  },
 
-  // ── Word Tools 2-Column Grid Styling ─────────────────────────────────────
+  // ── Word Tools 2-Column Grid Styling (Symbol + Name only) ────────────────
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
   },
   gridCard: {
     flexBasis: '48%',
     flexGrow: 1,
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: 10,
-    borderRadius: 8,
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 9,
+    borderRadius: 7,
     borderWidth: 1,
     borderColor: '#e2e8f0',
     backgroundColor: '#ffffff',
-    gap: 9,
+    gap: 8,
   },
   toolIconBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 7,
+    width: 28,
+    height: 28,
+    borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#f1f5f9',
   },
-  toolCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  toolTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 4,
-  },
   toolTitle: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0f172a',
-  },
-  toolSyntaxTag: {
-    fontSize: 9,
-    fontFamily: 'monospace',
-    color: '#64748b',
-  },
-  toolDescription: {
-    fontSize: 10,
-    color: '#64748b',
-    marginTop: 3,
-    lineHeight: 14,
-  },
-  toolsFooter: {
-    marginTop: 10,
-    paddingTop: 8,
-    paddingHorizontal: 6,
-    borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
-    borderRadius: 6,
-  },
-  toolsFooterTip: {
-    fontSize: 10,
-    color: '#64748b',
-    fontStyle: 'italic',
+    flexShrink: 1,
   },
 });
