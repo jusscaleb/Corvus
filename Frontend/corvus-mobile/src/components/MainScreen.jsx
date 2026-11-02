@@ -19,6 +19,7 @@ import NewsroomHeader from './NewsroomHeader';
 import CreateNewsroomModal from './CreateNewsroomModal';
 import NewDMModal from './NewDMModal';
 import { useTheme } from '../context/ThemeContext';
+import { VoiceChatProvider, ChatScreenHeader } from './VoiceChat';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import {
@@ -138,6 +139,14 @@ function EmptyState({ icon, title, subtitle, actionLabel, onAction, styles }) {
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function MainScreen() {
+  return (
+    <VoiceChatProvider>
+      <MainScreenContent />
+    </VoiceChatProvider>
+  );
+}
+
+function MainScreenContent() {
   const { colors } = useTheme();
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -630,6 +639,12 @@ export default function MainScreen() {
 
     return (
       <Animated.View style={[styles.chatPane, { opacity: contentFadeAnim }]}>
+        <ChatScreenHeader
+          title={selectedItem.title}
+          subtitle={selectedItem.tagline || selectedItem.role || 'Group channel'}
+          avatar={selectedItem.avatar || selectedItem.title?.slice(0, 2)}
+          memberCount={selectedItem.subscribers || selectedItem.status}
+        />
         <View style={styles.chatHeader}>
           <View style={[styles.chatAvatar, isDirect && styles.chatAvatarDirect]}>
             <Text style={styles.chatAvatarText}>
