@@ -18,7 +18,7 @@ import {
   Minimize2,
   Maximize2,
   Sparkles,
-} from 'lucide-react-native';
+} from './VoiceChatIcons';
 import { useTheme } from '../context/ThemeContext';
 import { lightColors } from '../theme/colors';
 

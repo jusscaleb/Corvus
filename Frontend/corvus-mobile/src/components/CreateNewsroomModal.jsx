@@ -46,7 +46,6 @@ export default function CreateNewsroomModal({ visible, onClose, onCreated }) {
         Animated.spring(scale, { toValue: 1, tension: 85, friction: 9, useNativeDriver: true }),
       ]).start();
 
-      // Initial user search
       handleSearch('');
     } else {
       Animated.parallel([
@@ -80,8 +79,12 @@ export default function CreateNewsroomModal({ visible, onClose, onCreated }) {
           (!myEmail || u.email !== myEmail)
       );
       setSearchResults(filtered);
-    } catch {
+    } catch (err) {
+      console.error('[CreateNewsroomModal] searchUsers failed:', err?.message);
       setSearchResults([]);
+      if (err?.message) {
+        showToast({ message: `Search error: ${err.message}`, type: 'error' });
+      }
     } finally {
       setSearching(false);
     }
@@ -136,7 +139,7 @@ export default function CreateNewsroomModal({ visible, onClose, onCreated }) {
     }
   }
 
-  const totalMembers = selectedUsers.length + 1; // +1 for creator
+  const totalMembers = selectedUsers.length + 1;
   const hasMinMembers = selectedUsers.length >= 2;
 
   return (
@@ -194,11 +197,7 @@ export default function CreateNewsroomModal({ visible, onClose, onCreated }) {
                 <Text style={styles.selectedHeading}>Selected Colleagues ({selectedUsers.length})</Text>
                 <View style={styles.chipsWrap}>
                   {selectedUsers.map((u) => (
-                    <Pressable
-                      key={u.user_id}
-                      onPress={() => toggleUser(u)}
-                      style={styles.chip}
-                    >
+                    <Pressable key={u.user_id} onPress={() => toggleUser(u)} style={styles.chip}>
                       <Text style={styles.chipText}>{u.full_name || u.username}</Text>
                       <Text style={styles.chipRemove}>✕</Text>
                     </Pressable>
@@ -255,7 +254,11 @@ export default function CreateNewsroomModal({ visible, onClose, onCreated }) {
               </View>
             ) : (
               <Text style={styles.emptySearchText}>
-                {searchQuery ? 'No colleagues found matching that username.' : 'No other registered users yet.'}
+                {searching
+                  ? ''
+                  : searchQuery
+                  ? 'No colleagues found matching that username.'
+                  : 'No other registered users yet.'}
               </Text>
             )}
           </ScrollView>

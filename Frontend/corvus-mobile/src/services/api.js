@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 
 export const API_BASE_URL = Platform.select({
   web: 'http://localhost:8000',
-  default: 'http://10.10.181.65:8081',
+  default: 'http://192.168.88.206:8000',
 });
 
 let currentTokens = { access: null, refresh: null };
@@ -157,4 +157,60 @@ export async function refreshToken() {
     authStorage.clear();
   }
   return false;
+}
+
+// ─── User ──────────────────────────────────────────────────────────────────────
+
+export async function searchUsers(query = '') {
+  return await apiRequest(`/api/auth/users/?search=${encodeURIComponent(query)}`, {
+    requireAuth: true,
+  });
+}
+
+// ─── Newsrooms ─────────────────────────────────────────────────────────────────
+
+export async function fetchNewsrooms() {
+  return await apiRequest('/api/newsroom/groups/', { requireAuth: true });
+}
+
+export async function createNewsroom({ name, description = '', member_ids = [] }) {
+  return await apiRequest('/api/newsroom/groups/', {
+    method: 'POST',
+    requireAuth: true,
+    body: { group_name: name, group_description: description, member_ids },
+  });
+}
+
+// ─── Articles ──────────────────────────────────────────────────────────────────
+
+export async function fetchArticles() {
+  return await apiRequest('/api/project/articles/', { requireAuth: true });
+}
+
+// ─── Chats ─────────────────────────────────────────────────────────────────────
+
+export async function fetchInbox() {
+  return await apiRequest('/api/chats/inbox/', { requireAuth: true });
+}
+
+export async function createOrGetDirectChat(recipient_id) {
+  return await apiRequest('/api/chats/conversations/', {
+    method: 'POST',
+    requireAuth: true,
+    body: { type: 'direct', recipient_id },
+  });
+}
+
+export async function fetchMessages(conversation_id, { limit = 30, before = null } = {}) {
+  let endpoint = `/api/chats/conversations/${conversation_id}/messages/?limit=${limit}`;
+  if (before) endpoint += `&before=${encodeURIComponent(before)}`;
+  return await apiRequest(endpoint, { requireAuth: true });
+}
+
+export async function sendChatMessage(conversation_id, content) {
+  return await apiRequest(`/api/chats/conversations/${conversation_id}/messages/`, {
+    method: 'POST',
+    requireAuth: true,
+    body: { content },
+  });
 }
