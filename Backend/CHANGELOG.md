@@ -3,7 +3,7 @@
 All notable backend changes are documented here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [2.2.0] - 2026-11-02
+## [2.3.0] - 2026-11-02
 
 ### Added
 

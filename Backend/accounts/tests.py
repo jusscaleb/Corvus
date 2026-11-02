@@ -1,3 +1,4 @@
+import uuid
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -89,12 +90,14 @@ class AccountsAuthTests(APITestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
 
         colleague = User.objects.create_user(
+            user_id=str(uuid.uuid4()),
             username="investigator_jane",
             full_name="Jane Doe",
             email="jane@example.com",
             password="passWord123!",
         )
         User.objects.create_user(
+            user_id=str(uuid.uuid4()),
             username="investigator_ghost",
             full_name="Ghost User",
             email="ghost@example.com",
