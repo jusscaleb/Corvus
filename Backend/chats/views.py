@@ -4,6 +4,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
 from Newsroom.models import Member
+from .models import ChatConversation
 
 from .mongo_store import (
     MongoChatStoreUnavailable,
@@ -11,6 +12,7 @@ from .mongo_store import (
     get_user_conversations,
     save_chat_message,
     get_conversation_messages_page,
+    get_conversations_collection,
 )
 
 User = get_user_model()
@@ -89,14 +91,39 @@ class ConversationListCreateView(APIView):
         if conv_type not in ('direct', 'group', 'ai'):
             return Response({"detail": "Invalid conversation type."}, status=status.HTTP_400_BAD_REQUEST)
 
-        participants = [request.user.pk]
+        participants = [str(request.user.pk)]
         newsroom_group_id = None
 
         if conv_type == 'direct':
-            recipient_id = request.data.get("recipient_id")
+            recipient_id = str(request.data.get("recipient_id", "")).strip()
             if not recipient_id:
                 return Response({"detail": "recipient_id required for direct chat."}, status=status.HTTP_400_BAD_REQUEST)
+
+            recipient = User.objects.filter(pk=recipient_id).first()
+            if not recipient:
+                return Response({"detail": "Recipient user not found."}, status=status.HTTP_404_NOT_FOUND)
+
             participants.append(recipient_id)
+
+            # Check if direct conversation already exists in MongoDB
+            try:
+                existing = get_conversations_collection().find_one({
+                    "type": "direct",
+                    "participants": {"$all": [str(request.user.pk), recipient_id]},
+                })
+                if existing:
+                    if hasattr(existing.get("created_at"), "isoformat"):
+                        existing["created_at"] = existing["created_at"].isoformat()
+                    if hasattr(existing.get("updated_at"), "isoformat"):
+                        existing["updated_at"] = existing["updated_at"].isoformat()
+                    existing["other_participants"] = [{
+                        "user_id": str(recipient.pk),
+                        "username": recipient.username,
+                        "full_name": recipient.full_name or recipient.username,
+                    }]
+                    return Response(existing, status=status.HTTP_200_OK)
+            except Exception:
+                pass
 
         elif conv_type == 'group':
             newsroom_group_id = request.data.get("newsroom_group_id")
@@ -112,6 +139,22 @@ class ConversationListCreateView(APIView):
             )
             doc["created_at"] = doc["created_at"].isoformat()
             doc["updated_at"] = doc["updated_at"].isoformat()
+
+            # Also ensure relational record exists
+            try:
+                rel_conv, _ = ChatConversation.objects.get_or_create(
+                    conversation_id=doc["conversation_id"],
+                    defaults={
+                        "type": conv_type,
+                        "title": doc["title"],
+                        "newsroom_group_id": newsroom_group_id,
+                    },
+                )
+                if conv_type == 'direct':
+                    rel_conv.participants.add(request.user.pk, recipient_id)
+            except Exception:
+                pass
+
             return Response(doc, status=status.HTTP_201_CREATED)
         except MongoChatStoreUnavailable:
             return Response({"detail": "Chat database unavailable."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
@@ -147,7 +190,6 @@ class MessageListCreateView(APIView):
                 user_msg["created_at"] = user_msg["created_at"].isoformat()
 
             # 2. Check if this is an AI conversation
-            from .models import ChatConversation
             conv = ChatConversation.objects.filter(pk=conversation_id).first()
             ai_msg_data = None
 
