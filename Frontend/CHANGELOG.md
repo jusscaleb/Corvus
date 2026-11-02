@@ -5,6 +5,26 @@ All notable changes to the frontend will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.1] - 2026-11-02
+
+### Added
+
+- **Native Mobile PDF Export & Storage (`pdfExporter.js`)**:
+  - Implemented mobile document generation using `expo-print` to render styled editorial articles to PDF on device.
+  - Automatically creates and manages a local `Corvus/` directory inside `FileSystem.documentDirectory`.
+  - Saves exported PDFs into the `Corvus/` directory using sanitized filenames (`<Title>_<YYYY-MM-DD>.pdf`).
+  - Integrated `expo-sharing` to present native OS sharing and file-saving dialogs (save to Files, Drive, print, or share).
+
+### Fixed
+
+- **Android Cross-Storage Move Rejection (`pdfExporter.js`)**:
+  - Replaced atomic filesystem `moveAsync` with stream-based `copyAsync` plus cache cleanup (`deleteAsync`). Resolves Android `java.io.IOException: Location ... isn't movable` exception caused by partition boundary moves from `cache/Print/` to app document storage.
+  - Added duplicate destination file check prior to copy to ensure repeatable exports do not collide.
+  - Added format-aware handling in `openPdfDocument` supporting base64 data URIs, remote HTTP/HTTPS downloads via `downloadAsync`, and local file URIs via `copyAsync`.
+
+- **Expo FileSystem Runtime Deprecation (`pdfExporter.js`)**:
+  - Updated `expo-file-system` imports to `expo-file-system/legacy` for Expo SDK 54+ compatibility, resolving runtime deprecation exceptions when calling `getInfoAsync`, `makeDirectoryAsync`, `moveAsync`, and `writeAsStringAsync`.
+
 ## [3.3.0] - 2026-11-02
 
 ### Added
