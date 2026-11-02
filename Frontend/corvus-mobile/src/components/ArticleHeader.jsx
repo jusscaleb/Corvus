@@ -188,7 +188,7 @@ function CheckIcon({ size = 14, color = '#10b981' }) {
 
 export default function ArticleHeader({
   activeBranch = 'main',
-  branches = ['main', 'dev', 'feature/article-draft', 'release/v1.0'],
+  branches = ['main'],
   onSelectBranch = () => {},
   onExecuteCommand = () => {},
   onApplyFormat = () => {},

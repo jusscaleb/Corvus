@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [5.5.0] - 2026-11-03
+## [5.5.2] - 2026-11-03
 
 ### Added
 
@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Implemented background Global Voice Session Monitor polling `GET /api/newsroom/voice/active/` across all user newsrooms and direct messages every 3.5s with zero extra socket overhead.
   - Enabled one-tap **Join** from anywhere in the app, connecting directly to the target voice room without forcing view displacement.
 
-## [5.4.1] - 2026-11-02
+## [5.4.2] - 2026-11-02
 
 ### Fixed
 
@@ -27,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Wired auto-dismissal of the invite banner when `voiceChat.isConnected` becomes active or when call ends.
   - Enhanced active conversation polling loop (every 3.5s) to query `fetchActiveVoiceSessions()` as a fallback guarantee so opposing users reliably receive the invite banner even if WebSocket connection is delayed.
 
-## [5.4.0] - 2026-11-02
+## [5.4.1] - 2026-11-02
 
 ### Added
 
