@@ -5,6 +5,37 @@ All notable changes to the frontend will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.1] - 2026-11-02
+
+### Fixed
+
+- **`api.js` — Restored missing API exports after file truncation**:
+  - Re-added all domain-specific exports that were lost during a previous URL-change edit: `searchUsers`, `fetchNewsrooms`, `createNewsroom`, `fetchArticles`, `fetchInbox`, `createOrGetDirectChat`, `fetchMessages`, `sendChatMessage`.
+  - Corrected mobile API base URL port from `8081` to `8000` (Django backend port).
+  - Resolved `Search error: (0 , _servicesApi.searchUsers) is not a function` crash in `CreateNewsroomModal`.
+  - **Duplicate chat header row removed (`MainScreen.jsx`)**:
+  - The `chatHeader` View (showing avatar, title, and `USER-GROUP (EE)` / `USER-USER (EE)` badge) was rendering as a second header row below `ChatScreenHeader`, duplicating the newsroom name on screen.
+  - Removed the redundant block entirely; `ChatScreenHeader` alone now serves as the conversation header.
+
+- **Newsroom appearing in Direct Messages (`MainScreen.jsx`)**:
+  - `fetchInbox` returns all conversations including group-type ones seeded when a newsroom is created.
+  - The inbox response was being mapped to `directMessages` without filtering, causing newsroom group conversations to appear in the DM list.
+  - Added `.filter((c) => c.type === 'direct')` before `.map()` so only direct conversations populate the DM section.
+
+### Changed
+
+- **Newsroom Chat Screen (`app/(app)/chat/index.jsx`) — Keyboard & Composer Overhaul**:
+  - Fixed Android keyboard hiding the text input: `KeyboardAvoidingView` now uses `behavior="height"` on Android (was `undefined`) and `behavior="padding"` on iOS, with correct per-platform `keyboardVerticalOffset`.
+  - Applied `useSafeAreaInsets` to the composer bottom padding to respect home-bar and notch geometry.
+  - Added `keyboardShouldPersistTaps="handled"` on the message list to prevent accidental keyboard dismissal on message tap.
+  - Implemented **optimistic message send**: message appears instantly in the list (faded, `sending` state), confirmed on API success, and marked `⚠ Failed — tap to retry` on error with one-tap retry support.
+  - Replaced the flat composer bar with a **custom composer toolbar** featuring:
+    - Spring-animated sliding panel (opens/closes with the `+` / `✕` round button).
+    - Quick-emoji strip (👍 ❤️ 🔥 ✅ ⚠️ 📌 🎯 💬) that inserts into draft and re-focuses the input.
+    - Placeholder action pills: Attach, Schedule, Template — ready to wire up.
+    - Character counter that appears after 80 characters and turns orange past 500.
+    - Round pill-style `TextInput` and send arrow button matching modern messenger conventions.
+
 ## [3.2.0] - 2026-11-02
 
 ### Added

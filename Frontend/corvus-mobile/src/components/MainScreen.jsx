@@ -207,7 +207,7 @@ function MainScreenContent() {
 
       if (inboxRes.status === 'fulfilled' && Array.isArray(inboxRes.value)) {
         setDirectMessages(
-          inboxRes.value.map((c) => {
+          inboxRes.value.filter((c) => c.type === 'direct').map((c) => {
             const other = (c.other_participants && c.other_participants[0]) || {};
             const title =
               c.type === 'direct'
@@ -645,26 +645,6 @@ function MainScreenContent() {
           avatar={selectedItem.avatar || selectedItem.title?.slice(0, 2)}
           memberCount={selectedItem.subscribers || selectedItem.status}
         />
-        <View style={styles.chatHeader}>
-          <View style={[styles.chatAvatar, isDirect && styles.chatAvatarDirect]}>
-            <Text style={styles.chatAvatarText}>
-              {selectedItem.avatar || selectedItem.title?.slice(0, 2)}
-            </Text>
-          </View>
-          <View style={styles.chatHeadingCopy}>
-            <Text style={styles.chatTitle}>{selectedItem.title}</Text>
-            <Text style={styles.chatSubtitle}>
-              {isDirect ? `Correspondence with ${selectedItem.role}` : selectedItem.tagline || 'Newsroom Group Desk'}
-            </Text>
-          </View>
-          <View style={styles.badgeContainer}>
-            <View style={[styles.badgeDot, isDirect ? styles.badgeDotDirect : styles.badgeDotGroup]} />
-            <Text style={styles.memberCount}>
-              {isDirect ? 'USER-USER (EE)' : 'USER-GROUP (EE)'}
-            </Text>
-          </View>
-        </View>
-
         <ScrollView contentContainerStyle={styles.messageList}>
           {(chatLogs[selectedItem.id] || []).map((message, index) => {
             const isMe = message.sender === 'You';
