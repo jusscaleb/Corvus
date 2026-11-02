@@ -19,7 +19,8 @@ User = get_user_model()
 class GroupListCreateView(APIView):
     """
     GET: List all newsroom groups the authenticated user is a member of.
-    POST: Create a new newsroom group and add creator as the first member.
+    POST: Create a new newsroom group, add creator, and optionally add initial members.
+          If member_ids is provided, requires at least 3 total members (creator + 2).
     """
     permission_classes = [IsAuthenticated]
 
@@ -31,9 +32,41 @@ class GroupListCreateView(APIView):
     def post(self, request):
         serializer = GroupSerializer(data=request.data)
         if serializer.is_valid():
+            member_ids = request.data.get('member_ids', None)
+            other_member_ids = []
+            if member_ids is not None:
+                if isinstance(member_ids, str):
+                    member_ids = [m.strip() for m in member_ids.split(',') if m.strip()]
+                other_member_ids = [m for m in member_ids if str(m) != str(request.user.pk)]
+                if len(set(other_member_ids)) < 2:
+                    return Response(
+                        {"detail": "A newsroom requires at least 3 members (including yourself). Please select at least 2 other colleagues."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
             with transaction.atomic():
                 group = serializer.save()
+                # 1. Add creator
                 Member.objects.create(member=request.user, group=group)
+
+                # 2. Add other members if provided
+                if other_member_ids:
+                    users_to_add = User.objects.filter(pk__in=other_member_ids)
+                    for u in users_to_add:
+                        Member.objects.get_or_create(member=u, group=group)
+
+                # 3. Create initial group ChatConversation in MongoDB / RDBMS
+                try:
+                    from chats.mongo_store import create_conversation
+                    participants = [str(request.user.pk)] + [str(m) for m in other_member_ids]
+                    create_conversation(
+                        conv_type="group",
+                        participants=participants,
+                        newsroom_group_id=group.group_id,
+                        title=f"{group.group_name} Newsroom",
+                    )
+                except Exception:
+                    pass
 
             return Response(GroupSerializer(group).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

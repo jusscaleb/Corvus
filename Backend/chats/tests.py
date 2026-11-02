@@ -111,6 +111,38 @@ class ChatsTestSuite(APITestCase):
         self.assertEqual(response.data["type"], "direct")
         mock_create_conv.assert_called_once()
 
+    @patch('chats.views.get_conversations_collection')
+    def test_direct_conversation_deduplication(self, mock_get_coll):
+        """Tests that initiating a direct chat returns the existing one if already present."""
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        existing_doc = {
+            "_id": "conv_existing_123",
+            "conversation_id": "conv_existing_123",
+            "type": "direct",
+            "title": "",
+            "participants": [str(self.user1.pk), str(self.user2.pk)],
+            "newsroom_group_id": None,
+            "created_at": now,
+            "updated_at": now,
+        }
+        mock_coll = MagicMock()
+        mock_coll.find_one.return_value = existing_doc
+        mock_get_coll.return_value = mock_coll
+
+        url = reverse('conversation_list_create')
+        data = {
+            "type": "direct",
+            "recipient_id": str(self.user2.pk),
+        }
+        response = self.client.post(url, data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["conversation_id"], "conv_existing_123")
+        self.assertEqual(response.data["type"], "direct")
+        self.assertIn("other_participants", response.data)
+        self.assertEqual(response.data["other_participants"][0]["user_id"], str(self.user2.pk))
+        mock_coll.find_one.assert_called_once()
+
     @patch('chats.views.create_conversation')
     def test_create_group_conversation_checks_newsroom_membership(self, mock_create_conv):
         """Tests that creating a group conversation ensures the user belongs to that newsroom."""
