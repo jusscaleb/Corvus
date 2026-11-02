@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import NewsroomHeader from './NewsroomHeader';
 import { useTheme } from '../context/ThemeContext';
+import { VoiceChatProvider, ChatScreenHeader } from './VoiceChat';
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -98,6 +99,14 @@ function EmptyState({ icon, title, subtitle, styles }) {
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function MainScreen() {
+  return (
+    <VoiceChatProvider>
+      <MainScreenContent />
+    </VoiceChatProvider>
+  );
+}
+
+function MainScreenContent() {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
   const { width } = useWindowDimensions();
@@ -355,22 +364,12 @@ export default function MainScreen() {
     // Chat view
     return (
       <Animated.View style={[styles.chatPane, { opacity: contentFadeAnim }]}>
-        <View style={styles.chatHeader}>
-          <View style={styles.chatAvatar}>
-            <Text style={styles.chatAvatarText}>
-              {selectedItem.avatar || selectedItem.title?.slice(0, 2)}
-            </Text>
-          </View>
-          <View style={styles.chatHeadingCopy}>
-            <Text style={styles.chatTitle}>{selectedItem.title}</Text>
-            <Text style={styles.chatSubtitle}>
-              {selectedItem.tagline || selectedItem.role || 'Group channel'}
-            </Text>
-          </View>
-          <Text style={styles.memberCount}>
-            {selectedItem.subscribers || selectedItem.status}
-          </Text>
-        </View>
+        <ChatScreenHeader
+          title={selectedItem.title}
+          subtitle={selectedItem.tagline || selectedItem.role || 'Group channel'}
+          avatar={selectedItem.avatar || selectedItem.title?.slice(0, 2)}
+          memberCount={selectedItem.subscribers || selectedItem.status}
+        />
         <ScrollView contentContainerStyle={styles.messageList}>
           {(chatLogs[selectedItem.id] || []).map((message, index) => {
             const isMe = message.sender === 'You';
