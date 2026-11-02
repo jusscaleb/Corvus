@@ -23,6 +23,7 @@ import { LockIcon, UsersIcon, EditIcon, FilePdfIcon, PrinterIcon, EyeIcon, SaveI
 import { exportArticleToPdf, openPdfDocument } from '../utils/pdfExporter';
 import { useTheme } from '../context/ThemeContext';
 import { VoiceChatProvider, ChatScreenHeader } from './VoiceChat';
+import ArticleHeader from './ArticleHeader';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import {
@@ -184,6 +185,43 @@ function MainScreenContent() {
   const [editContent, setEditContent] = useState('');
   const [editSummary, setEditSummary] = useState('');
   const [savingArticle, setSavingArticle] = useState(false);
+  const [activeBranch, setActiveBranch] = useState('main');
+
+  const handleSelectBranch = useCallback((branch) => {
+    setActiveBranch(branch);
+    showToast(`Switched to branch: ${branch}`, 'info');
+  }, [showToast]);
+
+  const handleExecuteCommand = useCallback((cmdId) => {
+    const labels = {
+      pull: 'Pulled latest branch updates.',
+      status: `Branch ${activeBranch} is up to date. Working tree clean.`,
+      commit: 'Saved local branch snapshot.',
+      push: 'Pushed changes to upstream newsroom repository.',
+      diff: 'Displaying difference comparison with base line.',
+    };
+    showToast(labels[cmdId] || `Executed ${cmdId}`, 'info');
+  }, [activeBranch, showToast]);
+
+  const handleApplyFormat = useCallback((action) => {
+    if (!isEditingArticle) {
+      showToast(`Formatting selected: ${action}. Click "Edit Story" to format draft.`, 'info');
+      return;
+    }
+    const formatWrappers = {
+      bold: (t) => (t ? `${t} **bold text**` : '**bold text**'),
+      italic: (t) => (t ? `${t} *italic text*` : '*italic text*'),
+      underline: (t) => (t ? `${t} _underlined text_` : '_underlined text_'),
+      h1: (t) => (t ? `${t}\n\n# Headline\n` : '# Headline\n'),
+      h2: (t) => (t ? `${t}\n\n## Sub-headline\n` : '## Sub-headline\n'),
+      bullet: (t) => (t ? `${t}\n• Key point` : '• Key point'),
+      quote: (t) => (t ? `${t}\n> "Direct quote from source"` : '> "Direct quote from source"'),
+      code: (t) => (t ? `${t} \`code/data point\`` : '`code/data point`'),
+    };
+    const formatter = formatWrappers[action] || ((t) => `${t} [${action}]`);
+    setEditContent((prev) => formatter(prev));
+    showToast(`Inserted ${action} formatting`, 'info');
+  }, [isEditingArticle, showToast]);
 
   // ── Animated values for expanding & retracting panels ───────────
   const leftAnim = useRef(new Animated.Value(1)).current;
@@ -720,6 +758,12 @@ function MainScreenContent() {
 
       return (
         <Animated.View style={[{ flex: 1 }, { opacity: contentFadeAnim }]}>
+          <ArticleHeader
+            activeBranch={activeBranch}
+            onSelectBranch={handleSelectBranch}
+            onExecuteCommand={handleExecuteCommand}
+            onApplyFormat={handleApplyFormat}
+          />
           <ScrollView contentContainerStyle={styles.articleScroll}>
             {/* Header / Category & Actions Line */}
             <View style={styles.articleHeaderLine}>
