@@ -146,3 +146,14 @@ class GroupMemberDeleteView(APIView):
         member = get_object_or_404(Member, group_id=group_id, member_id=user_id)
         member.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ActiveVoiceSessionsView(APIView):
+    """
+    GET: List all rooms currently hosting an active voice session with participants.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from .consumers import get_active_voice_sessions
+        return Response(get_active_voice_sessions(), status=status.HTTP_200_OK)

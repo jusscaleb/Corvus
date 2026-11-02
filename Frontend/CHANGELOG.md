@@ -6,6 +6,70 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [5.5.0] - 2026-11-03
+
+### Added
+
+- **Global Voice Session Multitasking & Root Overlay Architecture**:
+  - Decoupled `useVoiceChat` room state (`activeVoiceRoom`) from `selectedItem`, allowing journalists to remain connected to an ongoing voice call while simultaneously navigating articles, reviewing branches, opening PDFs, or switching newsroom desks.
+  - Lifted `<VoiceCallInviteBanner>` from inside individual chat panes to the top-level workspace (`styles.page`), enabling incoming call notifications to appear globally across all views.
+  - Added dynamic conversation identification to the invite banner (e.g., *"Voice in Investigative Desk — Munashe Caleb opened a live voice channel"*).
+  - Implemented background Global Voice Session Monitor polling `GET /api/newsroom/voice/active/` across all user newsrooms and direct messages every 3.5s with zero extra socket overhead.
+  - Enabled one-tap **Join** from anywhere in the app, connecting directly to the target voice room without forcing view displacement.
+
+## [5.4.1] - 2026-11-02
+
+### Fixed
+
+- **Voice Call Notification Banner Routing Logic**:
+  - Filtered incoming `voice_call_status` messages so the call invite banner is strictly presented to **opposing participants** (peers), never to the user who started the session.
+  - Added `initiatedVoiceCallRef` tracking on client session start to suppress self-invites during WebRTC connection setup.
+  - Wired auto-dismissal of the invite banner when `voiceChat.isConnected` becomes active or when call ends.
+  - Enhanced active conversation polling loop (every 3.5s) to query `fetchActiveVoiceSessions()` as a fallback guarantee so opposing users reliably receive the invite banner even if WebSocket connection is delayed.
+
+## [5.4.0] - 2026-11-02
+
+### Added
+
+- **Voice Call Invite Banner (VoiceCallInviteBanner.jsx)**:
+  - Animated slide-down notification banner that appears at the top of the chat pane when a peer starts a voice session in the active conversation.
+  - Displays the initiator's name ("X opened a live voice channel") with a join button and a dismiss button.
+  - Smooth spring slide-in / timing slide-out animation pair via React Native `Animated` API.
+  - Pulsing green live indicator strip along the banner bottom edge signals an active call without text clutter.
+  - Auto-dismisses when the backend sends `voice_call_status: ended` or the user joins.
+  - Frosted-glass dark theme with emerald accent, consistent with the existing `VoiceBar` design language.
+
+- **Chat WebSocket Hook (useChatSocket.js)**:
+  - Lightweight persistent WebSocket hook connecting to `ws/chat/<conversationId>/` on the Django Channels `ChatConsumer`.
+  - Surfaces `voice_call_status` push events sent by `VoiceSignalingConsumer` through the chat channel group.
+  - Automatically reconnects after unexpected closure (single 3 s retry; no retry on clean close or auth failure).
+  - Tears down cleanly on conversation switch or component unmount.
+
+- **MainScreen.jsx — Voice Call Notification Wiring**:
+  - `activeVoiceCallInvite` state tracks the current incoming call payload.
+  - `useChatSocket` mounted with the active conversation id; `onVoiceStatus` callback populates or clears the invite.
+  - `VoiceCallInviteBanner` rendered inside the chat pane directly below `ChatScreenHeader`; `onJoin` calls `voiceChat.connect()` and clears the invite state.
+  - `activeConversationId` derived constant hoisted above all hook calls to avoid temporal dead-zone reference.
+
+## [5.3.1] - 2026-11-02
+
+### Added
+
+- **Full-Duplex WebRTC Voice Hook (useVoiceChat.js)**:
+  - Implemented custom React WebRTC hook connecting to Django Channels signaling server via WebSockets (\ws/rooms/<room_id>/voice/\).
+  - Added full mesh peer network topology managing multi-peer \RTCPeerConnection\ instances for newsroom session participants.
+  - Automatic peer discovery, SDP offer/answer creation, and ICE candidate trickling with race-condition queue protection.
+  - Native Voice Activity Detection (VAD) via Web Audio API (\AudioContext\ + \AnalyserNode\) calculating real-time audio energy and broadcasting speaker transitions.
+  - Mute/Unmute microphone management via track enablement and Deafen/Undeafen incoming audio controls.
+  - Full resource teardown on unmount or room leave (closing peer connections, stopping media tracks, disposing audio tags).
+
+- **Anchored Newsroom Voice Bar Overlay (VoiceBar.jsx)**:
+  - Floating pill overlay anchored to the newsroom / mind map workspace with frosted-glass backdrop blur styling.
+  - Live session badge with pulsing green status dot and room headline.
+  - Participant avatar cluster featuring animated glowing emerald speaking halos and live equalizer wave meters.
+  - Real-time mute badges (\MicOff\) indicating peer microphone states.
+  - Controls for instant Mute/Unmute, Deafen/Undeafen, Disconnect, and minimized dock toggle.
+
 ## [4.3.1] - 2026-11-02
 
 - **Article Header**:

@@ -4,6 +4,7 @@ from .views import (
     GroupDetailView,
     GroupMemberListCreateView,
     GroupMemberDeleteView,
+    ActiveVoiceSessionsView,
 )
 
 urlpatterns = [
@@ -11,4 +12,5 @@ urlpatterns = [
     path('groups/<str:group_id>/', GroupDetailView.as_view(), name='group_detail'),
     path('groups/<str:group_id>/members/', GroupMemberListCreateView.as_view(), name='group_members_list_create'),
     path('groups/<str:group_id>/members/<str:user_id>/', GroupMemberDeleteView.as_view(), name='group_member_delete'),
+    path('voice/active/', ActiveVoiceSessionsView.as_view(), name='active_voice_sessions'),
 ]

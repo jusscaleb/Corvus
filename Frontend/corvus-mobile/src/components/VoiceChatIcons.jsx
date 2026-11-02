@@ -112,3 +112,23 @@ export function Sparkles({ size = 16, color = 'currentColor', style }) {
   );
 }
 
+
+
+export function Headphones({ size = 16, color = 'currentColor', style }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <Path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+      <Path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+    </Svg>
+  );
+}
+
+export function VolumeX({ size = 16, color = 'currentColor', style }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <Polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+      <Line x1="22" y1="9" x2="16" y2="15" />
+      <Line x1="16" y1="9" x2="22" y2="15" />
+    </Svg>
+  );
+}

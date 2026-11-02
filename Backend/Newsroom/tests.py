@@ -4,8 +4,11 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
+from channels.testing import WebsocketCommunicator
+from channels.routing import URLRouter
 
 from .models import Group, Member
+import Newsroom.routing
 
 User = get_user_model()
 
@@ -153,3 +156,174 @@ class NewsroomTests(APITestCase):
         url = reverse('group_list_create')
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class VoiceSignalingTests(APITestCase):
+    def setUp(self):
+        self.application = URLRouter(Newsroom.routing.websocket_urlpatterns)
+        self.user1 = User.objects.create_user(
+            user_id=str(uuid.uuid4()),
+            username="voice_peer_1",
+            full_name="Journalist One",
+            email="peer1@example.com",
+            password="testPassword123!",
+        )
+        self.token1 = str(RefreshToken.for_user(self.user1).access_token)
+
+        self.user2 = User.objects.create_user(
+            user_id=str(uuid.uuid4()),
+            username="voice_peer_2",
+            full_name="Journalist Two",
+            email="peer2@example.com",
+            password="testPassword123!",
+        )
+        self.token2 = str(RefreshToken.for_user(self.user2).access_token)
+
+    async def test_voice_signaling_unauthenticated_connection_rejected(self):
+        communicator = WebsocketCommunicator(
+            self.application,
+            "/ws/rooms/session-123/voice/"
+        )
+        connected, close_code = await communicator.connect()
+        self.assertFalse(connected)
+        self.assertEqual(close_code, 4401)
+        await communicator.disconnect()
+
+    async def test_voice_signaling_peer_join_and_notification(self):
+        room_id = "mindmap-room-alpha"
+
+        # Peer 1 connects
+        comm1 = WebsocketCommunicator(
+            self.application,
+            f"/ws/rooms/{room_id}/voice/?access_token={self.token1}"
+        )
+        connected1, _ = await comm1.connect()
+        self.assertTrue(connected1)
+
+        # Peer 2 connects
+        comm2 = WebsocketCommunicator(
+            self.application,
+            f"/ws/rooms/{room_id}/voice/?access_token={self.token2}"
+        )
+        connected2, _ = await comm2.connect()
+        self.assertTrue(connected2)
+
+        # Peer 2 sends join_room event
+        await comm2.send_json_to({
+            "type": "join_room",
+            "room_id": room_id,
+        })
+
+        # Peer 1 should receive user_joined event for Peer 2
+        response = await comm1.receive_json_from()
+        self.assertEqual(response["type"], "user_joined")
+        self.assertEqual(response["user_id"], str(self.user2.pk))
+        self.assertEqual(response["user_name"], "Journalist Two")
+
+        await comm1.disconnect()
+        await comm2.disconnect()
+
+    async def test_voice_signaling_offer_answer_and_ice_relay(self):
+        room_id = "mindmap-room-beta"
+
+        comm1 = WebsocketCommunicator(
+            self.application,
+            f"/ws/rooms/{room_id}/voice/?access_token={self.token1}"
+        )
+        await comm1.connect()
+
+        comm2 = WebsocketCommunicator(
+            self.application,
+            f"/ws/rooms/{room_id}/voice/?access_token={self.token2}"
+        )
+        await comm2.connect()
+
+        # Peer 1 sends offer targeted to Peer 2
+        fake_offer_sdp = {"type": "offer", "sdp": "v=0\r\no=mock-sdp-offer"}
+        await comm1.send_json_to({
+            "type": "offer",
+            "target_user_id": str(self.user2.pk),
+            "sdp": fake_offer_sdp,
+        })
+
+        # Peer 2 should receive the offer
+        offer_msg = await comm2.receive_json_from()
+        self.assertEqual(offer_msg["type"], "offer")
+        self.assertEqual(offer_msg["sender_user_id"], str(self.user1.pk))
+        self.assertEqual(offer_msg["target_user_id"], str(self.user2.pk))
+        self.assertEqual(offer_msg["sdp"], fake_offer_sdp)
+
+        # Peer 2 sends answer targeted to Peer 1
+        fake_answer_sdp = {"type": "answer", "sdp": "v=0\r\no=mock-sdp-answer"}
+        await comm2.send_json_to({
+            "type": "answer",
+            "target_user_id": str(self.user1.pk),
+            "sdp": fake_answer_sdp,
+        })
+
+        # Peer 1 should receive the answer
+        answer_msg = await comm1.receive_json_from()
+        self.assertEqual(answer_msg["type"], "answer")
+        self.assertEqual(answer_msg["sender_user_id"], str(self.user2.pk))
+        self.assertEqual(answer_msg["target_user_id"], str(self.user1.pk))
+        self.assertEqual(answer_msg["sdp"], fake_answer_sdp)
+
+        # Peer 1 sends ICE candidate
+        fake_candidate = {"candidate": "candidate:1 1 UDP 2130706431 192.168.1.1 5000 typ host", "sdpMid": "0"}
+        await comm1.send_json_to({
+            "type": "ice_candidate",
+            "target_user_id": str(self.user2.pk),
+            "candidate": fake_candidate,
+        })
+
+        # Peer 2 receives ICE candidate
+        ice_msg = await comm2.receive_json_from()
+        self.assertEqual(ice_msg["type"], "ice_candidate")
+        self.assertEqual(ice_msg["candidate"], fake_candidate)
+
+        await comm1.disconnect()
+        await comm2.disconnect()
+
+    async def test_voice_signaling_speaking_state_and_disconnect(self):
+        room_id = "mindmap-room-gamma"
+
+        comm1 = WebsocketCommunicator(
+            self.application,
+            f"/ws/rooms/{room_id}/voice/?access_token={self.token1}"
+        )
+        await comm1.connect()
+
+        comm2 = WebsocketCommunicator(
+            self.application,
+            f"/ws/rooms/{room_id}/voice/?access_token={self.token2}"
+        )
+        await comm2.connect()
+
+        # Peer 1 sends speaking state update
+        await comm1.send_json_to({
+            "type": "speaking_state",
+            "is_speaking": True,
+            "is_muted": False,
+        })
+
+        speaking_msg = await comm2.receive_json_from()
+        self.assertEqual(speaking_msg["type"], "speaking_state")
+        self.assertEqual(speaking_msg["user_id"], str(self.user1.pk))
+        self.assertTrue(speaking_msg["is_speaking"])
+        self.assertFalse(speaking_msg["is_muted"])
+
+        # Peer 2 disconnects -> Peer 1 receives user_left
+        await comm2.disconnect()
+        left_msg = await comm1.receive_json_from()
+        self.assertEqual(left_msg["type"], "user_left")
+        self.assertEqual(left_msg["user_id"], str(self.user2.pk))
+
+        await comm1.disconnect()
+
+
+    def test_active_voice_sessions_endpoint(self):
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token1}')
+        url = reverse('active_voice_sessions')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsInstance(response.data, dict)
