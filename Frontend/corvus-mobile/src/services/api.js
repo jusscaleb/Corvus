@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 
 export const API_BASE_URL = Platform.select({
   web: 'http://localhost:8000',
-  default: 'http://10.10.181.65:8000',
+  default: 'http://192.168.88.206:8081',
 });
 
 let currentTokens = { access: null, refresh: null };
@@ -15,16 +15,16 @@ export const authStorage = {
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
         window.localStorage.setItem('corvus_tokens', JSON.stringify(currentTokens));
-      } catch (e) {}
+      } catch (e) { }
     }
   },
   getUser: () => currentUser,
   setUser: (user) => {
-    currentUser = user;0
+    currentUser = user; 0
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
         window.localStorage.setItem('corvus_user', JSON.stringify(currentUser));
-      } catch (e) {}
+      } catch (e) { }
     }
   },
   clear: () => {
@@ -34,7 +34,7 @@ export const authStorage = {
       try {
         window.localStorage.removeItem('corvus_tokens');
         window.localStorage.removeItem('corvus_user');
-      } catch (e) {}
+      } catch (e) { }
     }
   },
   init: () => {
@@ -44,7 +44,7 @@ export const authStorage = {
         if (saved) currentTokens = JSON.parse(saved);
         const userSaved = window.localStorage.getItem('corvus_user');
         if (userSaved) currentUser = JSON.parse(userSaved);
-      } catch (e) {}
+      } catch (e) { }
     }
   },
 };
@@ -262,4 +262,9 @@ export async function sendChatMessage(conversation_id, content) {
     requireAuth: true,
     body: { content },
   });
+}
+
+
+export async function fetchActiveVoiceSessions() {
+  return await apiRequest('/api/newsroom/voice/active/', { requireAuth: true });
 }

@@ -90,3 +90,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def chat_message_broadcast(self, event):
         await self.send(text_data=json.dumps(event["message"]))
+
+    async def voice_call_status(self, event):
+        await self.send(text_data=json.dumps(event["message"]))

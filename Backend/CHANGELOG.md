@@ -3,6 +3,28 @@
 All notable backend changes are documented here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [3.3.1] - 2026-11-02
+
+### Added
+
+- **Django Channels WebRTC Voice Signaling Server (`VoiceSignalingConsumer`, `Newsroom/routing.py`, `corvus/asgi.py`)**:
+  - Implemented asynchronous ASGI WebSocket signaling consumer under `ws/rooms/<room_id>/voice/` for low-latency, full-duplex multi-user newsroom voice sessions.
+  - Handled complete WebRTC signaling exchange over JSON payloads:
+    - `join_room`: Broadcasts new peer announcement (`user_joined`) to the room's multicast channel group.
+    - `offer`: Relays targeted `RTCSessionDescription` SDP offers between peers without echo loops.
+    - `answer`: Relays targeted SDP answers directly to the offering peer.
+    - `ice_candidate`: Relays targeted `RTCIceCandidate` packets for trickle-ICE connection establishment.
+    - `speaking_state`: Multi-casts real-time speaking / mute activity states to all active peers for UI indicator synchronisation.
+    - `leave_room` & `disconnect`: Automatically notifies remaining room participants (`user_left`) and safely discards group channels.
+  - Non-blocking authentication supporting SimpleJWT access tokens via query string (`?access_token=...`) as well as test/guest session identifiers.
+  - Integrated `Newsroom.routing.websocket_urlpatterns` into `corvus/asgi.py`.
+- **Asynchronous Unit Test Suite for Voice Signaling (`Newsroom/tests.py`)**:
+  - Added 4 automated asynchronous integration tests using `channels.testing.WebsocketCommunicator`:
+    - `test_voice_signaling_unauthenticated_connection_rejected`: Validates rejection with 4401 on missing credentials.
+    - `test_voice_signaling_peer_join_and_notification`: Validates presence broadcasting across peers.
+    - `test_voice_signaling_offer_answer_and_ice_relay`: Verifies end-to-end targeted SDP and ICE trickle relays.
+    - `test_voice_signaling_speaking_state_and_disconnect`: Confirms real-time speaking status and disconnection notifications.
+
 ## [2.3.1] - 2026-11-02
 
 ### Added

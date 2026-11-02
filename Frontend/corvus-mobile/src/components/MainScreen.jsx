@@ -23,6 +23,10 @@ import { LockIcon, UsersIcon, EditIcon, FilePdfIcon, PrinterIcon, EyeIcon, SaveI
 import { exportArticleToPdf, openPdfDocument } from '../utils/pdfExporter';
 import { useTheme } from '../context/ThemeContext';
 import { VoiceChatProvider, ChatScreenHeader } from './VoiceChat';
+import useVoiceChat from '../hooks/useVoiceChat';
+import VoiceBar from './VoiceBar';
+import VoiceCallInviteBanner from './VoiceCallInviteBanner';
+import useChatSocket from '../hooks/useChatSocket';
 import ArticleHeader from './ArticleHeader';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -34,6 +38,7 @@ import {
   sendChatMessage,
   updateArticle,
   updateBranchContent,
+  fetchActiveVoiceSessions,
 } from '../services/api';
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -169,6 +174,9 @@ function MainScreenContent() {
   const [chatLogs, setChatLogs] = useState({});
   const [sendingMessage, setSendingMessage] = useState(false);
 
+  // Voice call invite notification state
+  const [activeVoiceCallInvite, setActiveVoiceCallInvite] = useState(null);
+
   // Live data states
   const [articles, setArticles] = useState([]);
   const [newsrooms, setNewsrooms] = useState([]);
@@ -186,6 +194,136 @@ function MainScreenContent() {
   const [editSummary, setEditSummary] = useState('');
   const [savingArticle, setSavingArticle] = useState(false);
   const [activeBranch, setActiveBranch] = useState('main');
+
+  // Dedicated active voice room state { id, title } – persists across view navigation
+  // (allows users to browse/edit articles, switch channels, and multitask while remaining on voice)
+  const [activeVoiceRoom, setActiveVoiceRoom] = useState(null);
+
+  // Voice session room ID – stays anchored to activeVoiceRoom during an ongoing call
+  const currentVoiceRoomId = activeVoiceRoom?.id || selectedItem?.id || 'newsroom-general';
+  const voiceChat = useVoiceChat(currentVoiceRoomId, user, { autoJoin: false });
+
+  // Derived from selectedItem — used for chat polling & chat WebSocket
+  const activeConversationId = selectedItem?.type === 'chat' ? selectedItem.id : null;
+
+  // Tracks if THIS client initiated the voice session to prevent showing self-invite banners
+  const initiatedVoiceCallRef = useRef(false);
+
+  // Auto-dismiss invite banner if user joins or is connected to the voice call
+  useEffect(() => {
+    if (voiceChat.isConnected) {
+      setActiveVoiceCallInvite(null);
+    }
+  }, [voiceChat.isConnected]);
+
+  // Real-time chat WebSocket – delivers voice_call_status events sent by
+  // the backend VoiceSignalingConsumer through ChatConsumer to all channel members
+  useChatSocket(activeConversationId, {
+    onVoiceStatus: (msg) => {
+      const myUserId = user?.user_id || user?.id || user?.pk;
+      const isInitiator = String(msg.initiator_id) === String(myUserId) || initiatedVoiceCallRef.current;
+
+      if (msg.status === 'started') {
+        // Only show invite banner to the OPPOSING user — NEVER to the initiator
+        if (!isInitiator && !voiceChat.isConnected && !voiceChat.isConnecting) {
+          const matched = newsrooms.find((n) => String(n.id) === String(msg.room_id)) ||
+                          directMessages.find((d) => String(d.id) === String(msg.room_id));
+          setActiveVoiceCallInvite({
+            ...msg,
+            room_title: matched?.title || selectedItem?.title || 'Voice channel',
+          });
+        }
+      } else if (msg.status === 'ended') {
+        setActiveVoiceCallInvite(null);
+        initiatedVoiceCallRef.current = false;
+        if (activeVoiceRoom?.id === msg.room_id) {
+          voiceChat.disconnect();
+          setActiveVoiceRoom(null);
+        }
+      }
+    },
+    onChatMessage: (msg) => {
+      // Future: use for real-time chat instead of polling
+    },
+  });
+
+  // ── Global Voice Session Monitor ──────────────────────────────────────────
+  // Polls active voice calls across all of the user's newsrooms & DMs so invitations
+  // appear globally from anywhere, allowing the user to browse articles or perform
+  // other tasks while receiving incoming voice session alerts.
+  useEffect(() => {
+    let isMounted = true;
+
+    async function checkGlobalVoiceSessions() {
+      // Don't poll if already in a voice call
+      if (voiceChat.isConnected || voiceChat.isConnecting) {
+        return;
+      }
+
+      try {
+        const activeSessions = await fetchActiveVoiceSessions();
+        if (!isMounted || !activeSessions) return;
+
+        const myUserId = user?.user_id || user?.id || user?.pk;
+
+        // Build index of all rooms the user has access to
+        const userRooms = new Map();
+        newsrooms.forEach((n) => userRooms.set(String(n.id), { id: n.id, title: n.title, type: 'group' }));
+        directMessages.forEach((d) => userRooms.set(String(d.id), { id: d.id, title: d.title, type: 'direct' }));
+
+        // Check if any active session is in a room the user belongs to
+        let foundInvite = null;
+        for (const [roomId, session] of Object.entries(activeSessions)) {
+          if (userRooms.has(String(roomId)) && session.participant_count > 0) {
+            const isInitiator = String(session.initiator_id) === String(myUserId) || initiatedVoiceCallRef.current;
+            if (!isInitiator) {
+              const roomInfo = userRooms.get(String(roomId));
+              foundInvite = {
+                type: 'voice_call_status',
+                status: 'started',
+                room_id: roomId,
+                initiator_id: session.initiator_id,
+                initiator_name: session.initiator_name || 'Colleague',
+                room_title: roomInfo?.title || 'Newsroom desk',
+              };
+              break;
+            }
+          }
+        }
+
+        if (foundInvite) {
+          setActiveVoiceCallInvite(foundInvite);
+        } else if (activeVoiceCallInvite && !initiatedVoiceCallRef.current) {
+          setActiveVoiceCallInvite(null);
+        }
+      } catch (e) {
+        // Voice session check fallback
+      }
+    }
+
+    checkGlobalVoiceSessions();
+    const interval = setInterval(checkGlobalVoiceSessions, 3500);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [user, newsrooms, directMessages, voiceChat.isConnected, voiceChat.isConnecting, activeVoiceCallInvite]);
+
+  // Handler to join an active voice call from anywhere in the app
+  const handleJoinVoiceCall = useCallback(() => {
+    if (!activeVoiceCallInvite) return;
+    const targetRoom = {
+      id: activeVoiceCallInvite.room_id,
+      title: activeVoiceCallInvite.room_title || 'Voice Channel',
+    };
+    initiatedVoiceCallRef.current = false;
+    setActiveVoiceCallInvite(null);
+    setActiveVoiceRoom(targetRoom);
+    setTimeout(() => {
+      voiceChat.connect();
+    }, 50);
+    showToast({ message: `Joining ${targetRoom.title} voice...`, type: 'info' });
+  }, [activeVoiceCallInvite, voiceChat, showToast]);
 
   const handleSelectBranch = useCallback((branch) => {
     setActiveBranch(branch);
@@ -318,13 +456,12 @@ function MainScreenContent() {
     loadWorkspaceData();
   }, [loadWorkspaceData]);
 
-  // ── Poll messages for active chat conversation ──────────────────
-  const activeConversationId = selectedItem?.type === 'chat' ? selectedItem.id : null;
+  // ── Poll messages & active voice call status for active chat conversation ──
   useEffect(() => {
     if (!activeConversationId) return;
 
     let isMounted = true;
-    async function loadChatMessages() {
+    async function pollChatAndVoice() {
       try {
         const res = await fetchMessages(activeConversationId);
         if (res?.messages && isMounted) {
@@ -347,15 +484,40 @@ function MainScreenContent() {
       } catch {
         // Chat service might be offline or empty
       }
+
+      // Check active voice calls in this room as fallback to WebSocket push
+      try {
+        const activeSessions = await fetchActiveVoiceSessions();
+        if (isMounted && activeSessions) {
+          const currentSession = activeSessions[activeConversationId];
+          const myUserId = user?.user_id || user?.id || user?.pk;
+          if (currentSession && currentSession.participant_count > 0) {
+            const isInitiator = String(currentSession.initiator_id) === String(myUserId) || initiatedVoiceCallRef.current;
+            if (!isInitiator && !voiceChat.isConnected && !voiceChat.isConnecting) {
+              setActiveVoiceCallInvite({
+                type: 'voice_call_status',
+                status: 'started',
+                room_id: activeConversationId,
+                initiator_id: currentSession.initiator_id,
+                initiator_name: currentSession.initiator_name || 'Colleague',
+              });
+            }
+          } else if (!currentSession && !initiatedVoiceCallRef.current) {
+            setActiveVoiceCallInvite(null);
+          }
+        }
+      } catch {
+        // Active voice sessions check fallback
+      }
     }
 
-    loadChatMessages();
-    const interval = setInterval(loadChatMessages, 4000); // 4-second live poll
+    pollChatAndVoice();
+    const interval = setInterval(pollChatAndVoice, 3500); // 3.5-second live poll
     return () => {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [activeConversationId, user?.user_id]);
+  }, [activeConversationId, user?.user_id, voiceChat.isConnected, voiceChat.isConnecting]);
 
   // Animate left sidebar collapse / expand
   useEffect(() => {
@@ -989,7 +1151,28 @@ function MainScreenContent() {
           subtitle={selectedItem.tagline || selectedItem.role || 'Group channel'}
           avatar={selectedItem.avatar || selectedItem.title?.slice(0, 2)}
           memberCount={selectedItem.subscribers || selectedItem.status}
+          onOpenVoiceCall={() => {
+            if (voiceChat.isConnected && activeVoiceRoom?.id === selectedItem?.id) {
+              initiatedVoiceCallRef.current = false;
+              voiceChat.disconnect();
+              setActiveVoiceRoom(null);
+              showToast({ message: 'Left voice channel.', type: 'info' });
+            } else {
+              if (!selectedItem?.id) return;
+              initiatedVoiceCallRef.current = true;
+              setActiveVoiceCallInvite(null);
+              setActiveVoiceRoom({
+                id: selectedItem.id,
+                title: selectedItem.title || 'Newsroom Voice Channel',
+              });
+              setTimeout(() => {
+                voiceChat.connect();
+              }, 50);
+              showToast({ message: 'Connecting to live newsroom voice...', type: 'info' });
+            }
+          }}
         />
+
         <ScrollView contentContainerStyle={styles.messageList}>
           {(chatLogs[selectedItem.id] || []).map((message, index) => {
             const isMe = message.sender === 'You';
@@ -1184,6 +1367,13 @@ function MainScreenContent() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.page}>
+          {/* ── Global Voice Call Invite Banner (appears anywhere in the app) ── */}
+          <VoiceCallInviteBanner
+            invite={activeVoiceCallInvite}
+            onJoin={handleJoinVoiceCall}
+            onDismiss={() => setActiveVoiceCallInvite(null)}
+          />
+
           {!wide && (
             <View style={styles.mobileTabsBar}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mobileTabs}>
@@ -1316,6 +1506,17 @@ function MainScreenContent() {
         onClose={() => setCreateArticleModalOpen(false)}
         onCreated={handleArticleCreated}
         newsrooms={newsrooms}
+      />
+
+      {/* Real-time WebRTC Newsroom Voice Overlay Bar */}
+      <VoiceBar
+        voiceChat={voiceChat}
+        roomTitle={activeVoiceRoom?.title || selectedItem?.title || 'Newsroom Voice Channel'}
+        onDisconnect={() => {
+          initiatedVoiceCallRef.current = false;
+          setActiveVoiceRoom(null);
+          showToast({ message: 'Disconnected from voice session.', type: 'info' });
+        }}
       />
     </SafeAreaView>
   );
