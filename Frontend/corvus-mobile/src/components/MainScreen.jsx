@@ -38,6 +38,9 @@ import {
   sendChatMessage,
   updateArticle,
   updateBranchContent,
+  fetchBranches,
+  createBranch,
+  pushBranch,
   fetchActiveVoiceSessions,
 } from '../services/api';
 
@@ -194,6 +197,7 @@ function MainScreenContent() {
   const [editSummary, setEditSummary] = useState('');
   const [savingArticle, setSavingArticle] = useState(false);
   const [activeBranch, setActiveBranch] = useState('main');
+  const [articleBranches, setArticleBranches] = useState([]); // raw branch objects for the open story
 
   // Dedicated active voice room state { id, title } – persists across view navigation
   // (allows users to browse/edit articles, switch channels, and multitask while remaining on voice)
@@ -325,21 +329,131 @@ function MainScreenContent() {
     showToast({ message: `Joining ${targetRoom.title} voice...`, type: 'info' });
   }, [activeVoiceCallInvite, voiceChat, showToast]);
 
-  const handleSelectBranch = useCallback((branch) => {
-    setActiveBranch(branch);
-    showToast(`Switched to branch: ${branch}`, 'info');
-  }, [showToast]);
+  // ── Branches of the open story ─────────────────────────────────────────
+  const selectedArticleId = selectedItem?.type === 'article' ? selectedItem.id : null;
 
-  const handleExecuteCommand = useCallback((cmdId) => {
+  useEffect(() => {
+    setActiveBranch('main');
+    if (!selectedArticleId) {
+      setArticleBranches([]);
+      return;
+    }
+    let cancelled = false;
+    fetchBranches(selectedArticleId)
+      .then((list) => {
+        if (cancelled || !Array.isArray(list)) return;
+        setArticleBranches(list);
+        const main = list.find((b) => b.is_main);
+        if (main) setActiveBranch(main.branch_name);
+      })
+      .catch(() => {
+        if (!cancelled) showToast({ message: 'Could not load branches for this story.', type: 'error' });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedArticleId]);
+
+  // Main first, then oldest → newest, shaped for the ArticleHeader dropdown
+  const branchMenuItems = articleBranches.length
+    ? [...articleBranches]
+        .sort((a, b) => (b.is_main - a.is_main) || String(a.created_at).localeCompare(String(b.created_at)))
+        .map((b) => ({ id: b.branch_id, name: b.branch_name, isMain: b.is_main, isPublic: b.is_public }))
+    : ['main'];
+
+  // Load a branch's text into the reader/editor
+  const showBranchInEditor = useCallback((branch) => {
+    if (!branch) return;
+    const content = branch.content || '';
+    const summary = branch.branch_description || content.slice(0, 160);
+    setActiveBranch(branch.branch_name);
+    setSelectedItem((prev) =>
+      prev && prev.type === 'article' ? { ...prev, branchId: branch.branch_id, content, summary } : prev
+    );
+    setEditContent(content);
+    setEditSummary(summary);
+  }, []);
+
+  const handleSelectBranch = useCallback((branchName) => {
+    if (branchName === activeBranch) return;
+    if (isEditingArticle) {
+      showToast({ message: 'Save or cancel your edits before switching branches.', type: 'error' });
+      return;
+    }
+    const branch = articleBranches.find((b) => b.branch_name === branchName);
+    if (!branch) return;
+    showBranchInEditor(branch);
+    showToast({ message: `Switched to ${branchName}`, type: 'info' });
+  }, [activeBranch, isEditingArticle, articleBranches, showBranchInEditor, showToast]);
+
+  // Throws on failure so ArticleHeader can show the error inline in the form
+  const handleCreateBranch = useCallback(async (name) => {
+    if (!selectedArticleId) throw new Error('Open a story first.');
+    const source = articleBranches.find((b) => b.branch_name === activeBranch);
+    // If you're mid-edit, your unsaved draft goes into the new branch and the source stays untouched
+    const created = await createBranch(selectedArticleId, {
+      name,
+      description: isEditingArticle ? editSummary : source?.branch_description || '',
+      content: isEditingArticle ? editContent : source?.content || '',
+    });
+    setArticleBranches((prev) => [...prev, created]);
+    setIsEditingArticle(false);
+    showBranchInEditor(created);
+    showToast({
+      message: `Created ${created.branch_name} from ${activeBranch}. Only you can see it until you push.`,
+      type: 'info',
+    });
+  }, [selectedArticleId, articleBranches, activeBranch, isEditingArticle, editContent, editSummary, showBranchInEditor, showToast]);
+
+  const handleExecuteCommand = useCallback(async (cmdId) => {
+    const current = articleBranches.find((b) => b.branch_name === activeBranch);
+
+    if (cmdId === 'push') {
+      if (!current) return;
+      if (!selectedItem?.groupId) {
+        showToast({ message: 'This is a personal story – there is no newsroom to share it with.', type: 'info' });
+        return;
+      }
+      if (current.is_main || current.is_public) {
+        showToast({ message: `${activeBranch} is already shared with your newsroom.`, type: 'info' });
+        return;
+      }
+      if (isEditingArticle) {
+        showToast({ message: 'Save your edits before pushing.', type: 'error' });
+        return;
+      }
+      try {
+        const updated = await pushBranch(current.branch_id);
+        setArticleBranches((prev) => prev.map((b) => (b.branch_id === updated.branch_id ? updated : b)));
+        showToast({ message: `Pushed ${activeBranch} – your newsroom can now see it.`, type: 'info' });
+      } catch (err) {
+        showToast({ message: err?.message || 'Push failed. Try again.', type: 'error' });
+      }
+      return;
+    }
+
+    if (cmdId === 'status') {
+      const visibility = !current || current.is_main
+        ? 'main line, shared'
+        : current.is_public
+          ? 'shared with newsroom'
+          : 'private – only you can see it';
+      const unsaved = isEditingArticle &&
+        (editContent !== (selectedItem?.content || '') || editSummary !== (selectedItem?.summary || ''));
+      showToast({
+        message: `${activeBranch}: ${visibility}. ${unsaved ? 'You have unsaved edits.' : 'No unsaved edits.'}`,
+        type: 'info',
+      });
+      return;
+    }
+
     const labels = {
       pull: 'Pulled latest branch updates.',
-      status: `Branch ${activeBranch} is up to date. Working tree clean.`,
       commit: 'Saved local branch snapshot.',
-      push: 'Pushed changes to upstream newsroom repository.',
       diff: 'Displaying difference comparison with base line.',
     };
     showToast(labels[cmdId] || `Executed ${cmdId}`, 'info');
-  }, [activeBranch, showToast]);
+  }, [articleBranches, activeBranch, selectedItem, isEditingArticle, editContent, editSummary, showToast]);
 
   const handleApplyFormat = useCallback((action) => {
     if (!isEditingArticle) {
@@ -421,29 +535,7 @@ function MainScreenContent() {
       }
 
       if (articlesRes.status === 'fulfilled' && Array.isArray(articlesRes.value)) {
-        setArticles(
-          articlesRes.value.map((a) => {
-            const mainBranch = a.branches?.[0];
-            const isPersonal = !a.group && !a.group_name;
-            const groupId = typeof a.group === 'string' ? a.group : a.group?.group_id;
-            return {
-              id: a.article_id,
-              type: 'article',
-              title: a.title,
-              category: isPersonal ? 'Personal Draft' : (a.group_name || 'Newsroom Desk'),
-              isPersonal,
-              groupId: groupId || null,
-              branchId: mainBranch?.branch_id,
-              timestamp: a.created_at ? new Date(a.created_at).toLocaleDateString() : 'Draft',
-              author: a.author_name || a.author?.full_name || a.author?.username || 'Reporter',
-              authorId: a.author?.user_id,
-              readTime: `${a.branch_count || 1} branch${a.branch_count !== 1 ? 'es' : ''}`,
-              symbol: '◎',
-              summary: mainBranch?.branch_description || mainBranch?.content?.slice(0, 160) || 'Editorial draft in progress...',
-              content: mainBranch?.content || 'Draft content in progress...',
-            };
-          })
-        );
+        setArticles(formatArticlesList(articlesRes.value));
       }
     } catch (err) {
       console.log('Error loading workspace data:', err);
@@ -452,9 +544,83 @@ function MainScreenContent() {
     }
   }, []);
 
+  const formatArticlesList = useCallback((rawList) => {
+    return rawList.map((a) => {
+      const mainBranch = a.branches?.find((b) => b.is_main) || a.branches?.[0];
+      const isPersonal = !a.group && !a.group_name;
+      const groupId = typeof a.group === 'string' ? a.group : a.group?.group_id;
+      return {
+        id: a.article_id,
+        type: 'article',
+        title: a.title,
+        category: isPersonal ? 'Personal Draft' : (a.group_name || 'Newsroom Desk'),
+        isPersonal,
+        groupId: groupId || null,
+        branchId: mainBranch?.branch_id,
+        timestamp: a.created_at ? new Date(a.created_at).toLocaleDateString() : 'Draft',
+        author: a.author_name || a.author?.full_name || a.author?.username || 'Reporter',
+        authorId: a.author?.user_id,
+        readTime: `${a.branch_count || 1} branch${a.branch_count !== 1 ? 'es' : ''}`,
+        symbol: '◎',
+        summary: mainBranch?.branch_description || mainBranch?.content?.slice(0, 160) || 'Editorial draft in progress...',
+        content: mainBranch?.content || 'Draft content in progress...',
+      };
+    });
+  }, []);
+
   useEffect(() => {
     loadWorkspaceData();
   }, [loadWorkspaceData]);
+
+  // ── Live Newsroom Article & Group Sync ─────────────────────────
+  // Periodically refreshes articles and newsrooms so stories filed by any
+  // colleague in a newsroom appear automatically for all members in that newsroom.
+  useEffect(() => {
+    let isMounted = true;
+    const syncNewsroomArticles = async () => {
+      try {
+        const [articlesData, groupsData] = await Promise.all([
+          fetchArticles(),
+          fetchNewsrooms(),
+        ]);
+        if (!isMounted) return;
+        if (Array.isArray(articlesData)) {
+          const next = formatArticlesList(articlesData);
+          setArticles(next);
+          // Keep currently selected article metadata fresh if we aren't actively editing it
+          if (!isEditingArticle && !isEditingTitle) {
+            setSelectedItem((prev) => {
+              if (!prev || prev.type !== 'article') return prev;
+              const updated = next.find((item) => item.id === prev.id);
+              return updated ? { ...prev, title: updated.title, readTime: updated.readTime, category: updated.category } : prev;
+            });
+          }
+        }
+        if (Array.isArray(groupsData)) {
+          setNewsrooms(
+            groupsData.map((g) => ({
+              id: g.group_id,
+              type: 'chat',
+              chatType: 'group',
+              title: g.group_name,
+              tagline: g.group_description || 'Newsroom desk channel',
+              subscribers: `${g.member_number || 1} members`,
+              symbol: '▤',
+              avatar: g.group_name.slice(0, 2).toUpperCase(),
+            }))
+          );
+        }
+      } catch {
+        // Ignore transient background sync errors
+      }
+    };
+
+    const interval = setInterval(syncNewsroomArticles, 5000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [formatArticlesList, isEditingArticle, isEditingTitle]);
 
   // ── Poll messages & active voice call status for active chat conversation ──
   useEffect(() => {
@@ -659,20 +825,31 @@ function MainScreenContent() {
         content: editContent,
         summary: editSummary,
       });
-      setArticles((prev) =>
-        prev.map((a) =>
-          a.id === selectedItem.id
-            ? { ...a, content: editContent, summary: editSummary }
-            : a
+      const savedBranch = articleBranches.find((b) => b.branch_id === selectedItem.branchId);
+      setArticleBranches((prev) =>
+        prev.map((b) =>
+          b.branch_id === selectedItem.branchId
+            ? { ...b, content: editContent, branch_description: editSummary }
+            : b
         )
       );
+      // The story card in the sidebar always previews main, so only refresh it for main
+      if (!savedBranch || savedBranch.is_main) {
+        setArticles((prev) =>
+          prev.map((a) =>
+            a.id === selectedItem.id
+              ? { ...a, content: editContent, summary: editSummary }
+              : a
+          )
+        );
+      }
       setSelectedItem((prev) => ({
         ...prev,
         content: editContent,
         summary: editSummary,
       }));
       setIsEditingArticle(false);
-      showToast({ message: 'Article content saved!', type: 'info' });
+      showToast({ message: `Saved to ${activeBranch}.`, type: 'info' });
     } catch (err) {
       showToast({ message: err?.message || 'Could not save article content.', type: 'error' });
     } finally {
@@ -922,7 +1099,9 @@ function MainScreenContent() {
         <Animated.View style={[{ flex: 1 }, { opacity: contentFadeAnim }]}>
           <ArticleHeader
             activeBranch={activeBranch}
+            branches={branchMenuItems}
             onSelectBranch={handleSelectBranch}
+            onCreateBranch={handleCreateBranch}
             onExecuteCommand={handleExecuteCommand}
             onApplyFormat={handleApplyFormat}
           />
@@ -1506,6 +1685,13 @@ function MainScreenContent() {
         onClose={() => setCreateArticleModalOpen(false)}
         onCreated={handleArticleCreated}
         newsrooms={newsrooms}
+        defaultGroupId={
+          selectedItem?.type === 'chat' && selectedItem?.chatType === 'group'
+            ? selectedItem.id
+            : selectedItem?.type === 'article' && selectedItem?.groupId
+              ? selectedItem.groupId
+              : newsrooms[0]?.id || ''
+        }
       />
 
       {/* Real-time WebRTC Newsroom Voice Overlay Bar */}

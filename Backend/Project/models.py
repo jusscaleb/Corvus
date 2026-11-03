@@ -7,7 +7,10 @@ def generate_uuid():
 
 
 class Article(models.Model):
-    article_id = models.CharField(primary_key=True, max_length=256, default=generate_uuid, editable=False)
+    article_id = models.CharField(primary_key=True,
+                                  max_length=256,
+                                  default=generate_uuid,
+                                  editable=False)
     title = models.CharField(max_length=256)
     group = models.ForeignKey(
         'Newsroom.Group',
@@ -44,12 +47,21 @@ class Branch(models.Model):
         ('merged', 'Merged'),
     ]
 
-    branch_id = models.CharField(primary_key=True, max_length=256, default=generate_uuid, editable=False)
+    branch_id = models.CharField(primary_key=True,
+                                 max_length=256,
+                                 default=generate_uuid,
+                                 editable=False)
     branch_name = models.CharField(max_length=256)
     branch_description = models.TextField(blank=True, default="")
     content = models.TextField(blank=True, default="")
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    status = models.CharField(max_length=20,
+                              choices=STATUS_CHOICES,
+                              default='draft')
     is_main = models.BooleanField(default=False)
+
+    # Visibility flag – false = private (only creator sees),
+    # true = public (visible to newsroom)
+    is_public = models.BooleanField(default=False)
 
     article = models.ForeignKey(
         Article,

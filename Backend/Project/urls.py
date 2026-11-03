@@ -5,6 +5,8 @@ from .views import (
     ArticleDetailView,
     ArticleBranchListCreateView,
     BranchDetailView,
+    BranchPushView,
+    BranchDiffView,
 )
 
 urlpatterns = [
@@ -15,7 +17,11 @@ urlpatterns = [
     path('groups/<str:group_id>/articles/', GroupArticleListCreateView.as_view(), name='group_article_list_create'),
     path('articles/<str:article_id>/', ArticleDetailView.as_view(), name='article_detail'),
 
-    # Branches within an article
+        # Push a branch to make it public
+    path('branches/<str:branch_id>/push/', BranchPushView.as_view(), name='branch_push'),
+    # Diff a branch
+    path('branches/<str:branch_id>/diff/', BranchDiffView.as_view(), name='branch_diff'),
+
     path('articles/<str:article_id>/branches/', ArticleBranchListCreateView.as_view(), name='article_branch_list_create'),
     path('branches/<str:branch_id>/', BranchDetailView.as_view(), name='branch_detail'),
 ]

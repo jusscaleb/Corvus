@@ -32,14 +32,15 @@ class ProjectTests(APITestCase):
         )
         self.token2 = str(RefreshToken.for_user(self.user2).access_token)
 
-        # Create Newsroom group with user1 as member
+        # Create Newsroom group with user1 as member and also add user2 as a member for visibility tests
         self.group = Group.objects.create(
             group_id=str(uuid.uuid4()),
             group_name="Tech Newsroom",
         )
         Member.objects.create(member=self.user1, group=self.group)
+        Member.objects.create(member=self.user2, group=self.group)
 
-        # Auth with user1
+        # Auth with user1 for most tests
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token1}')
 
     def test_create_article_auto_seeds_main_branch(self):
@@ -56,8 +57,16 @@ class ProjectTests(APITestCase):
         self.assertEqual(main_branch.branch_name, 'main')
 
     def test_non_group_member_cannot_access_articles(self):
-        # Authenticate with outsider
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token2}')
+        # Authenticate with outsider (already a group member now, so test with a fresh user)
+        outsider = User.objects.create_user(
+            user_id=str(uuid.uuid4()),
+            username="noaccess",
+            full_name="No Access",
+            email="noaccess@example.com",
+            password="testPassword123!",
+        )
+        outsider_token = str(RefreshToken.for_user(outsider).access_token)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {outsider_token}')
         url = reverse('group_article_list_create', kwargs={'group_id': self.group.group_id})
 
         get_res = self.client.get(url)
@@ -79,8 +88,16 @@ class ProjectTests(APITestCase):
         self.assertEqual(len(res.data), 1)
         self.assertEqual(res.data[0]['title'], "Harare Infrastructure Report")
 
-        # Outsider user has no access to user1's group articles
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token2}')
+        # A non-member has no access to user1's group articles
+        outsider = User.objects.create_user(
+            user_id=str(uuid.uuid4()),
+            username="noaccess2",
+            full_name="No Access Two",
+            email="noaccess2@example.com",
+            password="testPassword123!",
+        )
+        outsider_token = str(RefreshToken.for_user(outsider).access_token)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {outsider_token}')
         res2 = self.client.get(url)
         self.assertEqual(res2.status_code, status.HTTP_200_OK)
         self.assertEqual(len(res2.data), 0)
@@ -93,7 +110,7 @@ class ProjectTests(APITestCase):
             author=self.user1,
         )
         Branch.objects.create(
-            branch_name="main",
+            branch_name='main',
             article=article,
             created_by=self.user1,
             is_main=True,
@@ -136,3 +153,199 @@ class ProjectTests(APITestCase):
         detail_url = reverse('article_detail', kwargs={'article_id': article_id})
         res = self.client.get(detail_url)
         self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_push_branch_makes_it_public_and_visible(self):
+        # Create article and a private branch
+        article = Article.objects.create(
+            title="Public Push Test",
+            group=self.group,
+            author=self.user1,
+        )
+        Branch.objects.create(
+            branch_name='main',
+            article=article,
+            created_by=self.user1,
+            is_main=True,
+        )
+        private_branch = Branch.objects.create(
+            branch_name='feature/private',
+            article=article,
+            created_by=self.user1,
+            is_main=False,
+            is_public=False,
+        )
+        # Push the private branch
+        push_url = reverse('branch_push', kwargs={'branch_id': private_branch.branch_id})
+        push_res = self.client.post(push_url)
+        self.assertEqual(push_res.status_code, status.HTTP_200_OK)
+        self.assertTrue(push_res.data['is_public'])
+
+        # Now as user2 (also a group member) fetch branch list and see the branch
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token2}')
+        branch_list_url = reverse('article_branch_list_create', kwargs={'article_id': article.article_id})
+        list_res = self.client.get(branch_list_url)
+        self.assertEqual(list_res.status_code, status.HTTP_200_OK)
+        # The pushed branch should be present
+        branch_ids = [b['branch_id'] for b in list_res.data]
+        self.assertIn(private_branch.branch_id, branch_ids)
+
+    def test_branch_diff_endpoint_returns_content(self):
+        article = Article.objects.create(
+            title="Diff Test",
+            group=self.group,
+            author=self.user1,
+        )
+        Branch.objects.create(
+            branch_name='main',
+            article=article,
+            created_by=self.user1,
+            is_main=True,
+        )
+        branch = Branch.objects.create(
+            branch_name='feature/diff',
+            article=article,
+            created_by=self.user1,
+            is_main=False,
+            content='Original content',
+        )
+        diff_url = reverse('branch_diff', kwargs={'branch_id': branch.branch_id})
+        diff_res = self.client.get(diff_url)
+        self.assertEqual(diff_res.status_code, status.HTTP_200_OK)
+        self.assertIn('diff', diff_res.data)
+        self.assertEqual(diff_res.data['diff'], 'Original content')
+
+    def test_private_branch_hidden_from_other_members_until_pushed(self):
+        article = Article.objects.create(title="Privacy Test", group=self.group, author=self.user1)
+        Branch.objects.create(branch_name='main', article=article, created_by=self.user1, is_main=True)
+        private_branch = Branch.objects.create(
+            branch_name='feature/secret',
+            article=article,
+            created_by=self.user1,
+            is_public=False,
+        )
+        list_url = reverse('article_branch_list_create', kwargs={'article_id': article.article_id})
+
+        # Creator sees their own private branch
+        own_ids = [b['branch_id'] for b in self.client.get(list_url).data]
+        self.assertIn(private_branch.branch_id, own_ids)
+
+        # Another member does not see it, but still sees main
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token2}')
+        other = self.client.get(list_url).data
+        other_ids = [b['branch_id'] for b in other]
+        self.assertNotIn(private_branch.branch_id, other_ids)
+        self.assertTrue(any(b['is_main'] for b in other))
+
+    # ─── Backend review fixes ─────────────────────────────────────────────
+
+    def _article_with_private_branch(self):
+        article = Article.objects.create(title="Review Fix Test", group=self.group, author=self.user1)
+        Branch.objects.create(branch_name='main', article=article, created_by=self.user1, is_main=True)
+        private = Branch.objects.create(
+            branch_name='feature/secret', article=article, created_by=self.user1,
+            content='Confidential draft', is_public=False,
+        )
+        return article, private
+
+    def test_article_list_does_not_leak_private_branches(self):
+        article, private = self._article_with_private_branch()
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token2}')
+        res = self.client.get(reverse('user_article_list'))
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        data = next(a for a in res.data if a['article_id'] == article.article_id)
+        # Only main is embedded, and the private branch isn't counted
+        self.assertEqual([b['branch_name'] for b in data['branches']], ['main'])
+        self.assertEqual(data['branch_count'], 1)
+        self.assertNotIn('Confidential draft', str(res.data))
+
+        # The creator still counts their own private branch
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token1}')
+        res = self.client.get(reverse('user_article_list'))
+        data = next(a for a in res.data if a['article_id'] == article.article_id)
+        self.assertEqual(data['branch_count'], 2)
+
+    def test_duplicate_branch_name_returns_400_not_500(self):
+        article, _ = self._article_with_private_branch()
+        url = reverse('article_branch_list_create', kwargs={'article_id': article.article_id})
+        # user2 can't see feature/secret, but the name is still taken (case-insensitive)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token2}')
+        res = self.client.post(url, {"branch_name": "Feature/Secret"})
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('already exists', res.data['detail'])
+
+    def test_branch_name_with_spaces_rejected(self):
+        article, _ = self._article_with_private_branch()
+        url = reverse('article_branch_list_create', kwargs={'article_id': article.article_id})
+        res = self.client.post(url, {"branch_name": "has spaces"})
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_new_branch_is_private_even_if_client_says_public(self):
+        article, _ = self._article_with_private_branch()
+        url = reverse('article_branch_list_create', kwargs={'article_id': article.article_id})
+        res = self.client.post(url, {"branch_name": "feature/sneaky", "is_public": True})
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertFalse(res.data['is_public'])
+
+    def test_only_creator_can_push_branch(self):
+        _, private = self._article_with_private_branch()
+        push_url = reverse('branch_push', kwargs={'branch_id': private.branch_id})
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token2}')
+        res = self.client.post(push_url)
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        private.refresh_from_db()
+        self.assertFalse(private.is_public)
+
+    def test_other_member_cannot_read_or_edit_private_branch(self):
+        _, private = self._article_with_private_branch()
+        detail_url = reverse('branch_detail', kwargs={'branch_id': private.branch_id})
+        diff_url = reverse('branch_diff', kwargs={'branch_id': private.branch_id})
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token2}')
+        self.assertEqual(self.client.get(detail_url).status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.client.patch(detail_url, {"content": "hijack"}).status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.client.delete(detail_url).status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.client.get(diff_url).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_rename_branch_to_existing_name_returns_400(self):
+        article, private = self._article_with_private_branch()
+        other = Branch.objects.create(branch_name='feature/other', article=article, created_by=self.user1)
+        detail_url = reverse('branch_detail', kwargs={'branch_id': other.branch_id})
+        res = self.client.patch(detail_url, {"branch_name": "feature/secret"})
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_article_list_query_count_does_not_grow_with_articles(self):
+        for i in range(5):
+            a = Article.objects.create(title=f"Bulk {i}", group=self.group, author=self.user1)
+            Branch.objects.create(branch_name='main', article=a, created_by=self.user1, is_main=True)
+        url = reverse('user_article_list')
+        with self.assertNumQueries(self._count_queries(url)):
+            Article.objects.create(title="One more", group=self.group, author=self.user1)
+            self.client.get(url)
+
+    def _count_queries(self, url):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        with CaptureQueriesContext(connection) as ctx:
+            self.client.get(url)
+        return len(ctx.captured_queries) + 1  # +1 for the Article insert inside the block
+
+    def test_newsroom_article_appears_to_all_members_in_newsroom(self):
+        # User 1 creates an article in the shared newsroom via the group endpoint
+        create_url = reverse('group_article_list_create', kwargs={'group_id': self.group.group_id})
+        res = self.client.post(create_url, {"title": "Shared Newsroom Investigation"})
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        article_id = res.data['article_id']
+        self.assertEqual(res.data['group_name'], self.group.group_name)
+
+        # User 2 (another member of the same newsroom) fetches both the global article feed
+        # and the group-specific article list and sees the article with its newsroom name
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token2}')
+        global_res = self.client.get(reverse('user_article_list'))
+        self.assertEqual(global_res.status_code, status.HTTP_200_OK)
+        matching = [a for a in global_res.data if a['article_id'] == article_id]
+        self.assertEqual(len(matching), 1)
+        self.assertEqual(matching[0]['title'], "Shared Newsroom Investigation")
+        self.assertEqual(matching[0]['group_name'], self.group.group_name)
+
+        group_res = self.client.get(create_url)
+        self.assertEqual(group_res.status_code, status.HTTP_200_OK)
+        self.assertTrue(any(a['article_id'] == article_id for a in group_res.data))
