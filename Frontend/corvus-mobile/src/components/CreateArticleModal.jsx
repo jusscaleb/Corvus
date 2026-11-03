@@ -14,9 +14,10 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { createArticle } from '../services/api';
+import { createArticle, generateArticleDraft } from '../services/api';
 import { exportArticleToPdf } from '../utils/pdfExporter';
 import { LockIcon, UsersIcon, EditIcon, FilePdfIcon, FileTextIcon, PrinterIcon } from './AppIcons';
+import RichTextEditor, { stripRichFormatting } from './RichTextEditor';
 
 export default function CreateArticleModal({
   visible,
@@ -36,6 +37,7 @@ export default function CreateArticleModal({
   const [summary, setSummary] = useState('');
   const [content, setContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [generatingDraft, setGeneratingDraft] = useState(false);
 
   // PDF Upload states
   const [pdfFile, setPdfFile] = useState(null); // { name, size, dataUrl }
@@ -52,6 +54,7 @@ export default function CreateArticleModal({
       setPdfFile(null);
       setMode('write');
       setSubmitting(false);
+      setGeneratingDraft(false);
 
       // Default to the active newsroom (or the user's first newsroom) so stories
       // are shared with the desk unless the reporter explicitly chooses Personal Draft
@@ -129,6 +132,48 @@ export default function CreateArticleModal({
       summary: summary.trim(),
       content: content.trim() || 'Draft content in progress...',
     });
+  }
+
+  async function handleGenerateAIDraft() {
+    const cleanTitle = title.trim();
+    const cleanBrief = summary.trim();
+    if (!cleanTitle && !cleanBrief) {
+      showToast({
+        message: 'Enter a brief summary or headline first so Saiph AI knows what to draft.',
+        type: 'error',
+      });
+      return;
+    }
+
+    setGeneratingDraft(true);
+    try {
+      const targetGroup = newsrooms.find((g) => g.id === selectedGroupId);
+      const draft = await generateArticleDraft({
+        title: cleanTitle,
+        brief: cleanBrief || cleanTitle,
+        category: targetGroup?.title || 'Investigative Report',
+      });
+      if (!cleanTitle && draft?.headline) {
+        setTitle(draft.headline);
+      }
+      if (draft?.summary && !cleanBrief) {
+        setSummary(draft.summary);
+      }
+      if (draft?.content) {
+        setContent(draft.content);
+      }
+      showToast({
+        message: '✦ Saiph AI generated a full structured draft from your brief!',
+        type: 'info',
+      });
+    } catch (err) {
+      showToast({
+        message: err?.message || 'Could not generate AI draft right now.',
+        type: 'error',
+      });
+    } finally {
+      setGeneratingDraft(false);
+    }
   }
 
   async function handlePublish() {
@@ -283,11 +328,11 @@ export default function CreateArticleModal({
 
             {mode === 'write' ? (
               <>
-                {/* Lead Summary */}
+                {/* Lead Summary / Brief for AI Draft Generation */}
                 <View style={styles.fieldBlock}>
-                  <Text style={styles.fieldLabel}>LEAD SUMMARY / SCOPE (OPTIONAL)</Text>
+                  <Text style={styles.fieldLabel}>LEAD SUMMARY / BRIEF FOR SAIPH AI</Text>
                   <TextInput
-                    placeholder="Short summary highlighting key findings..."
+                    placeholder="Give a brief summary of your story angle, key facts, or sources..."
                     placeholderTextColor={colors.muted}
                     value={summary}
                     onChangeText={setSummary}
@@ -295,6 +340,29 @@ export default function CreateArticleModal({
                     numberOfLines={2}
                     style={[styles.input, styles.textAreaSmall]}
                   />
+                  <View style={styles.aiDraftBanner}>
+                    <View style={styles.aiDraftInfo}>
+                      <Text style={styles.aiDraftTitle}>✦ Saiph AI Draft Assistant</Text>
+                      <Text style={styles.aiDraftSub}>
+                        Type a brief summary above and let Saiph AI generate a structured article draft.
+                      </Text>
+                    </View>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={handleGenerateAIDraft}
+                      disabled={generatingDraft || (!title.trim() && !summary.trim())}
+                      style={[
+                        styles.aiDraftBtn,
+                        (generatingDraft || (!title.trim() && !summary.trim())) && styles.btnDisabled,
+                      ]}
+                    >
+                      {generatingDraft ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Text style={styles.aiDraftBtnText}>✦ Generate AI Draft</Text>
+                      )}
+                    </Pressable>
+                  </View>
                 </View>
 
                 {/* Article Body */}
@@ -302,17 +370,16 @@ export default function CreateArticleModal({
                   <View style={styles.fieldLabelRow}>
                     <Text style={styles.fieldLabel}>ARTICLE BODY (EDITABLE & PRINTABLE)</Text>
                     <Text style={styles.countText}>
-                      {content.length} chars • {content.trim() ? content.trim().split(/\s+/).length : 0} words
+                      {stripRichFormatting(content).length} chars •{' '}
+                      {stripRichFormatting(content) ? stripRichFormatting(content).split(/\s+/).length : 0} words
                     </Text>
                   </View>
-                  <TextInput
+                  <RichTextEditor
                     placeholder="Compose your article, investigative evidence, and sources here..."
-                    placeholderTextColor={colors.muted}
                     value={content}
                     onChangeText={setContent}
-                    multiline
-                    textAlignVertical="top"
-                    style={[styles.input, styles.textAreaLarge]}
+                    colors={colors}
+                    minHeight={240}
                   />
                 </View>
               </>
@@ -703,6 +770,47 @@ function makeStyles(colors) {
     },
     btnDisabled: {
       opacity: 0.5,
+    },
+    aiDraftBanner: {
+      marginTop: 6,
+      padding: 12,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.forest,
+      backgroundColor: colors.note,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+      flexWrap: 'wrap',
+    },
+    aiDraftInfo: {
+      flex: 1,
+      minWidth: 200,
+      gap: 2,
+    },
+    aiDraftTitle: {
+      color: colors.forest,
+      fontSize: 12,
+      fontWeight: '800',
+    },
+    aiDraftSub: {
+      color: colors.muted,
+      fontSize: 11,
+      lineHeight: 16,
+    },
+    aiDraftBtn: {
+      paddingHorizontal: 14,
+      paddingVertical: 9,
+      borderRadius: 6,
+      backgroundColor: colors.forest,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    aiDraftBtnText: {
+      color: '#FFFFFF',
+      fontSize: 12,
+      fontWeight: '800',
     },
   });
 }

@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'expo-router';
-import { Link } from 'expo-router';
+import { useRouter, Link } from 'expo-router';
 import { Animated, Easing, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import ConfirmModal from './ConfirmModal';
 import { useTheme } from '../context/ThemeContext';
@@ -13,7 +12,7 @@ const languages = [
   { label: 'Shona', value: 'SNA' },
 ];
 
-export default function NewsroomHeader({ mode = 'landing' }) {
+export default function NewsroomHeader({ mode = 'landing', onOpenAI }) {
   const { colors, isDark, toggleTheme } = useTheme();
   const { user, signOut } = useAuth();
   const { showToast } = useToast();
@@ -24,7 +23,6 @@ export default function NewsroomHeader({ mode = 'landing' }) {
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
-  // ── Animations for expanding/retracting windows & menus ────────
   const menuAnim = useRef(new Animated.Value(0)).current;
   const privacyScaleAnim = useRef(new Animated.Value(0.92)).current;
   const privacyOpacityAnim = useRef(new Animated.Value(0)).current;
@@ -130,6 +128,18 @@ export default function NewsroomHeader({ mode = 'landing' }) {
           )}
 
           <View style={styles.navigation}>
+            {/* 1-to-1 Saiph AI Agent Button */}
+            {isApp && onOpenAI && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Open Saiph AI Agent"
+                onPress={onOpenAI}
+                style={styles.aiHeaderButton}
+              >
+                <Text style={styles.aiHeaderButtonText}>✦ Saiph AI</Text>
+              </Pressable>
+            )}
+
             {/* Language picker */}
             <View style={styles.languageWrapper}>
               <Pressable
@@ -299,6 +309,22 @@ function makeStyles(colors) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 16,
+    },
+    aiHeaderButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 13,
+      paddingVertical: 7,
+      borderRadius: 18,
+      backgroundColor: colors.forest,
+      borderWidth: 1,
+      borderColor: colors.forest,
+    },
+    aiHeaderButtonText: {
+      color: '#FFFFFF',
+      fontSize: 12,
+      fontWeight: '800',
+      letterSpacing: 0.4,
     },
     languageWrapper: {
       position: 'relative',

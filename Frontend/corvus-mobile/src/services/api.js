@@ -224,6 +224,13 @@ export async function updateArticle(articleId, { title }) {
   });
 }
 
+export async function deleteArticle(articleId) {
+  return await apiRequest(`/api/project/articles/${articleId}/`, {
+    method: 'DELETE',
+    requireAuth: true,
+  });
+}
+
 export async function updateBranchContent(branchId, { content, summary }) {
   const body = {};
   if (content !== undefined) body.content = content;
@@ -299,3 +306,101 @@ export async function sendChatMessage(conversation_id, content) {
 export async function fetchActiveVoiceSessions() {
   return await apiRequest('/api/newsroom/voice/active/', { requireAuth: true });
 }
+
+// ─── Saiph AI Article Agent & Workspace ────────────────────────────────────────
+
+export async function generateArticleDraft({ title = '', brief = '', category = 'Investigative Report' } = {}) {
+  return await apiRequest('/api/ai/generate-draft/', {
+    method: 'POST',
+    requireAuth: true,
+    body: { title, brief, category },
+  });
+}
+
+export async function fetchArticleAIWorkspace(articleId, branchId = null) {
+  const qs = branchId ? `?branch_id=${encodeURIComponent(branchId)}` : '';
+  return await apiRequest(`/api/ai/articles/${articleId}/workspace/${qs}`, {
+    method: 'GET',
+    requireAuth: true,
+  });
+}
+
+export async function generateArticleMindmap(articleId, branchId = null) {
+  return await apiRequest(`/api/ai/articles/${articleId}/mindmap/`, {
+    method: 'POST',
+    requireAuth: true,
+    body: branchId ? { branch_id: branchId } : {},
+  });
+}
+
+export async function generateArticleBoard(articleId, branchId = null) {
+  return await apiRequest(`/api/ai/articles/${articleId}/board/`, {
+    method: 'POST',
+    requireAuth: true,
+    body: branchId ? { branch_id: branchId } : {},
+  });
+}
+
+export async function toggleArticleBoardItem(articleId, { itemId, applied = true }) {
+  return await apiRequest(`/api/ai/articles/${articleId}/board/`, {
+    method: 'PATCH',
+    requireAuth: true,
+    body: { item_id: itemId, applied },
+  });
+}
+
+export async function runArticleAIReview(articleId, branchId = null) {
+  return await apiRequest(`/api/ai/articles/${articleId}/review/`, {
+    method: 'POST',
+    requireAuth: true,
+    body: branchId ? { branch_id: branchId } : {},
+  });
+}
+
+export async function fetchAgentChat(articleId = null) {
+  const qs = articleId ? `?article_id=${encodeURIComponent(articleId)}` : '';
+  return await apiRequest(`/api/ai/chat/${qs}`, {
+    method: 'GET',
+    requireAuth: true,
+  });
+}
+
+export async function sendAgentMessage({ content, articleId = null, branchId = null }) {
+  return await apiRequest('/api/ai/chat/', {
+    method: 'POST',
+    requireAuth: true,
+    body: {
+      content,
+      article_id: articleId || null,
+      branch_id: branchId || null,
+    },
+  });
+}
+
+export async function fetchAgentMemories(articleId = null) {
+  const qs = articleId ? `?article_id=${encodeURIComponent(articleId)}` : '';
+  return await apiRequest(`/api/ai/memories/${qs}`, {
+    method: 'GET',
+    requireAuth: true,
+  });
+}
+
+export async function saveAgentMemory({ fact, category = 'fact', articleId = null }) {
+  return await apiRequest('/api/ai/memories/', {
+    method: 'POST',
+    requireAuth: true,
+    body: {
+      fact,
+      category,
+      article_id: articleId || null,
+    },
+  });
+}
+
+export async function deleteAgentMemory(memoryId) {
+  return await apiRequest(`/api/ai/memories/${memoryId}/`, {
+    method: 'DELETE',
+    requireAuth: true,
+  });
+}
+

@@ -11,12 +11,20 @@ def get_agent():
     return _compiled_agent
 
 
-def run_agent(user_message: str, token: str = "", chat_history: list = None) -> str:
+def run_agent(
+    user_message: str,
+    token: str = "",
+    chat_history: list = None,
+    article_id: str = None,
+    branch_id: str = None,
+    memories: list = None,
+) -> str:
     """
     Executes the Saiph agent:
     - user_message: String prompt from the user
-    - token: JWT access token from the Django backend (for authorizing tool calls)
+    - token: JWT access token from the Django backend (injected via RunnableConfig)
     - chat_history: Optional list of previous {'role': 'user'|'assistant', 'content': '...'}
+    - article_id / branch_id / memories: Optional active article context and long-term memories
     """
     agent = get_agent()
 
@@ -33,15 +41,20 @@ def run_agent(user_message: str, token: str = "", chat_history: list = None) -> 
     initial_state = {
         "messages": messages,
         "token": token,
+        "article_id": article_id,
+        "branch_id": branch_id,
+        "memories": memories or [],
     }
 
-    final_state = agent.invoke(initial_state)
+    final_state = agent.invoke(
+        initial_state,
+        config={"configurable": {"token": token}},
+    )
     last_message = final_state["messages"][-1]
     return last_message.content
 
 
 if __name__ == "__main__":
-    import sys
     print("Saiph AI Agent CLI (Type 'exit' to quit)")
     print("-" * 50)
     history = []

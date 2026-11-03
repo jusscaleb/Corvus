@@ -19,7 +19,7 @@ import NewsroomHeader from './NewsroomHeader';
 import CreateNewsroomModal from './CreateNewsroomModal';
 import NewDMModal from './NewDMModal';
 import CreateArticleModal from './CreateArticleModal';
-import { LockIcon, UsersIcon, EditIcon, FilePdfIcon, PrinterIcon, EyeIcon, SaveIcon } from './AppIcons';
+import { LockIcon, UsersIcon, EditIcon, FilePdfIcon, PrinterIcon, EyeIcon, SaveIcon, TrashIcon } from './AppIcons';
 import { exportArticleToPdf, openPdfDocument } from '../utils/pdfExporter';
 import { useTheme } from '../context/ThemeContext';
 import { VoiceChatProvider, ChatScreenHeader } from './VoiceChat';
@@ -28,6 +28,17 @@ import VoiceBar from './VoiceBar';
 import VoiceCallInviteBanner from './VoiceCallInviteBanner';
 import useChatSocket from '../hooks/useChatSocket';
 import ArticleHeader from './ArticleHeader';
+import RichTextEditor, {
+  DEFAULT_ACTIVE_FORMATS,
+  stripRichFormatting,
+  toggleActiveFormatState,
+} from './RichTextEditor';
+import {
+  ArticleMindmapSection,
+  ArticleBoardSection,
+  ArticleReviewSection,
+  SaiphAgentModal,
+} from './ArticleAIWorkspace';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import {
@@ -37,11 +48,13 @@ import {
   fetchMessages,
   sendChatMessage,
   updateArticle,
+  deleteArticle,
   updateBranchContent,
   fetchBranches,
   createBranch,
   pushBranch,
   fetchActiveVoiceSessions,
+  fetchArticleAIWorkspace,
 } from '../services/api';
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -98,38 +111,63 @@ function SectionHeading({
   );
 }
 
-function SelectableRow({ item, selected, onPress, compact = false, styles }) {
+function SelectableRow({ item, selected, onPress, onDelete, compact = false, styles, colors }) {
   const latestMessage = item.type === 'chat' ? item.lastMessage : item.timestamp;
   const symbol = item.symbol || item.avatar?.slice(0, 2) || '•';
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      onPress={onPress}
+    <View
       style={[
         styles.selectableRow,
         selected && styles.selectableRowSelected,
         compact && styles.selectableRowCompact,
       ]}
     >
-      <View style={[styles.rowSymbol, selected && styles.rowSymbolSelected]}>
-        <Text style={[styles.rowSymbolText, selected && styles.rowSymbolTextSelected]}>{symbol}</Text>
-      </View>
-      <View style={styles.rowCopy}>
-        <Text numberOfLines={compact ? 1 : 2} style={[styles.rowTitle, selected && styles.rowTitleSelected]}>
-          {item.title}
-        </Text>
-        <Text numberOfLines={1} style={[styles.rowMeta, selected && styles.rowMetaSelected]}>
-          {latestMessage || '—'}
-        </Text>
-      </View>
-      {item.unread > 0 && !selected && (
-        <View style={styles.unreadBadge}>
-          <Text style={styles.unreadText}>{item.unread}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ selected }}
+        onPress={onPress}
+        style={{
+          flex: 1,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 9,
+          minWidth: 0,
+        }}
+      >
+        <View style={[styles.rowSymbol, selected && styles.rowSymbolSelected]}>
+          <Text style={[styles.rowSymbolText, selected && styles.rowSymbolTextSelected]}>{symbol}</Text>
         </View>
+        <View style={styles.rowCopy}>
+          <Text numberOfLines={compact ? 1 : 2} style={[styles.rowTitle, selected && styles.rowTitleSelected]}>
+            {item.title}
+          </Text>
+          <Text numberOfLines={1} style={[styles.rowMeta, selected && styles.rowMetaSelected]}>
+            {latestMessage || '—'}
+          </Text>
+        </View>
+        {item.unread > 0 && !selected && (
+          <View style={styles.unreadBadge}>
+            <Text style={styles.unreadText}>{item.unread}</Text>
+          </View>
+        )}
+      </Pressable>
+      {onDelete && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Delete ${item.title}`}
+          onPress={() => onDelete(item)}
+          style={{
+            padding: 6,
+            borderRadius: 6,
+            marginLeft: 4,
+            opacity: selected ? 0.95 : 0.65,
+          }}
+        >
+          <TrashIcon size={13} color={selected ? '#ffffff' : (colors?.muted || '#64748b')} />
+        </Pressable>
       )}
-    </Pressable>
+    </View>
   );
 }
 
@@ -146,6 +184,183 @@ function EmptyState({ icon, title, subtitle, actionLabel, onAction, styles }) {
           <Text style={styles.emptyActionText}>{actionLabel}</Text>
         </Pressable>
       )}
+    </View>
+  );
+}
+
+// ─── Rich Markdown / Word Tools Renderer ─────────────────────────────────────
+
+function renderInlineFormatted(text, colors) {
+  if (!text) return null;
+  // Tokenize ***bold-italic***, **bold**, __bold__, _underline_, *italic*, and `code`
+  const tokenRegex = /(\*\*\*[^*]+\*\*\*|\*\*[^*]+\*\*|__[^_]+__|_[^_]+_|\*[^*]+\*|`[^`]+`)/g;
+  const parts = String(text).split(tokenRegex);
+  return parts.map((part, idx) => {
+    if (!part) return null;
+    if (part.startsWith('***') && part.endsWith('***') && part.length > 6) {
+      return (
+        <Text key={idx} style={{ fontWeight: '800', fontStyle: 'italic', color: colors.ink }}>
+          {part.slice(3, -3)}
+        </Text>
+      );
+    }
+    if (
+      (part.startsWith('**') && part.endsWith('**') && part.length > 4) ||
+      (part.startsWith('__') && part.endsWith('__') && part.length > 4)
+    ) {
+      return (
+        <Text key={idx} style={{ fontWeight: '800', color: colors.ink }}>
+          {part.slice(2, -2)}
+        </Text>
+      );
+    }
+    if (part.startsWith('_') && part.endsWith('_') && part.length > 2) {
+      return (
+        <Text key={idx} style={{ textDecorationLine: 'underline', color: colors.ink }}>
+          {part.slice(1, -1)}
+        </Text>
+      );
+    }
+    if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+      return (
+        <Text key={idx} style={{ fontStyle: 'italic', color: colors.ink }}>
+          {part.slice(1, -1)}
+        </Text>
+      );
+    }
+    if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
+      return (
+        <Text
+          key={idx}
+          style={{
+            fontFamily: 'monospace',
+            backgroundColor: colors.note || '#f1f5f9',
+            color: colors.forest,
+            paddingHorizontal: 4,
+            borderRadius: 3,
+            fontSize: 14,
+          }}
+        >
+          {part.slice(1, -1)}
+        </Text>
+      );
+    }
+    return <Text key={idx}>{part}</Text>;
+  });
+}
+
+function FormattedArticleBody({ content, colors, styles }) {
+  const lines = String(content || '').split('\n');
+  return (
+    <View style={{ gap: 8 }}>
+      {lines.map((rawLine, idx) => {
+        const line = rawLine.trimEnd();
+        const trimmed = line.trim();
+        if (!trimmed) {
+          return <View key={idx} style={{ height: 6 }} />;
+        }
+        if (/^(?:---|___|\*\*\*)$/.test(trimmed)) {
+          return (
+            <View
+              key={idx}
+              style={{
+                height: 1,
+                backgroundColor: colors.line || '#cbd5e1',
+                marginVertical: 10,
+              }}
+            />
+          );
+        }
+        if (line.startsWith('# ')) {
+          return (
+            <Text
+              key={idx}
+              style={{
+                color: colors.ink,
+                fontFamily: 'serif',
+                fontSize: 25,
+                fontWeight: '800',
+                lineHeight: 32,
+                marginTop: 10,
+                marginBottom: 4,
+              }}
+            >
+              {renderInlineFormatted(line.slice(2), colors)}
+            </Text>
+          );
+        }
+        if (line.startsWith('## ')) {
+          return (
+            <Text
+              key={idx}
+              style={{
+                color: colors.ink,
+                fontFamily: 'serif',
+                fontSize: 19,
+                fontWeight: '700',
+                lineHeight: 26,
+                marginTop: 8,
+                marginBottom: 2,
+              }}
+            >
+              {renderInlineFormatted(line.slice(3), colors)}
+            </Text>
+          );
+        }
+        if (line.startsWith('### ')) {
+          return (
+            <Text
+              key={idx}
+              style={{
+                color: colors.ink,
+                fontSize: 16,
+                fontWeight: '700',
+                lineHeight: 23,
+                marginTop: 6,
+              }}
+            >
+              {renderInlineFormatted(line.slice(4), colors)}
+            </Text>
+          );
+        }
+        if (line.startsWith('> ')) {
+          return (
+            <View
+              key={idx}
+              style={{
+                borderLeftWidth: 3,
+                borderLeftColor: colors.orange || colors.forest,
+                paddingLeft: 12,
+                paddingVertical: 6,
+                marginVertical: 4,
+                backgroundColor: colors.note || 'rgba(0,0,0,0.03)',
+                borderRadius: 4,
+              }}
+            >
+              <Text style={{ color: colors.ink, fontStyle: 'italic', fontSize: 15, lineHeight: 23 }}>
+                {renderInlineFormatted(line.slice(2), colors)}
+              </Text>
+            </View>
+          );
+        }
+        const isWholeLineItalic = /^\*[^*\s][^*]*\*$/.test(trimmed);
+        if (!isWholeLineItalic && /^(?:•|-|\*)\s+/.test(trimmed)) {
+          const itemText = trimmed.replace(/^(?:•|-|\*)\s+/, '');
+          return (
+            <View key={idx} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingLeft: 6 }}>
+              <Text style={{ color: colors.forest, fontSize: 16, fontWeight: '800', lineHeight: 24 }}>•</Text>
+              <Text style={[styles.articleBody, { flex: 1 }]}>
+                {renderInlineFormatted(itemText, colors)}
+              </Text>
+            </View>
+          );
+        }
+        return (
+          <Text key={idx} style={styles.articleBody}>
+            {renderInlineFormatted(line, colors)}
+          </Text>
+        );
+      })}
     </View>
   );
 }
@@ -196,8 +411,17 @@ function MainScreenContent() {
   const [editContent, setEditContent] = useState('');
   const [editSummary, setEditSummary] = useState('');
   const [savingArticle, setSavingArticle] = useState(false);
+  const [articleToDelete, setArticleToDelete] = useState(null);
+  const [deletingArticle, setDeletingArticle] = useState(false);
   const [activeBranch, setActiveBranch] = useState('main');
   const [articleBranches, setArticleBranches] = useState([]); // raw branch objects for the open story
+
+  // Saiph AI Article Workspace & Word Tools Selection States
+  const [articleSection, setArticleSection] = useState('article'); // 'article' | 'mindmap' | 'board' | 'review'
+  const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [aiWorkspace, setAiWorkspace] = useState({ mindmap: null, board: [], review: null });
+  const [activeFormats, setActiveFormats] = useState(DEFAULT_ACTIVE_FORMATS);
+  const richEditorRef = useRef(null);
 
   // Dedicated active voice room state { id, title } – persists across view navigation
   // (allows users to browse/edit articles, switch channels, and multitask while remaining on voice)
@@ -334,8 +558,10 @@ function MainScreenContent() {
 
   useEffect(() => {
     setActiveBranch('main');
+    setArticleSection('article');
     if (!selectedArticleId) {
       setArticleBranches([]);
+      setAiWorkspace({ mindmap: null, board: [], review: null });
       return;
     }
     let cancelled = false;
@@ -349,6 +575,21 @@ function MainScreenContent() {
       .catch(() => {
         if (!cancelled) showToast({ message: 'Could not load branches for this story.', type: 'error' });
       });
+
+    fetchArticleAIWorkspace(selectedArticleId)
+      .then((ws) => {
+        if (cancelled || !ws) return;
+        const rawMindmap = ws.mindmap || ws.mindmap_data;
+        const rawBoard = ws.board || ws.board_items;
+        const rawReview = ws.review || ws.last_review;
+        setAiWorkspace({
+          mindmap: rawMindmap && Object.keys(rawMindmap).length ? rawMindmap : null,
+          board: Array.isArray(rawBoard) ? rawBoard : [],
+          review: rawReview && Object.keys(rawReview).length ? rawReview : null,
+        });
+      })
+      .catch(() => {});
+
     return () => {
       cancelled = true;
     };
@@ -457,23 +698,134 @@ function MainScreenContent() {
 
   const handleApplyFormat = useCallback((action) => {
     if (!isEditingArticle) {
-      showToast(`Formatting selected: ${action}. Click "Edit Story" to format draft.`, 'info');
+      setEditContent(selectedItem?.content || '');
+      setEditSummary(selectedItem?.summary || '');
+      setIsEditingArticle(true);
+    }
+
+    if (articleSection !== 'article') {
+      setArticleSection('article');
+      setActiveFormats((prev) => toggleActiveFormatState(prev, action));
+      setTimeout(() => {
+        richEditorRef.current?.toggleFormat?.(action);
+      }, 30);
       return;
     }
-    const formatWrappers = {
-      bold: (t) => (t ? `${t} **bold text**` : '**bold text**'),
-      italic: (t) => (t ? `${t} *italic text*` : '*italic text*'),
-      underline: (t) => (t ? `${t} _underlined text_` : '_underlined text_'),
-      h1: (t) => (t ? `${t}\n\n# Headline\n` : '# Headline\n'),
-      h2: (t) => (t ? `${t}\n\n## Sub-headline\n` : '## Sub-headline\n'),
-      bullet: (t) => (t ? `${t}\n• Key point` : '• Key point'),
-      quote: (t) => (t ? `${t}\n> "Direct quote from source"` : '> "Direct quote from source"'),
-      code: (t) => (t ? `${t} \`code/data point\`` : '`code/data point`'),
-    };
-    const formatter = formatWrappers[action] || ((t) => `${t} [${action}]`);
-    setEditContent((prev) => formatter(prev));
-    showToast(`Inserted ${action} formatting`, 'info');
-  }, [isEditingArticle, showToast]);
+
+    if (richEditorRef.current?.toggleFormat) {
+      richEditorRef.current.toggleFormat(action);
+    } else {
+      setActiveFormats((prev) => toggleActiveFormatState(prev, action));
+    }
+  }, [articleSection, isEditingArticle, selectedItem]);
+
+  const handleInsertSnippetIntoDraft = useCallback((snippetText) => {
+    if (!snippetText) return;
+    setArticleSection('article');
+    const baseText = isEditingArticle ? editContent : (selectedItem?.content || '');
+    const nextContent = baseText ? `${baseText.trimEnd()}\n\n${snippetText}` : snippetText;
+    setEditContent(nextContent);
+    if (!isEditingArticle) {
+      setEditSummary(selectedItem?.summary || '');
+      setIsEditingArticle(true);
+    }
+    showToast({ message: 'Inserted into your article draft!', type: 'info' });
+  }, [isEditingArticle, editContent, selectedItem, showToast]);
+
+  const handleAIWorkspaceUpdated = useCallback((res) => {
+    if (!res) return;
+    setAiWorkspace((prev) => ({
+      mindmap: res.mindmap || prev.mindmap,
+      board: res.board || prev.board,
+      review: res.review || prev.review,
+    }));
+    if (res.open_section) {
+      setArticleSection(res.open_section);
+    }
+    if (res.created_article) {
+      const newArt = res.created_article;
+      setArticles((prev) => [newArt, ...prev.filter((a) => a.id !== newArt.id)]);
+      setSelectedItem(newArt);
+      setEditTitle(newArt.title || '');
+      setEditContent(newArt.content || '');
+      setEditSummary(newArt.summary || '');
+      setArticleSection('article');
+      showToast({
+        message: `✦ Saiph AI created and drafted "${newArt.title}"!`,
+        type: 'info',
+      });
+    }
+    if (res.updated_title && selectedArticleId) {
+      setEditTitle(res.updated_title);
+      setSelectedItem((prev) =>
+        prev && prev.type === 'article' ? { ...prev, title: res.updated_title } : prev
+      );
+      setArticles((prev) =>
+        prev.map((a) => (a.id === selectedArticleId ? { ...a, title: res.updated_title } : a))
+      );
+      showToast({
+        message: `✦ Saiph AI updated headline to "${res.updated_title}".`,
+        type: 'info',
+      });
+    }
+    if (Array.isArray(res.branches) && res.branches.length > 0) {
+      setArticleBranches(res.branches);
+    }
+    const targetSwitchedBranch = res.switched_branch || res.created_branch;
+    if (targetSwitchedBranch) {
+      setArticleBranches((prev) => {
+        const exists = prev.some((b) => b.branch_id === targetSwitchedBranch.branch_id);
+        return exists
+          ? prev.map((b) => (b.branch_id === targetSwitchedBranch.branch_id ? targetSwitchedBranch : b))
+          : [...prev, targetSwitchedBranch];
+      });
+      setIsEditingArticle(false);
+      showBranchInEditor(targetSwitchedBranch);
+      richEditorRef.current?.resetContent?.(targetSwitchedBranch.content || '');
+      showToast({
+        message: res.created_branch
+          ? `✦ Saiph AI created & switched to branch "${targetSwitchedBranch.branch_name}".`
+          : `✦ Saiph AI switched to branch "${targetSwitchedBranch.branch_name}".`,
+        type: 'info',
+      });
+    }
+    if (res.pushed_branch) {
+      setArticleBranches((prev) =>
+        prev.map((b) => (b.branch_id === res.pushed_branch.branch_id ? res.pushed_branch : b))
+      );
+      showToast({
+        message: `✦ Saiph AI pushed branch "${res.pushed_branch.branch_name}" to newsroom.`,
+        type: 'info',
+      });
+    }
+    const nextContent = res.updated_content || res.updated_branch?.content;
+    const nextSummary = res.updated_summary || res.updated_branch?.summary;
+    if (nextContent) {
+      const targetBranchName = res.updated_branch?.branch_name || targetSwitchedBranch?.branch_name || activeBranch;
+      setEditContent(nextContent);
+      if (nextSummary) setEditSummary(nextSummary);
+      richEditorRef.current?.resetContent?.(nextContent);
+      setSelectedItem((prev) =>
+        prev && prev.type === 'article'
+          ? { ...prev, content: nextContent, summary: nextSummary || prev.summary }
+          : prev
+      );
+      setArticleBranches((prev) =>
+        prev.map((b) =>
+          b.branch_name === targetBranchName
+            ? { ...b, content: nextContent, branch_description: nextSummary || b.branch_description }
+            : b
+        )
+      );
+      setArticles((prev) =>
+        prev.map((a) =>
+          a.id === selectedArticleId
+            ? { ...a, content: nextContent, summary: nextSummary || a.summary }
+            : a
+        )
+      );
+    }
+  }, [activeBranch, selectedArticleId, showBranchInEditor, showToast]);
 
   // ── Animated values for expanding & retracting panels ───────────
   const leftAnim = useRef(new Animated.Value(1)).current;
@@ -925,6 +1277,37 @@ function MainScreenContent() {
     selectItem(item);
   }
 
+  async function handleConfirmDeleteArticle() {
+    if (!articleToDelete?.id || deletingArticle) return;
+    const targetId = articleToDelete.id;
+    const targetTitle = articleToDelete.title || 'Story';
+    setDeletingArticle(true);
+    try {
+      await deleteArticle(targetId);
+      setArticles((prev) => {
+        const remaining = prev.filter((a) => a.id !== targetId);
+        if (selectedItem?.type === 'article' && selectedItem?.id === targetId) {
+          const nextArt = remaining[0] || null;
+          setSelectedItem(nextArt);
+          if (nextArt) {
+            setEditTitle(nextArt.title || '');
+            setEditContent(nextArt.content || '');
+            setEditSummary(nextArt.summary || '');
+          }
+          setIsEditingArticle(false);
+          setIsEditingTitle(false);
+        }
+        return remaining;
+      });
+      setArticleToDelete(null);
+      showToast({ message: `Deleted story "${targetTitle}".`, type: 'info' });
+    } catch (err) {
+      showToast({ message: err?.message || 'Could not delete article.', type: 'error' });
+    } finally {
+      setDeletingArticle(false);
+    }
+  }
+
   function renderArticleList() {
     if (loadingInitial) {
       return <ActivityIndicator color={colors.forest} style={{ paddingVertical: 20 }} />;
@@ -945,7 +1328,9 @@ function MainScreenContent() {
         item={item}
         selected={selectedItem?.id === item.id}
         onPress={() => selectItem(item)}
+        onDelete={(art) => setArticleToDelete(art)}
         styles={styles}
+        colors={colors}
       />
     ));
   }
@@ -1076,6 +1461,12 @@ function MainScreenContent() {
             >
               <Text style={styles.welcomeSecondaryBtnText}>+ New Direct Message</Text>
             </Pressable>
+            <Pressable
+              onPress={() => setAiModalOpen(true)}
+              style={styles.welcomeSecondaryBtn}
+            >
+              <Text style={styles.welcomeSecondaryBtnText}>✦ Ask Saiph AI Agent</Text>
+            </Pressable>
           </View>
         </Animated.View>
       );
@@ -1104,8 +1495,44 @@ function MainScreenContent() {
             onCreateBranch={handleCreateBranch}
             onExecuteCommand={handleExecuteCommand}
             onApplyFormat={handleApplyFormat}
+            activeFormats={activeFormats}
+            activeSection={articleSection}
+            onSelectSection={setArticleSection}
+            onOpenAIAgent={() => setAiModalOpen(true)}
+            boardCount={aiWorkspace.board?.length || 0}
+            reviewScore={aiWorkspace.review?.quality_score ?? null}
           />
-          <ScrollView contentContainerStyle={styles.articleScroll}>
+          {articleSection === 'mindmap' ? (
+            <ArticleMindmapSection
+              articleId={selectedItem.id}
+              branchId={selectedItem.branchId}
+              mindmap={aiWorkspace.mindmap}
+              onMindmapUpdated={(nextMindmap) =>
+                setAiWorkspace((prev) => ({ ...prev, mindmap: nextMindmap }))
+              }
+              onInsertLeafToDraft={handleInsertSnippetIntoDraft}
+            />
+          ) : articleSection === 'board' ? (
+            <ArticleBoardSection
+              articleId={selectedItem.id}
+              branchId={selectedItem.branchId}
+              boardItems={aiWorkspace.board}
+              onBoardUpdated={(nextBoard) =>
+                setAiWorkspace((prev) => ({ ...prev, board: nextBoard }))
+              }
+              onApplySnippet={handleInsertSnippetIntoDraft}
+            />
+          ) : articleSection === 'review' ? (
+            <ArticleReviewSection
+              articleId={selectedItem.id}
+              branchId={selectedItem.branchId}
+              review={aiWorkspace.review}
+              onReviewUpdated={(nextReview) =>
+                setAiWorkspace((prev) => ({ ...prev, review: nextReview }))
+              }
+            />
+          ) : (
+            <ScrollView contentContainerStyle={styles.articleScroll} keyboardShouldPersistTaps="always">
             {/* Header / Category & Actions Line */}
             <View style={styles.articleHeaderLine}>
               <View style={[styles.articleCategory, isPersonal && styles.articleCategoryPersonal, { flexDirection: 'row', alignItems: 'center', gap: 5 }]}>
@@ -1130,9 +1557,12 @@ function MainScreenContent() {
                     <>
                       <Pressable
                         onPress={() => {
+                          const origContent = selectedItem.content || '';
                           setIsEditingArticle(false);
-                          setEditContent(selectedItem.content || '');
+                          setEditContent(origContent);
                           setEditSummary(selectedItem.summary || '');
+                          setActiveFormats(DEFAULT_ACTIVE_FORMATS);
+                          richEditorRef.current?.resetContent?.(origContent);
                         }}
                         style={styles.articleCancelEditBtn}
                       >
@@ -1155,7 +1585,12 @@ function MainScreenContent() {
                     </>
                   ) : (
                     <Pressable
-                      onPress={() => setIsEditingArticle(true)}
+                      onPress={() => {
+                        setEditContent(selectedItem.content || '');
+                        setEditSummary(selectedItem.summary || '');
+                        setIsEditingArticle(true);
+                        setTimeout(() => richEditorRef.current?.focus?.(), 20);
+                      }}
                       style={styles.articleActionBtn}
                     >
                       <EditIcon size={12} color={colors.ink} style={{ marginRight: 5 }} /><Text style={styles.articleActionBtnText}>Edit Story</Text>
@@ -1182,6 +1617,19 @@ function MainScreenContent() {
                     <PrinterIcon size={12} color={colors.ink} style={{ marginRight: 5 }} /><Text style={styles.articleActionBtnText}>Save as PDF</Text>
                   </Pressable>
                 )}
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete Story"
+                  onPress={() => setArticleToDelete(selectedItem)}
+                  style={[
+                    styles.articleActionBtn,
+                    { borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.06)' },
+                  ]}
+                >
+                  <TrashIcon size={12} color="#dc2626" style={{ marginRight: 5 }} />
+                  <Text style={[styles.articleActionBtnText, { color: '#dc2626' }]}>Delete Story</Text>
+                </Pressable>
               </View>
             </View>
 
@@ -1286,36 +1734,50 @@ function MainScreenContent() {
                 </View>
               ) : selectedItem.summary ? (
                 <View style={styles.summaryBox}>
-                  <Text style={styles.summaryText}>{selectedItem.summary}</Text>
+                  <Text style={styles.summaryText}>{stripRichFormatting(selectedItem.summary)}</Text>
                 </View>
               ) : null
             )}
 
-            {/* Article Body (Editable in-app or Display) */}
+            {/* Article Body (True WYSIWYG Rich Text Editor — no raw markdown symbols) */}
             {!pdfData && (
-              isEditingArticle ? (
-                <View style={styles.editBodyBlock}>
-                  <View style={styles.editBodyLabelRow}>
-                    <Text style={styles.editSectionLabel}>ARTICLE COPY / REPORT</Text>
-                    <Text style={styles.editBodyCount}>
-                      {editContent.length} chars • {editContent.trim() ? editContent.trim().split(/\s+/).length : 0} words
-                    </Text>
-                  </View>
-                  <TextInput
-                    value={editContent}
-                    onChangeText={setEditContent}
-                    placeholder="Type article copy here..."
-                    placeholderTextColor={colors.muted}
-                    multiline
-                    textAlignVertical="top"
-                    style={styles.editBodyInput}
-                  />
+              <View style={styles.editBodyBlock}>
+                <View style={styles.editBodyLabelRow}>
+                  <Text style={styles.editSectionLabel}>ARTICLE COPY / REPORT</Text>
+                  <Text style={styles.editBodyCount}>
+                    {stripRichFormatting(isEditingArticle ? editContent : selectedItem.content).length} chars •{' '}
+                    {stripRichFormatting(isEditingArticle ? editContent : selectedItem.content)
+                      ? stripRichFormatting(isEditingArticle ? editContent : selectedItem.content).split(/\s+/).length
+                      : 0}{' '}
+                    words
+                  </Text>
                 </View>
-              ) : (
-                <Text style={styles.articleBody}>{selectedItem.content}</Text>
-              )
+                <RichTextEditor
+                  ref={richEditorRef}
+                  value={isEditingArticle ? editContent : (selectedItem.content || '')}
+                  onChangeText={(nextMd) => {
+                    if (!isEditingArticle) {
+                      setEditSummary(selectedItem.summary || '');
+                      setIsEditingArticle(true);
+                    }
+                    setEditContent(nextMd);
+                  }}
+                  onEditStart={() => {
+                    if (!isEditingArticle) {
+                      setEditContent(selectedItem.content || '');
+                      setEditSummary(selectedItem.summary || '');
+                      setIsEditingArticle(true);
+                    }
+                  }}
+                  onActiveFormatsChange={setActiveFormats}
+                  placeholder="Start writing your story..."
+                  colors={colors}
+                  minHeight={360}
+                />
+              </View>
             )}
           </ScrollView>
+          )}
         </Animated.View>
       );
     }
@@ -1540,7 +2002,7 @@ function MainScreenContent() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <NewsroomHeader mode="app" />
+      <NewsroomHeader mode="app" onOpenAI={() => setAiModalOpen(true)} />
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -1693,6 +2155,131 @@ function MainScreenContent() {
               : newsrooms[0]?.id || ''
         }
       />
+
+      {/* 1-to-1 Saiph AI Agent Modal with Memory & Autonomous Actions */}
+      <SaiphAgentModal
+        visible={aiModalOpen}
+        onClose={() => setAiModalOpen(false)}
+        articleId={selectedArticleId}
+        branchId={selectedItem?.branchId}
+        articleTitle={selectedItem?.title}
+        activeBranch={activeBranch}
+        branches={articleBranches}
+        onSelectBranch={handleSelectBranch}
+        onCreateBranch={handleCreateBranch}
+        onWorkspaceUpdated={handleAIWorkspaceUpdated}
+        onInsertToDraft={handleInsertSnippetIntoDraft}
+        onJumpToSection={(sec) => {
+          setArticleSection(sec);
+          setAiModalOpen(false);
+        }}
+      />
+
+      {/* Delete Article Confirmation Modal */}
+      <Modal
+        visible={Boolean(articleToDelete)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !deletingArticle && setArticleToDelete(null)}
+      >
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(15, 23, 42, 0.55)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+          }}
+          onPress={() => !deletingArticle && setArticleToDelete(null)}
+        >
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: 420,
+              backgroundColor: colors.card || colors.paper || '#ffffff',
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: colors.line || '#e2e8f0',
+              padding: 22,
+              gap: 14,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <TrashIcon size={17} color="#dc2626" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: '#dc2626', fontSize: 10, fontWeight: '800', letterSpacing: 1 }}>
+                  EDITORIAL ARCHIVE • PERMANENT ACTION
+                </Text>
+                <Text style={{ color: colors.ink, fontSize: 18, fontWeight: '800', fontFamily: 'serif' }}>
+                  Delete Story?
+                </Text>
+              </View>
+            </View>
+
+            <Text style={{ color: colors.ink, fontSize: 14, lineHeight: 21 }}>
+              Are you sure you want to permanently delete{' '}
+              <Text style={{ fontWeight: '800' }}>"{articleToDelete?.title}"</Text> and all of its branches,
+              mindmaps, and editorial board notes? This cannot be undone.
+            </Text>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={deletingArticle}
+                onPress={() => setArticleToDelete(null)}
+                style={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 9,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: colors.line || '#cbd5e1',
+                  backgroundColor: colors.paper,
+                }}
+              >
+                <Text style={{ color: colors.ink, fontSize: 13, fontWeight: '700' }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Confirm delete story"
+                disabled={deletingArticle}
+                onPress={handleConfirmDeleteArticle}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  paddingHorizontal: 16,
+                  paddingVertical: 9,
+                  borderRadius: 8,
+                  backgroundColor: '#dc2626',
+                }}
+              >
+                {deletingArticle ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <>
+                    <TrashIcon size={13} color="#ffffff" />
+                    <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '800' }}>
+                      Delete Permanently
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Real-time WebRTC Newsroom Voice Overlay Bar */}
       <VoiceBar
