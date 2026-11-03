@@ -20,3 +20,4 @@ urlpatterns = [
     path('memories/', AgentMemoryListCreateView.as_view(), name='ai_agent_memories'),
     path('memories/<str:memory_id>/', AgentMemoryDeleteView.as_view(), name='ai_agent_memory_delete'),
 ]
+

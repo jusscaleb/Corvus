@@ -792,12 +792,245 @@ def interact_with_article_agent(
 
     lower = clean_msg.lower()
 
+    # 1b. If NO article is currently open and the user asks Saiph to write/create/draft an article,
+    # autonomously create the Article + main Branch so it opens immediately in their workspace!
+    if not article and any(
+        k in lower
+        for k in (
+            "write an article",
+            "write a story",
+            "create an article",
+            "create a story",
+            "draft an article",
+            "draft a story",
+            "generate an article",
+            "new article about",
+            "write about ",
+        )
+    ):
+        topic_match = re.search(
+            r"(?:about|on|titled|called|regarding)\s+(.+)",
+            clean_msg,
+            flags=re.IGNORECASE,
+        )
+        raw_topic = (topic_match.group(1).strip() if topic_match else clean_msg).rstrip(".")
+        draft_data = generate_article_draft_from_brief(
+            title=raw_topic[:100],
+            brief=clean_msg,
+            user=user,
+        )
+        headline = (draft_data.get("headline") or raw_topic[:100] or "New Investigative Draft")[:150]
+        if Article.objects.filter(group__isnull=True, title=headline).exists():
+            headline = f"{headline[:135]} ({uuid.uuid4().hex[:4]})"
+        with transaction.atomic():
+            article = Article.objects.create(
+                group=None,
+                author=user,
+                title=headline,
+            )
+            target_branch = Branch.objects.create(
+                article=article,
+                branch_name="main",
+                branch_description=draft_data.get("summary", "")[:255],
+                content=draft_data.get("content", ""),
+                created_by=user,
+                is_main=True,
+                is_public=True,
+            )
+        workspace_payload["created_article"] = {
+            "id": article.article_id,
+            "article_id": article.article_id,
+            "type": "article",
+            "title": article.title,
+            "category": "Personal Draft",
+            "isPersonal": True,
+            "groupId": None,
+            "branchId": target_branch.branch_id,
+            "timestamp": "Just now",
+            "author": getattr(user, "full_name", None) or getattr(user, "username", "You"),
+            "readTime": "1 branch",
+            "symbol": "◎",
+            "summary": target_branch.branch_description,
+            "content": target_branch.content,
+        }
+        workspace_payload["updated_content"] = target_branch.content
+        actions_taken.append({
+            "type": "article_created",
+            "label": f"Created & drafted '{article.title}'",
+        })
+
+    # Pre-fetch recent conversation turns so multi-turn follow-ups (e.g. replying "draft-v2"
+    # after Saiph asked "What would you like to call the branch?") have full context.
+    recent_turns = list(
+        AgentConversationMessage.objects.filter(user=user, article=article).order_by('-created_at')[:8]
+    )[::-1]
+    last_assistant_msg = next(
+        (t.content for t in reversed(recent_turns) if t.role == 'assistant'),
+        "",
+    )
+
+    def _serialize_branch(b):
+        return {
+            "branch_id": b.branch_id,
+            "branch_name": b.branch_name,
+            "content": b.content,
+            "branch_description": b.branch_description,
+            "is_main": b.is_main,
+            "is_public": b.is_public,
+        }
+
+    def _next_auto_branch_name(art):
+        idx = 2
+        while branch_name_taken(art, f"draft-v{idx}"):
+            idx += 1
+        return f"draft-v{idx}"
+
+    def _create_or_switch_branch(art, raw_name, base_branch, force_create=False):
+        clean_bname = re.sub(r"[^a-zA-Z0-9_-]", "-", raw_name.strip("`'\" .!?")).strip("-")
+        if not clean_bname:
+            clean_bname = _next_auto_branch_name(art)
+        existing = Branch.objects.filter(article=art, branch_name__iexact=clean_bname).first()
+        if existing and not force_create:
+            payload = _serialize_branch(existing)
+            workspace_payload["switched_branch"] = payload
+            actions_taken.append({
+                "type": "branch_switched",
+                "label": f"Switched to branch '{existing.branch_name}'",
+            })
+            return existing
+        if existing and force_create:
+            clean_bname = _next_auto_branch_name(art)
+
+        created = Branch.objects.create(
+            article=art,
+            branch_name=clean_bname,
+            branch_description=base_branch.branch_description if base_branch else "Forked by Saiph",
+            content=base_branch.content if base_branch else "",
+            created_by=user,
+            is_main=False,
+            is_public=False,
+        )
+        payload = _serialize_branch(created)
+        workspace_payload["created_branch"] = payload
+        workspace_payload["switched_branch"] = payload
+        actions_taken.append({
+            "type": "branch_created",
+            "label": f"Created & switched to branch '{created.branch_name}'",
+        })
+        return created
+
     # 2. Check if user is asking for specific article operations when an article is open
-    if article:
+    if article and not workspace_payload.get("created_article"):
+        # 2a. Branch creation, switching, renaming, and pushing
+        # Explicit named branch creation/switching:
+        # e.g. "create a branch called draft-v2", "switch to branch main", "switch to draft-v2", "checkout v2", "new branch water-audit"
+        named_branch_match = (
+            re.search(
+                r"(?:create|fork|make|start|spin\s+up|switch\s+to|checkout|go\s+to|open|use)\s+(?:a\s+)?(?:new\s+)?(?:branch\s+)?(?:called\s+|named\s+|to\s+)?[`'\"]?([a-zA-Z0-9][a-zA-Z0-9_-]{0,45})[`'\"]?\s*$",
+                clean_msg,
+                flags=re.IGNORECASE,
+            )
+            or re.search(
+                r"(?:branch\s+(?:called|named)|new\s+branch)\s+[`'\"]?([a-zA-Z0-9][a-zA-Z0-9_-]{0,45})[`'\"]?",
+                clean_msg,
+                flags=re.IGNORECASE,
+            )
+        )
+        unnamed_new_branch = re.search(
+            r"\b(?:switch\s+to\s+a\s+new\s+branch|create\s+a\s+new\s+branch|make\s+a\s+new\s+branch|start\s+a\s+new\s+branch|fork\s+this\s+branch|new\s+branch)\b",
+            lower,
+        )
+        bare_slug_match = re.match(r"^[`'\"]?([a-zA-Z0-9][a-zA-Z0-9_-]{0,40})[`'\"]?\.?$", clean_msg)
+        reserved_words = {
+            "a", "an", "the", "new", "branch", "mindmap", "board", "review",
+            "draft", "article", "story", "it", "this", "yes", "no", "ok", "okay",
+            "thanks", "hello", "hi", "hey", "help", "status", "push", "pull", "diff",
+        }
+
+        if unnamed_new_branch and (
+            not named_branch_match or named_branch_match.group(1).lower() in reserved_words
+        ):
+            # User said "switch to a new branch" or "create a new branch" without specifying a name:
+            # Immediately create the next available draft-vN branch and switch to it!
+            auto_name = _next_auto_branch_name(article)
+            target_branch = _create_or_switch_branch(article, auto_name, target_branch, force_create=True)
+        elif named_branch_match and named_branch_match.group(1).lower() not in reserved_words:
+            candidate_name = named_branch_match.group(1)
+            wants_new = bool(re.search(r"\b(?:create|fork|make|start|new)\b", lower))
+            target_branch = _create_or_switch_branch(
+                article,
+                candidate_name,
+                target_branch,
+                force_create=wants_new and not Branch.objects.filter(article=article, branch_name__iexact=candidate_name).exists(),
+            )
+        elif bare_slug_match:
+            slug_candidate = bare_slug_match.group(1)
+            existing_b = Branch.objects.filter(article=article, branch_name__iexact=slug_candidate).first()
+            assistant_asked_for_branch = any(
+                k in last_assistant_msg.lower()
+                for k in ("branch", "call it", "name", "draft-v")
+            )
+            if existing_b:
+                target_branch = _create_or_switch_branch(article, slug_candidate, target_branch)
+            elif assistant_asked_for_branch and slug_candidate.lower() not in reserved_words:
+                target_branch = _create_or_switch_branch(article, slug_candidate, target_branch)
+
+        # Rename current branch (e.g. "rename branch to final-draft")
+        rename_branch_match = re.search(
+            r"(?:rename\s+(?:this\s+)?branch\s+to|call\s+this\s+branch)\s+[`'\"]?([a-zA-Z0-9][a-zA-Z0-9_-]{0,45})[`'\"]?",
+            clean_msg,
+            flags=re.IGNORECASE,
+        )
+        if rename_branch_match and target_branch and not target_branch.is_main:
+            new_bname = rename_branch_match.group(1).strip()
+            if not branch_name_taken(article, new_bname, exclude_id=target_branch.branch_id):
+                target_branch.branch_name = new_bname
+                target_branch.save(update_fields=['branch_name', 'updated_at'])
+                payload = _serialize_branch(target_branch)
+                workspace_payload["switched_branch"] = payload
+                actions_taken.append({
+                    "type": "branch_renamed",
+                    "label": f"Renamed branch to '{new_bname}'",
+                })
+
+        # Push / share current branch with newsroom
+        if target_branch and any(
+            k in lower
+            for k in ("push branch", "push this branch", "publish branch", "share branch", "make branch public")
+        ):
+            if not target_branch.is_public and not target_branch.is_main:
+                target_branch.is_public = True
+                target_branch.save(update_fields=['is_public', 'updated_at'])
+            payload = _serialize_branch(target_branch)
+            workspace_payload["pushed_branch"] = payload
+            actions_taken.append({
+                "type": "branch_pushed",
+                "label": f"Pushed branch '{target_branch.branch_name}' to newsroom",
+            })
+
+        # Rename article headline (e.g. "change headline to ...", "rename article to ...")
+        title_match = re.search(
+            r"(?:change|update|set|rename)\s+(?:the\s+)?(?:article\s+)?(?:title|headline|name)\s+to\s+[\"']?(.+?)[\"']?$",
+            clean_msg,
+            flags=re.IGNORECASE,
+        )
+        if title_match:
+            new_title = title_match.group(1).strip().rstrip(".")[:250]
+            if new_title:
+                article.title = new_title
+                article.save(update_fields=['title', 'updated_at'])
+                workspace_payload["updated_title"] = new_title
+                actions_taken.append({
+                    "type": "title_updated",
+                    "label": f"Updated headline to '{new_title}'",
+                })
+
         # Mindmap request
         if any(k in lower for k in ("mindmap", "mind map", "concept map", "visual map")):
             mm = generate_article_mindmap(article, target_branch, user=user)
             workspace_payload["mindmap"] = mm
+            if any(k in lower for k in ("open", "show", "go to", "switch to", "view")):
+                workspace_payload["open_section"] = "mindmap"
             actions_taken.append({
                 "type": "mindmap_generated",
                 "label": f"Generated mindmap with {len(mm.get('nodes', []))} key themes",
@@ -807,6 +1040,8 @@ def interact_with_article_agent(
         if any(k in lower for k in ("board", "source", "sources", "citation", "suggestions")):
             board = generate_article_board(article, target_branch, user=user)
             workspace_payload["board"] = board
+            if any(k in lower for k in ("open", "show", "go to", "switch to", "view")):
+                workspace_payload["open_section"] = "board"
             actions_taken.append({
                 "type": "board_updated",
                 "label": f"Updated board with {len(board)} suggestions & sources",
@@ -816,56 +1051,92 @@ def interact_with_article_agent(
         if any(k in lower for k in ("review", "plagiarism", "ai check", "check my", "improve", "critique", "grade")):
             rev = review_article_branch(article, target_branch, user=user)
             workspace_payload["review"] = rev
+            if any(k in lower for k in ("open", "show", "go to", "switch to", "view")):
+                workspace_payload["open_section"] = "review"
             actions_taken.append({
                 "type": "review_completed",
                 "label": f"Reviewed '{target_branch.branch_name if target_branch else 'main'}' (Score: {rev['quality_score']}/100)",
             })
 
-        # Create branch request (e.g. "create a branch called water-audit")
-        branch_match = re.search(
-            r"(?:create|fork|make|start)\s+(?:a\s+)?(?:new\s+)?branch\s+(?:called|named)\s+([a-zA-Z0-9_-]+)",
-            clean_msg,
-            flags=re.IGNORECASE,
-        )
-        if branch_match:
-            raw_bname = branch_match.group(1).strip().replace(" ", "-")
-            if not branch_name_taken(article, raw_bname):
-                new_branch = Branch.objects.create(
-                    article=article,
-                    branch_name=raw_bname,
-                    branch_description=target_branch.branch_description if target_branch else f"Forked by Saiph",
-                    content=target_branch.content if target_branch else "",
-                    created_by=user,
-                    is_main=False,
-                    is_public=False,
-                )
-                target_branch = new_branch
-                workspace_payload["created_branch"] = {
-                    "branch_id": new_branch.branch_id,
-                    "branch_name": new_branch.branch_name,
-                    "content": new_branch.content,
-                    "branch_description": new_branch.branch_description,
-                    "is_main": False,
-                    "is_public": False,
-                }
-                actions_taken.append({
-                    "type": "branch_created",
-                    "label": f"Created private branch '{raw_bname}'",
-                })
-
-        # Draft / write / expand / rewrite content into the active branch
+        # Draft / write / expand / rewrite / edit content into the active branch
         if target_branch and any(
-            k in lower for k in ("write a draft", "generate a draft", "expand this", "rewrite the", "draft an article")
+            k in lower
+            for k in (
+                "write a draft",
+                "generate a draft",
+                "write the article",
+                "write this article",
+                "expand this",
+                "expand the",
+                "expand on",
+                "rewrite",
+                "draft an article",
+                "add a section",
+                "add more sections",
+                "add a paragraph",
+                "add a conclusion",
+                "add an intro",
+                "continue writing",
+                "keep writing",
+                "write more",
+                "fix the grammar",
+                "fix grammar",
+                "polish this",
+                "make it longer",
+                "make it shorter",
+                "shorten",
+                "summarize the draft",
+                "update the draft",
+                "edit the draft",
+                "fill in the",
+            )
         ):
+            existing_body = (target_branch.content or "").strip()
+            edit_sys = (
+                "You are Saiph, Senior Investigative Editor at Corvus Newsroom. "
+                f"Write in {getattr(user, 'preffered_language', 'english') if user else 'english'}. "
+                "Update or write the article draft according to the reporter's instruction. "
+                "Return ONLY valid JSON with keys:\n"
+                "{\n"
+                '  "headline": "Updated or existing headline",\n'
+                '  "summary": "1-2 sentence executive lead summary",\n'
+                '  "content": "Full updated markdown article body"\n'
+                "}"
+            )
+            edit_prompt = (
+                f"Current Headline: {article.title}\n"
+                f"Current Summary: {target_branch.branch_description or ''}\n"
+                f"Current Draft Body:\n{existing_body[:3500]}\n\n"
+                f"Reporter's Instruction: {clean_msg}\n\n"
+                "Produce the updated full markdown article."
+            )
             generated = generate_article_draft_from_brief(
                 title=article.title,
-                brief=clean_msg if len(clean_msg) > 30 else (target_branch.branch_description or article.title),
+                brief=clean_msg if len(clean_msg) > 25 else (target_branch.branch_description or article.title),
                 user=user,
             )
+            try:
+                raw_edit = chat_with_groq(
+                    prompt=edit_prompt,
+                    user_language=getattr(user, 'preffered_language', 'english') if user else 'english',
+                    system_instruction=edit_sys,
+                )
+                parsed_edit = _extract_json_block(raw_edit, {})
+                if isinstance(parsed_edit, dict) and parsed_edit.get("content"):
+                    generated = {
+                        "headline": parsed_edit.get("headline") or article.title,
+                        "summary": parsed_edit.get("summary") or generated["summary"],
+                        "content": parsed_edit["content"],
+                    }
+            except Exception:
+                pass
+
             target_branch.content = generated["content"]
-            if not target_branch.branch_description:
-                target_branch.branch_description = generated["summary"]
+            if generated.get("summary"):
+                target_branch.branch_description = generated["summary"][:255]
             target_branch.save(update_fields=['content', 'branch_description', 'updated_at'])
+            workspace_payload["updated_content"] = target_branch.content
+            workspace_payload["updated_summary"] = target_branch.branch_description
             workspace_payload["updated_branch"] = {
                 "branch_id": target_branch.branch_id,
                 "branch_name": target_branch.branch_name,
@@ -883,9 +1154,6 @@ def interact_with_article_agent(
     ).distinct()[:12]
     memories_list = [f"- [{m.category.upper()}] {m.fact}" for m in memories_qs]
 
-    recent_turns = list(
-        AgentConversationMessage.objects.filter(user=user, article=article).order_by('-created_at')[:8]
-    )[::-1]
     history_block = "\n".join(
         f"{'Reporter' if t.role == 'user' else 'Saiph'}: {t.content[:350]}"
         for t in recent_turns
@@ -895,9 +1163,11 @@ def interact_with_article_agent(
     lang = getattr(user, 'preffered_language', 'english') or 'english'
     article_context = "No specific article open (General Workspace chat)."
     if article:
+        all_branch_names = list(Branch.objects.filter(article=article).values_list('branch_name', flat=True))
         article_context = (
             f"Active Article: '{article.title}' (ID: {article.article_id})\n"
             f"Active Branch: '{target_branch.branch_name if target_branch else 'main'}'\n"
+            f"Available Branches on this Article: {all_branch_names}\n"
             f"Current Summary: {(target_branch.branch_description if target_branch else '')[:300]}\n"
             f"Current Draft Excerpt:\n{(target_branch.content if target_branch else '')[:1800]}"
         )
@@ -911,8 +1181,9 @@ def interact_with_article_agent(
         + ("\n".join(memories_list) if memories_list else "None yet.")
         + f"\n\n=== CURRENT ARTICLE CONTEXT ===\n{article_context}\n\n"
         f"=== ACTIONS YOU JUST EXECUTED ON THIS TURN ===\n{actions_summary}\n\n"
-        "If you executed actions (like generating a mindmap, updating the board, running a review, "
-        "saving a memory, or updating the draft), briefly explain what you did and highlight the key takeaway in simple terms."
+        "IMPORTANT RULE: Only state that you created/switched a branch, updated the draft, or ran a tool "
+        "if it appears in ACTIONS YOU JUST EXECUTED ON THIS TURN above. "
+        "If you executed actions, briefly confirm what you did and highlight the key takeaway in simple terms."
     )
     full_prompt = (
         (f"Recent Conversation:\n{history_block}\n\n" if history_block else "")
@@ -926,6 +1197,29 @@ def interact_with_article_agent(
             reply_text = llm_reply.strip()
     except Exception:
         pass
+
+    # Post-LLM safety net: if the LLM reply mentions creating or switching to a specific branch
+    # that wasn't executed yet, execute it right now so Saiph's reply is 100% truthful!
+    if article and not workspace_payload.get("switched_branch") and not workspace_payload.get("created_branch"):
+        claimed_branch = re.search(
+            r"(?:created|switched\s+to)\s+(?:a\s+)?(?:new\s+)?branch\s+(?:called\s+|named\s+)?\*\*`?([a-zA-Z0-9_-]+)`?\*\*|(?:created|switched\s+to)\s+(?:a\s+)?(?:new\s+)?branch\s+(?:called\s+|named\s+)?`([a-zA-Z0-9_-]+)`",
+            reply_text,
+            flags=re.IGNORECASE,
+        )
+        if claimed_branch:
+            bname = (claimed_branch.group(1) or claimed_branch.group(2) or "").strip()
+            if bname:
+                target_branch = _create_or_switch_branch(article, bname, target_branch)
+
+    if article and (
+        workspace_payload.get("created_branch")
+        or workspace_payload.get("switched_branch")
+        or workspace_payload.get("pushed_branch")
+    ):
+        workspace_payload["branches"] = [
+            _serialize_branch(b)
+            for b in Branch.objects.filter(article=article).order_by('-is_main', 'created_at')
+        ]
 
     # 5. Persist User & Assistant turns to short-term conversation history
     with transaction.atomic():
@@ -1007,3 +1301,4 @@ def _build_fallback_chat_reply(clean_msg, article, branch, actions_taken, worksp
             )
 
     return " ".join(parts)
+
