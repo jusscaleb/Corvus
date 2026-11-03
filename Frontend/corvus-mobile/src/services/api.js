@@ -236,6 +236,37 @@ export async function updateBranchContent(branchId, { content, summary }) {
   });
 }
 
+// Push a branch – makes it public and notifies newsroom members
+export async function pushBranch(branchId) {
+  // The backend endpoint will set is_public=true and broadcast a notification
+  return await apiRequest(`/api/project/branches/${branchId}/push/`, {
+    method: 'POST',
+    requireAuth: true,
+  });
+}
+
+// Diff a branch against its latest remote version (simple string diff placeholder)
+export async function diffBranch(branchId) {
+  return await apiRequest(`/api/project/branches/${branchId}/diff/`, {
+    method: 'GET',
+    requireAuth: true,
+  });
+}
+
+// List an article's branches (backend hides other people's private branches)
+export async function fetchBranches(articleId) {
+  return await apiRequest(`/api/project/articles/${articleId}/branches/`, { requireAuth: true });
+}
+
+// Fork a new branch. It starts private (is_public=false) until it is pushed.
+export async function createBranch(articleId, { name, description = '', content = '' }) {
+  return await apiRequest(`/api/project/articles/${articleId}/branches/`, {
+    method: 'POST',
+    requireAuth: true,
+    body: { branch_name: name, branch_description: description, content },
+  });
+}
+
 // ─── Chats ─────────────────────────────────────────────────────────────────────
 
 export async function fetchInbox() {

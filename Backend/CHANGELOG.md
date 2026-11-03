@@ -3,6 +3,27 @@
 All notable backend changes are documented here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [4.3.1] - 2026-11-03
+
+### Added
+
+- **Article Branch Version Control & Visibility (`Project/models.py`, `Project/views.py`, `Project/urls.py`, `Project/serializer.py`)**:
+  - Added `is_public = models.BooleanField(default=False)` to `Branch` (`0002_add_is_public_to_branch` and `0004_merge_20261103_0114` migrations) so forked drafts start private to their creator until pushed.
+  - Added `POST /api/project/branches/<branch_id>/push/` (`BranchPushView`) allowing the branch creator to publish a private branch (`is_public=True`) and broadcast a `branch_pushed` notification to the newsroom channel group via Django Channels.
+  - Added `GET /api/project/branches/<branch_id>/diff/` (`BranchDiffView`) returning `{ "diff": branch.content }` for authorized readers.
+  - Added `group_name` to `ArticleSerializer` and ordered article list responses by `-updated_at` so shared newsroom stories display their desk name and surface newest updates first for all members in that newsroom.
+  - Added branch-name validation in `BranchSerializer` (rejects blank names and names containing whitespace) and case-insensitive uniqueness checks (`branch_name_taken` + `IntegrityError` guard) returning `400 Bad Request` on duplicate branch names or renames.
+- **Expanded Version Control & Privacy Test Suite (`Project/tests.py`)**:
+  - Added 11 new unit tests (17 total in `Project`) covering branch push, diff retrieval, private branch hiding in article and branch lists, duplicate/whitespace branch name validation, creator-only push permissions, private branch read/edit/delete protection, constant-query-count (`O(1)`) article list prefetching, and shared newsroom article visibility across all group members.
+
+### Fixed
+
+- **Private Branch Leakage & N+1 Query Prevention (`Project/views.py`, `Project/serializer.py`)**:
+  - Replaced unfiltered `prefetch_related('branches')` with `visible_branches_prefetch(request.user)` (`Q(is_main=True) | Q(is_public=True) | Q(created_by=user)`), preventing unpushed branches from leaking through `GET /api/project/articles/` or `branch_count` while keeping list serialization at a constant query count.
+  - Restricted `ArticleSerializer.branches` in list/detail payloads to the root `main` preview branch and gated `get_accessible_branch` so non-creators cannot read, patch, delete, or diff someone else's private branch.
+  - Restricted `BranchPushView` to the branch creator (must still be a member of the newsroom) and made `is_public` read-only on `BranchSerializer` so visibility changes cannot bypass the push endpoint.
+  - Cleaned up duplicated class/method definitions in `Project/models.py`, `Project/serializer.py`, `Project/views.py`, `Project/urls.py`, and `Project/tests.py`.
+
 ## [3.3.1] - 2026-11-02
 
 ### Added

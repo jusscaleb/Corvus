@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [5.6.0] - 2026-11-03
+
+### Added
+
+- **Article Branch Creation, Switching & Version Control Wiring (`ArticleHeader.jsx`, `MainScreen.jsx`, `services/api.js`)**:
+  - Added `fetchBranches(articleId)` and `createBranch(articleId, { name, description, content })` in `services/api.js` alongside `pushBranch` and `diffBranch`.
+  - Built an inline **+ New branch** composer inside the `ArticleHeader` branch dropdown with live slug preview (spaces converted to hyphens), duplicate/empty validation, inline error feedback, and support for branching directly from an in-progress draft without overwriting the source branch.
+  - Added visibility badges (**MAIN**, **SHARED**, 🔒 **PRIVATE**) on each branch item in the dropdown and a lock indicator on the header tab when viewing a private branch.
+  - Wired live branch loading, safe branch switching (warns before discarding unsaved edits), branch-specific saving, **Push changes** (`POST /api/project/branches/<id>/push/`), and **Check status** in `MainScreen.jsx`.
+- **Shared Newsroom Article Sync & Smart Desk Defaults (`CreateArticleModal.jsx`, `MainScreen.jsx`)**:
+  - Updated `CreateArticleModal` to accept `defaultGroupId` and default to the currently active newsroom (or the reporter's first newsroom) instead of *Personal Draft*, ensuring newsroom stories are shared with the desk by default.
+  - Added a 5-second background sync in `MainScreen.jsx` that refreshes articles and newsrooms so stories filed by any colleague in a newsroom appear automatically for all members in that newsroom without interrupting active editing.
+
+### Fixed
+
+- **API Service Syntax & Main Branch Selection (`services/api.js`, `MainScreen.jsx`)**:
+  - Removed an orphaned duplicate block at the end of `updateBranchContent` / `diffBranch` in `services/api.js` that caused a Babel `'return' outside of function` syntax error.
+  - Fixed article list normalization in `MainScreen.jsx` to select `a.branches.find((b) => b.is_main)` rather than assuming `branches[0]` is always `main`.
+
 ## [5.5.2] - 2026-11-03
 
 ### Added

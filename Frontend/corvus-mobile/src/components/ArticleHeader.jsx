@@ -8,8 +8,10 @@ import {
   ScrollView,
   useWindowDimensions,
   Pressable,
+  TextInput,
+  ActivityIndicator,
 } from 'react-native';
-import Svg, { Path, Line, Circle, Polyline } from 'react-native-svg';
+import Svg, { Path, Line, Circle, Polyline, Rect } from 'react-native-svg';
 import { useTheme } from '../context/ThemeContext';
 import { lightColors } from '../theme/colors';
 
@@ -184,17 +186,53 @@ function CheckIcon({ size = 14, color = '#10b981' }) {
   );
 }
 
+function LockMiniIcon({ size = 11, color = '#666' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+      <Rect x="4" y="11" width="16" height="10" rx="2" />
+      <Path d="M8 11V7a4 4 0 0 1 8 0v4" />
+    </Svg>
+  );
+}
+
+function PlusIcon({ size = 13, color = '#666' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+      <Line x1="12" y1="5" x2="12" y2="19" />
+      <Line x1="5" y1="12" x2="19" y2="12" />
+    </Svg>
+  );
+}
+
+// Branch names can't contain spaces – turn "water angle" into "water-angle"
+const slugifyBranch = (value) => value.trim().replace(/\s+/g, '-');
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ArticleHeader({
   activeBranch = 'main',
   branches = ['main'],
   onSelectBranch = () => {},
+  onCreateBranch = null, // async (name) => void – throw an Error to show it inline
   onExecuteCommand = () => {},
   onApplyFormat = () => {},
 }) {
   const [activeModal, setActiveModal] = useState(null); // 'branch' | 'commands' | 'tools' | null
   const [anchorRect, setAnchorRect] = useState(null);
+
+  // Inline "New branch" form state
+  const [newBranchOpen, setNewBranchOpen] = useState(false);
+  const [newBranchName, setNewBranchName] = useState('');
+  const [newBranchError, setNewBranchError] = useState('');
+  const [creatingBranch, setCreatingBranch] = useState(false);
+
+  // Accept plain strings or rich branch objects { id, name, isMain, isPublic }
+  const branchItems = branches.map((b) =>
+    typeof b === 'string' ? { name: b, isMain: b === 'main', isPublic: true } : b
+  );
+  const activeItem = branchItems.find((b) => b.name === activeBranch);
+  const activeIsPrivate = !!activeItem && !activeItem.isMain && !activeItem.isPublic;
+  const branchSlug = slugifyBranch(newBranchName);
   const { width: windowWidth } = useWindowDimensions();
   const isMobile = windowWidth < 680;
 
@@ -232,7 +270,7 @@ export default function ArticleHeader({
 
   const openMenu = (type, ref) => {
     if (activeModal === type) {
-      setActiveModal(null);
+      closeModal();
       return;
     }
     if (ref?.current?.measureInWindow) {
@@ -246,8 +284,40 @@ export default function ArticleHeader({
     }
   };
 
+  const resetNewBranchForm = () => {
+    setNewBranchOpen(false);
+    setNewBranchName('');
+    setNewBranchError('');
+  };
+
   const closeModal = () => {
+    if (creatingBranch) return; // don't lose the request mid-flight
     setActiveModal(null);
+    resetNewBranchForm();
+  };
+
+  const submitNewBranch = async () => {
+    if (!onCreateBranch || creatingBranch) return;
+    const name = branchSlug;
+    if (!name) {
+      setNewBranchError('Give the branch a name.');
+      return;
+    }
+    if (branchItems.some((b) => b.name.toLowerCase() === name.toLowerCase())) {
+      setNewBranchError(`"${name}" already exists on this story.`);
+      return;
+    }
+    setCreatingBranch(true);
+    setNewBranchError('');
+    try {
+      await onCreateBranch(name);
+      setCreatingBranch(false);
+      setActiveModal(null);
+      resetNewBranchForm();
+    } catch (err) {
+      setCreatingBranch(false);
+      setNewBranchError(err?.message || 'Could not create the branch. Try again.');
+    }
   };
 
   // Compute anchored position for dropdown menu popovers
@@ -327,6 +397,11 @@ export default function ArticleHeader({
           <Text style={[styles.tabText, { color: themeColors.ink || '#333333' }]} numberOfLines={1}>
             Branch: <Text style={[styles.tabHighlight, { color: themeColors.forest || '#0066cc' }]}>{activeBranch}</Text>
           </Text>
+          {activeIsPrivate && (
+            <View style={styles.tabLockWrapper} accessibilityLabel="Private branch">
+              <LockMiniIcon size={11} color={themeColors.muted || '#666666'} />
+            </View>
+          )}
           <Text style={[styles.caret, { color: themeColors.muted || '#666666' }]}>
             {activeModal === 'branch' ? '▲' : '▼'}
           </Text>
@@ -410,16 +485,24 @@ export default function ArticleHeader({
                 <View style={[styles.menuHeaderBar, { borderBottomColor: themeColors.line || '#f1f5f9' }]}>
                   <View style={styles.menuHeaderTitleRow}>
                     <GitBranchIcon size={14} color={themeColors.forest || '#0066cc'} />
-                    <Text style={[styles.menuHeader, { color: themeColors.ink || '#0f172a' }]}>Select Branch</Text>
+                    <Text style={[styles.menuHeader, { color: themeColors.ink || '#0f172a' }]}>Branches</Text>
+                    <Text style={[styles.menuCount, { color: themeColors.muted || '#64748b' }]}>{branchItems.length}</Text>
                   </View>
                 </View>
 
-                <ScrollView style={{ maxHeight: 260 }}>
-                  {branches.map((branch) => {
-                    const isCurrent = branch === activeBranch;
+                <ScrollView style={{ maxHeight: 260 }} keyboardShouldPersistTaps="handled">
+                  {branchItems.map((branch) => {
+                    const isCurrent = branch.name === activeBranch;
+                    const isPrivate = !branch.isMain && !branch.isPublic;
+                    const badgeLabel = branch.isMain ? 'MAIN' : isPrivate ? 'PRIVATE' : 'SHARED';
+                    const badgeColor = branch.isMain
+                      ? themeColors.forest || '#0066cc'
+                      : isPrivate
+                        ? themeColors.muted || '#64748b'
+                        : '#059669';
                     return (
                       <TouchableOpacity
-                        key={branch}
+                        key={branch.id || branch.name}
                         style={[
                           styles.branchMenuItem,
                           { borderBottomColor: themeColors.line || '#f8fafc' },
@@ -429,20 +512,28 @@ export default function ArticleHeader({
                           ],
                         ]}
                         onPress={() => {
-                          onSelectBranch(branch);
+                          onSelectBranch(branch.name);
                           closeModal();
                         }}
                         activeOpacity={0.7}
+                        accessibilityLabel={`${branch.name}, ${badgeLabel.toLowerCase()} branch`}
                       >
-                        <Text
-                          style={[
-                            styles.branchNameText,
-                            { color: themeColors.ink || '#0f172a' },
-                            isCurrent && { fontWeight: '700', color: themeColors.forest || '#0066cc' },
-                          ]}
-                        >
-                          {branch}
-                        </Text>
+                        <View style={styles.branchRowLeft}>
+                          <Text
+                            numberOfLines={1}
+                            style={[
+                              styles.branchNameText,
+                              { color: themeColors.ink || '#0f172a' },
+                              isCurrent && { fontWeight: '700', color: themeColors.forest || '#0066cc' },
+                            ]}
+                          >
+                            {branch.name}
+                          </Text>
+                          <View style={[styles.branchBadge, { borderColor: badgeColor }]}>
+                            {isPrivate && <LockMiniIcon size={8} color={badgeColor} />}
+                            <Text style={[styles.branchBadgeText, { color: badgeColor }]}>{badgeLabel}</Text>
+                          </View>
+                        </View>
                         {isCurrent && (
                           <View style={styles.checkIconWrapper}>
                             <CheckIcon size={15} color={themeColors.forest || '#10b981'} />
@@ -452,6 +543,89 @@ export default function ArticleHeader({
                     );
                   })}
                 </ScrollView>
+
+                {/* ─── New branch: collapsed button → inline form ─── */}
+                {onCreateBranch && (
+                  <View style={[styles.newBranchArea, { borderTopColor: themeColors.line || '#f1f5f9' }]}>
+                    {!newBranchOpen ? (
+                      <TouchableOpacity
+                        style={styles.newBranchTrigger}
+                        onPress={() => setNewBranchOpen(true)}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel="Create a new branch"
+                      >
+                        <PlusIcon size={13} color={themeColors.forest || '#0066cc'} />
+                        <Text style={[styles.newBranchTriggerText, { color: themeColors.forest || '#0066cc' }]}>
+                          New branch
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <View>
+                        <Text style={[styles.newBranchHint, { color: themeColors.muted || '#64748b' }]}>
+                          Starts as a copy of <Text style={styles.newBranchHintStrong}>{activeBranch}</Text>.
+                          Only you can see it until you push.
+                        </Text>
+                        <TextInput
+                          value={newBranchName}
+                          onChangeText={(t) => {
+                            setNewBranchName(t);
+                            if (newBranchError) setNewBranchError('');
+                          }}
+                          onSubmitEditing={submitNewBranch}
+                          placeholder="e.g. water-supply-angle"
+                          placeholderTextColor={themeColors.muted || '#94a3b8'}
+                          autoFocus
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          maxLength={256}
+                          editable={!creatingBranch}
+                          returnKeyType="done"
+                          accessibilityLabel="New branch name"
+                          style={[
+                            styles.newBranchInput,
+                            {
+                              color: themeColors.ink || '#0f172a',
+                              backgroundColor: themeColors.inputBg || '#ffffff',
+                              borderColor: newBranchError ? '#dc2626' : themeColors.line || '#e2e8f0',
+                            },
+                          ]}
+                        />
+                        {!!branchSlug && branchSlug !== newBranchName.trim() && (
+                          <Text style={[styles.newBranchPreview, { color: themeColors.muted || '#64748b' }]}>
+                            Will be saved as <Text style={styles.newBranchHintStrong}>{branchSlug}</Text>
+                          </Text>
+                        )}
+                        {!!newBranchError && <Text style={styles.newBranchError}>{newBranchError}</Text>}
+                        <View style={styles.newBranchActions}>
+                          <TouchableOpacity
+                            onPress={resetNewBranchForm}
+                            disabled={creatingBranch}
+                            style={[styles.newBranchCancel, { borderColor: themeColors.line || '#e2e8f0' }]}
+                          >
+                            <Text style={[styles.newBranchCancelText, { color: themeColors.ink || '#0f172a' }]}>Cancel</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={submitNewBranch}
+                            disabled={creatingBranch || !branchSlug}
+                            style={[
+                              styles.newBranchCreate,
+                              { backgroundColor: themeColors.forest || '#0066cc', opacity: branchSlug ? 1 : 0.5 },
+                            ]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Create branch"
+                          >
+                            {creatingBranch ? (
+                              <ActivityIndicator size="small" color="#ffffff" />
+                            ) : (
+                              <Text style={styles.newBranchCreateText}>Create branch</Text>
+                            )}
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                )}
               </View>
             )}
 
@@ -660,6 +834,108 @@ const styles = StyleSheet.create({
   },
   checkIconWrapper: {
     marginLeft: 8,
+  },
+  tabLockWrapper: {
+    marginLeft: 5,
+  },
+  menuCount: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginLeft: 'auto',
+  },
+  branchRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    flex: 1,
+    minWidth: 0,
+  },
+  branchBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+  },
+  branchBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+  },
+  newBranchArea: {
+    borderTopWidth: 1,
+    marginTop: 6,
+    paddingTop: 8,
+  },
+  newBranchTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+  },
+  newBranchTriggerText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  newBranchHint: {
+    fontSize: 11.5,
+    lineHeight: 16,
+    marginBottom: 8,
+  },
+  newBranchHintStrong: {
+    fontWeight: '700',
+    fontFamily: 'monospace',
+  },
+  newBranchInput: {
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 13,
+    fontFamily: 'monospace',
+  },
+  newBranchPreview: {
+    fontSize: 11,
+    marginTop: 5,
+  },
+  newBranchError: {
+    fontSize: 11.5,
+    color: '#dc2626',
+    marginTop: 5,
+    fontWeight: '600',
+  },
+  newBranchActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 10,
+  },
+  newBranchCancel: {
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  newBranchCancelText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+  },
+  newBranchCreate: {
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+    minWidth: 112,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  newBranchCreateText: {
+    color: '#ffffff',
+    fontSize: 12.5,
+    fontWeight: '700',
   },
 
   // ── Commands Menu Styling ────────────────────────────────────────────────

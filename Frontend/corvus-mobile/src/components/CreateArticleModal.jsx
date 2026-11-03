@@ -18,7 +18,13 @@ import { createArticle } from '../services/api';
 import { exportArticleToPdf } from '../utils/pdfExporter';
 import { LockIcon, UsersIcon, EditIcon, FilePdfIcon, FileTextIcon, PrinterIcon } from './AppIcons';
 
-export default function CreateArticleModal({ visible, onClose, onCreated, newsrooms = [] }) {
+export default function CreateArticleModal({
+  visible,
+  onClose,
+  onCreated,
+  newsrooms = [],
+  defaultGroupId = '',
+}) {
   const { colors } = useTheme();
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -47,8 +53,13 @@ export default function CreateArticleModal({ visible, onClose, onCreated, newsro
       setMode('write');
       setSubmitting(false);
 
-      // Default to personal draft if no newsroom selected
-      setSelectedGroupId('');
+      // Default to the active newsroom (or the user's first newsroom) so stories
+      // are shared with the desk unless the reporter explicitly chooses Personal Draft
+      const preferred =
+        defaultGroupId && newsrooms.some((n) => String(n.id) === String(defaultGroupId))
+          ? defaultGroupId
+          : newsrooms[0]?.id || '';
+      setSelectedGroupId(preferred);
 
       Animated.parallel([
         Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
