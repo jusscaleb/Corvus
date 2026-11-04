@@ -1,9 +1,16 @@
 import { Platform } from 'react-native';
 
-export const API_BASE_URL = Platform.select({
-  web: 'http://localhost:8000',
-  default: 'http://192.168.88.206:8081',
-});
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Configure backend API base URL with production environment variable support (Vercel / Expo).
+// In Vercel, set EXPO_PUBLIC_API_URL (e.g. https://your-backend.fly.dev)
+const rawApiUrl = process.env.EXPO_PUBLIC_API_URL;
+export const API_BASE_URL = rawApiUrl
+  ? rawApiUrl.replace(/\/+$/, '')
+  : Platform.select({
+      web: 'http://localhost:8000',
+      default: MOBILE_API_IP ? `http://${MOBILE_API_IP}:8000` : 'http://10.120.0.23:8000',
+    });
 
 let currentTokens = { access: null, refresh: null };
 let currentUser = null;
