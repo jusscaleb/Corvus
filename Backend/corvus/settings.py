@@ -30,10 +30,10 @@ GROQ_API_KEY = os.getenv('GROQ_API_KEY')
 GROQ_GUARD_MODEL = os.getenv('GROQ_GUARD_MODEL', 'meta-llama/llama-prompt-guard-2-22m')
 GROQ_CHAT_MODEL = os.getenv('GROQ_CHAT_MODEL', 'openai/gpt-oss-120b')
 
-# Twilio SMS Configuration (for offline newsroom branch dispatch summaries)
+# Twilio SMS Configuration (recipient numbers come dynamically from newsroom members in DB)
 TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID', '')
 TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN', '')
-TWILIO_PHONE_NUMBER = os.getenv('TWILIO_PHONE_NUMBER', '')
+TWILIO_SENDER_ID = os.getenv('TWILIO_SENDER_ID', 'Corvus')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 't')

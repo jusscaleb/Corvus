@@ -19,7 +19,7 @@ def _strip_markdown(text: str) -> str:
     cleaned = re.sub(r"<[^>]+>", " ", cleaned)
     cleaned = re.sub(r"^\s*#{1,6}\s+", "", cleaned, flags=re.MULTILINE)
     cleaned = re.sub(r"^\s*(?:---|___|\*\*\*)\s*$", "", cleaned, flags=re.MULTILINE)
-    cleaned = re.sub(r"^\s*>\s*", "", cleaned, flags=re.MULTILINE)
+    cleaned = re.sub(r"^\s*\>\s*", "", cleaned, flags=re.MULTILINE)
     cleaned = re.sub(r"^\s*(?:•|-|\*)\s+", "", cleaned, flags=re.MULTILINE)
     cleaned = re.sub(r"\*{1,3}([^*]+)\*{1,3}", r"\1", cleaned)
     cleaned = re.sub(r"__([^_]+)__", r"\1", cleaned)
@@ -30,29 +30,28 @@ def _strip_markdown(text: str) -> str:
 
 def get_newsroom_sms_recipients(group, exclude_user=None) -> list[str]:
     """
-    Fetches all distinct, non-empty phone numbers for members of `group`
-    (excluding `exclude_user`) in a single SQL query (O(1) query count).
+    Builds a list of phone numbers for all members in `group`, excluding
+    the user who published the branch update (`exclude_user`).
     """
     if not group:
         return []
 
-    qs = (
-        Member.objects.filter(group=group)
-        .exclude(member__phone_number="")
-        .exclude(member__phone_number__isnull=True)
-    )
+    memberships = Member.objects.filter(group=group).select_related("member")
     if exclude_user is not None and getattr(exclude_user, "pk", None):
-        qs = qs.exclude(member_id=exclude_user.pk)
+        memberships = memberships.exclude(member_id=exclude_user.pk)
 
-    raw_numbers = qs.values_list("member__phone_number", flat=True)
+    phone_numbers = []
     seen = set()
-    recipients = []
-    for num in raw_numbers:
-        clean = str(num or "").strip()
-        if clean and clean not in seen:
-            seen.add(clean)
-            recipients.append(clean)
-    return recipients
+    for membership in memberships:
+        user_obj = membership.member
+        if exclude_user is not None and user_obj.pk == getattr(exclude_user, "pk", None):
+            continue
+        phone = str(getattr(user_obj, "phone_number", "") or "").strip()
+        if phone and phone not in seen:
+            seen.add(phone)
+            phone_numbers.append(phone)
+
+    return phone_numbers
 
 
 def summarize_branch_for_sms(branch, pushed_by=None) -> str:
@@ -109,43 +108,50 @@ def summarize_branch_for_sms(branch, pushed_by=None) -> str:
     return full_sms[:MAX_SMS_LENGTH]
 
 
-def send_twilio_sms(to_numbers: list[str], body: str) -> dict:
+def send_twilio_sms(phone_numbers: list[str], body: str) -> dict:
     """
-    Dispatches `body` to `to_numbers` via Twilio's REST API using a pooled HTTP session.
+    Loops through `phone_numbers` (the list of newsroom members' phone numbers
+    excluding the user who made the update) and sends the summarized SMS via Twilio.
     """
     account_sid = getattr(settings, "TWILIO_ACCOUNT_SID", "") or ""
     auth_token = getattr(settings, "TWILIO_AUTH_TOKEN", "") or ""
-    from_number = getattr(settings, "TWILIO_PHONE_NUMBER", "") or ""
+    sender_id = (
+        getattr(settings, "TWILIO_SENDER_ID", "")
+        or getattr(settings, "TWILIO_PHONE_NUMBER", "")
+        or "Corvus"
+    )
 
-    if not to_numbers:
+    if not phone_numbers:
         return {"sent_count": 0, "failed_count": 0, "summary": body, "recipients": []}
 
-    if not (account_sid and auth_token and from_number):
+    if not (account_sid and auth_token):
         logger.info(
             "Twilio credentials not configured; skipped live SMS dispatch to %d recipient(s).",
-            len(to_numbers),
+            len(phone_numbers),
         )
         return {
             "sent_count": 0,
             "failed_count": 0,
             "configured": False,
             "summary": body,
-            "recipients": list(to_numbers),
+            "recipients": list(phone_numbers),
         }
 
+    # Define the Twilio POST endpoint. No connectivity ping is performed to avoid delays in test environments.
     url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
+
     sent_count = 0
     failed_count = 0
 
     with requests.Session() as session:
         session.auth = (account_sid, auth_token)
-        for phone in to_numbers:
+        for phone_number in phone_numbers:
             try:
                 resp = session.post(
                     url,
                     data={
-                        "From": from_number,
-                        "To": phone,
+                        "From": sender_id,
+                        "To": phone_number,
                         "Body": body,
                     },
                     timeout=8,
@@ -156,36 +162,35 @@ def send_twilio_sms(to_numbers: list[str], body: str) -> dict:
                     failed_count += 1
                     logger.warning(
                         "Twilio SMS to %s returned status %s: %s",
-                        phone,
+                        phone_number,
                         resp.status_code,
                         resp.text[:200],
                     )
             except Exception as exc:
                 failed_count += 1
-                logger.warning("Twilio SMS dispatch error for %s: %s", phone, exc)
+                logger.warning("Twilio SMS dispatch error for %s: %s", phone_number, exc)
 
     return {
         "sent_count": sent_count,
         "failed_count": failed_count,
         "configured": True,
         "summary": body,
-        "recipients": list(to_numbers),
+        "recipients": list(phone_numbers),
     }
 
 
-def _summarize_and_send_worker(branch, pushed_by, recipients: list[str]) -> dict:
-    """ Generates the 160-char AI summary once and sends it to all `recipients`."""
+def _summarize_and_send_worker(branch, pushed_by, phone_numbers: list[str]) -> dict:
+    """Generates the 160-char AI summary once and loops through `phone_numbers` to send it."""
     summary_text = summarize_branch_for_sms(branch, pushed_by=pushed_by)
-    return send_twilio_sms(recipients, summary_text)
+    return send_twilio_sms(phone_numbers, summary_text)
 
 
 def notify_newsroom_branch_published(branch, pushed_by=None, async_dispatch: bool = True) -> dict:
     """
     Entry point triggered when a user publishes (pushes) a branch in a newsroom:
-    1. Queries recipient phone numbers in a single SQL query.
-    2. Short-circuits immediately if there are no recipients (0 AI calls, 0 Twilio calls).
-    3. Summarizes the branch once with Saiph AI and sends via Twilio (in a background thread
-       when `async_dispatch=True` so the HTTP response returns immediately).
+    1. Builds the list of phone numbers for all newsroom members except `pushed_by`.
+    2. Short-circuits immediately if there are no recipient numbers (0 AI calls, 0 Twilio calls).
+    3. Summarizes the branch once with Saiph AI and loops through the recipient numbers to send via Twilio.
     """
     group = getattr(branch.article, "group", None)
     if not group:
@@ -195,8 +200,8 @@ def notify_newsroom_branch_published(branch, pushed_by=None, async_dispatch: boo
             "reason": "personal_draft",
         }
 
-    recipients = get_newsroom_sms_recipients(group, exclude_user=pushed_by)
-    if not recipients:
+    phone_numbers = get_newsroom_sms_recipients(group, exclude_user=pushed_by)
+    if not phone_numbers:
         return {
             "queued": False,
             "recipient_count": 0,
@@ -204,23 +209,22 @@ def notify_newsroom_branch_published(branch, pushed_by=None, async_dispatch: boo
         }
 
     if not async_dispatch:
-        result = _summarize_and_send_worker(branch, pushed_by, recipients)
+        result = _summarize_and_send_worker(branch, pushed_by, phone_numbers)
         return {
             "queued": True,
-            "recipient_count": len(recipients),
+            "recipient_count": len(phone_numbers),
             **result,
         }
 
     thread = threading.Thread(
         target=_summarize_and_send_worker,
-        args=(branch, pushed_by, recipients),
+        args=(branch, pushed_by, phone_numbers),
         daemon=True,
     )
     thread.start()
 
     return {
         "queued": True,
-        "recipient_count": len(recipients),
-        "recipients": recipients,
+        "recipient_count": len(phone_numbers),
+        "recipients": phone_numbers,
     }
-
