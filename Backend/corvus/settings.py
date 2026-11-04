@@ -105,15 +105,37 @@ CHANNEL_LAYERS = {
     },
 }
 
-# Database
-# https://docs.djangoproject.com/en/6.0/ref/settings/#databases
+import urllib.parse
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# Database
+# Supports PostgreSQL via DATABASE_URL (Railway, Supabase, Neon) or local SQLite fallback
+DATABASE_URL = os.getenv('DATABASE_URL')
+
+if DATABASE_URL:
+    url = urllib.parse.urlparse(DATABASE_URL)
+    db_config = {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': url.path.lstrip('/') or 'railway',
+        'USER': urllib.parse.unquote(url.username or ''),
+        'PASSWORD': urllib.parse.unquote(url.password or ''),
+        'HOST': url.hostname,
+        'PORT': url.port or 5432,
+        'DISABLE_SERVER_SIDE_CURSORS': True,
     }
-}
+    if 'sslmode' in url.query:
+        query_params = urllib.parse.parse_qs(url.query)
+        db_config['OPTIONS'] = {'sslmode': query_params['sslmode'][0]}
+
+    DATABASES = {
+        'default': db_config
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # Password validation
