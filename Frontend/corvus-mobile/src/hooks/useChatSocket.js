@@ -27,7 +27,7 @@ export function useChatSocket(conversationId, { onChatMessage, onVoiceStatus } =
   const buildUrl = useCallback(() => {
     if (!conversationId) return null;
 
-    let base    = API_BASE_URL || 'http://localhost:8000';
+    let base    = API_BASE_URL || (Platform.OS === 'web' ? 'http://localhost:8000' : 'http://10.120.0.23:8000');
     let scheme  = base.startsWith('https') ? 'wss://' : 'ws://';
     let host    = base.replace(/^https?:\/\//, '');
     const token = authStorage.getTokens()?.access;

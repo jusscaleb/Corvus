@@ -56,7 +56,7 @@ export function useVoiceChat(roomId, currentUser, options = {}) {
   // ─── WebSocket URL Helper ───────────────────────────────────────────────────
   const getWebSocketUrl = useCallback((overrideRoomId) => {
     const effectiveRoomId = overrideRoomId || roomIdRef.current;
-    let base = API_BASE_URL || 'http://localhost:8000';
+    let base = API_BASE_URL || (Platform.OS === 'web' ? 'http://localhost:8000' : 'http://10.120.0.23:8000');
     let wsScheme = base.startsWith('https') ? 'wss://' : 'ws://';
     let host = base.replace(/^https?:\/\//, '');
 

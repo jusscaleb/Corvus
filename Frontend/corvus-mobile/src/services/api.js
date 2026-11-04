@@ -2,11 +2,21 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 const MOBILE_API_IP = Constants.manifest?.extra?.MOBILE_API_IP || process.env.MOBILE_API_IP || '';
 
-// Configure backend API base URL with production environment variable support (Vercel / Expo).
-// In Vercel, set EXPO_PUBLIC_API_URL (e.g. https://your-backend.fly.dev)
-const rawApiUrl = process.env.EXPO_PUBLIC_API_URL;
-export const API_BASE_URL = rawApiUrl
-  ? rawApiUrl.replace(/\/+$/, '')
+// Configure backend API base URL.
+// Priority:
+// 1. EXPO_PUBLIC_API_URL / EXPO_PUBLIC_BACKEND_URL (injected by Expo / Vercel at build time)
+// 2. Constants.expoConfig?.extra?.API_URL / Constants.manifest?.extra?.API_URL
+// 3. MOBILE_API_IP (for native LAN testing)
+// 4. Default: http://localhost:8000
+const configuredApiUrl =
+  process.env.EXPO_PUBLIC_API_URL ||
+  process.env.EXPO_PUBLIC_BACKEND_URL ||
+  Constants.expoConfig?.extra?.API_URL ||
+  Constants.manifest?.extra?.API_URL ||
+  Constants.manifest?.extra?.EXPO_PUBLIC_API_URL;
+
+export const API_BASE_URL = configuredApiUrl
+  ? String(configuredApiUrl).replace(/\/+$/, '')
   : Platform.select({
       web: 'http://localhost:8000',
       default: MOBILE_API_IP ? `http://${MOBILE_API_IP}:8000` : 'http://10.120.0.23:8000',
