@@ -1,20 +1,35 @@
 import httpx
 from langchain_core.tools import tool
+from langchain_core.runnables import RunnableConfig
 from .config import BACKEND_BASE_URL
 
 
-def _get_headers(token: str = ""):
+def _resolve_token(token: str = "", config: RunnableConfig = None) -> str:
+    """
+    Retrieves the JWT access token from LangGraph's RunnableConfig (`configurable.token`)
+    first so the LLM never has to generate or expose raw JWTs, while keeping backward
+    compatibility if a caller passes `token` directly.
+    """
+    if config and isinstance(config, dict):
+        cfg_token = config.get("configurable", {}).get("token")
+        if cfg_token:
+            return cfg_token
+    return token or ""
+
+
+def _get_headers(token: str = "", config: RunnableConfig = None):
+    resolved = _resolve_token(token, config)
     headers = {"Content-Type": "application/json"}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
+    if resolved:
+        headers["Authorization"] = f"Bearer {resolved}"
     return headers
 
 
 # 1. Newsroom Tools
 @tool
-def list_newsroom_groups(token: str) -> str:
+def list_newsroom_groups(token: str = "", config: RunnableConfig = None) -> str:
     """Fetches all newsroom groups the authenticated user belongs to."""
-    with httpx.Client(base_url=BACKEND_BASE_URL, headers=_get_headers(token), timeout=10.0) as client:
+    with httpx.Client(base_url=BACKEND_BASE_URL, headers=_get_headers(token, config), timeout=10.0) as client:
         res = client.get("/newsroom/groups/")
         if res.status_code == 200:
             return str(res.json())
@@ -22,9 +37,9 @@ def list_newsroom_groups(token: str) -> str:
 
 
 @tool
-def get_group_members(token: str, group_id: str) -> str:
+def get_group_members(group_id: str, token: str = "", config: RunnableConfig = None) -> str:
     """Lists all team members belonging to a specific newsroom group."""
-    with httpx.Client(base_url=BACKEND_BASE_URL, headers=_get_headers(token), timeout=10.0) as client:
+    with httpx.Client(base_url=BACKEND_BASE_URL, headers=_get_headers(token, config), timeout=10.0) as client:
         res = client.get(f"/newsroom/groups/{group_id}/members/")
         if res.status_code == 200:
             return str(res.json())
@@ -33,9 +48,9 @@ def get_group_members(token: str, group_id: str) -> str:
 
 # 2. Editorial Project Tools
 @tool
-def list_articles_in_group(token: str, group_id: str) -> str:
+def list_articles_in_group(group_id: str, token: str = "", config: RunnableConfig = None) -> str:
     """Lists all editorial articles and active drafts inside a specific newsroom group."""
-    with httpx.Client(base_url=BACKEND_BASE_URL, headers=_get_headers(token), timeout=10.0) as client:
+    with httpx.Client(base_url=BACKEND_BASE_URL, headers=_get_headers(token, config), timeout=10.0) as client:
         res = client.get(f"/project/groups/{group_id}/articles/")
         if res.status_code == 200:
             return str(res.json())
@@ -43,9 +58,9 @@ def list_articles_in_group(token: str, group_id: str) -> str:
 
 
 @tool
-def get_article_details(token: str, article_id: str) -> str:
+def get_article_details(article_id: str, token: str = "", config: RunnableConfig = None) -> str:
     """Retrieves full details and branch list for a given article."""
-    with httpx.Client(base_url=BACKEND_BASE_URL, headers=_get_headers(token), timeout=10.0) as client:
+    with httpx.Client(base_url=BACKEND_BASE_URL, headers=_get_headers(token, config), timeout=10.0) as client:
         res = client.get(f"/project/articles/{article_id}/")
         if res.status_code == 200:
             return str(res.json())
@@ -53,9 +68,9 @@ def get_article_details(token: str, article_id: str) -> str:
 
 
 @tool
-def get_branch_draft_content(token: str, branch_id: str) -> str:
+def get_branch_draft_content(branch_id: str, token: str = "", config: RunnableConfig = None) -> str:
     """Reads the current written draft text and status of an article branch."""
-    with httpx.Client(base_url=BACKEND_BASE_URL, headers=_get_headers(token), timeout=10.0) as client:
+    with httpx.Client(base_url=BACKEND_BASE_URL, headers=_get_headers(token, config), timeout=10.0) as client:
         res = client.get(f"/project/branches/{branch_id}/")
         if res.status_code == 200:
             return str(res.json())
@@ -63,14 +78,14 @@ def get_branch_draft_content(token: str, branch_id: str) -> str:
 
 
 @tool
-def create_article_branch(token: str, article_id: str, branch_name: str, branch_description: str = "") -> str:
+def create_article_branch(article_id: str, branch_name: str, branch_description: str = "", token: str = "", config: RunnableConfig = None) -> str:
     """Forks a new editorial draft branch for an article."""
     payload = {
         "branch_name": branch_name,
         "branch_description": branch_description,
         "content": "",
     }
-    with httpx.Client(base_url=BACKEND_BASE_URL, headers=_get_headers(token), timeout=10.0) as client:
+    with httpx.Client(base_url=BACKEND_BASE_URL, headers=_get_headers(token, config), timeout=10.0) as client:
         res = client.post(f"/project/articles/{article_id}/branches/", json=payload)
         if res.status_code == 201:
             return f"Successfully created branch '{branch_name}': {res.json()}"
@@ -78,21 +93,74 @@ def create_article_branch(token: str, article_id: str, branch_name: str, branch_
 
 
 @tool
-def update_branch_content(token: str, branch_id: str, content: str) -> str:
+def update_branch_content(branch_id: str, content: str, token: str = "", config: RunnableConfig = None) -> str:
     """Updates/edits the draft content of an existing article branch."""
     payload = {"content": content}
-    with httpx.Client(base_url=BACKEND_BASE_URL, headers=_get_headers(token), timeout=10.0) as client:
+    with httpx.Client(base_url=BACKEND_BASE_URL, headers=_get_headers(token, config), timeout=10.0) as client:
         res = client.patch(f"/project/branches/{branch_id}/", json=payload)
         if res.status_code == 200:
             return f"Successfully updated branch draft: {res.json()}"
         return f"Error {res.status_code}: {res.text}"
 
 
-# 3. User Profile Tool
+# 3. AI Editorial Workspace, Mindmap, Board, Review & Memory Tools
 @tool
-def get_user_profile(token: str) -> str:
+def generate_draft_from_summary(title: str, brief: str, token: str = "", config: RunnableConfig = None) -> str:
+    """Generates a full journalistic article draft from a brief summary."""
+    payload = {"title": title, "brief": brief}
+    with httpx.Client(base_url=BACKEND_BASE_URL, headers=_get_headers(token, config), timeout=15.0) as client:
+        res = client.post("/ai/generate-draft/", json=payload)
+        if res.status_code == 200:
+            return str(res.json())
+        return f"Error {res.status_code}: {res.text}"
+
+
+@tool
+def generate_article_mindmap_tool(article_id: str, token: str = "", config: RunnableConfig = None) -> str:
+    """Generates an AI Mindmap of themes, angles, and evidence for an article."""
+    with httpx.Client(base_url=BACKEND_BASE_URL, headers=_get_headers(token, config), timeout=15.0) as client:
+        res = client.post(f"/ai/articles/{article_id}/mindmap/", json={})
+        if res.status_code == 200:
+            return str(res.json())
+        return f"Error {res.status_code}: {res.text}"
+
+
+@tool
+def generate_article_board_tool(article_id: str, token: str = "", config: RunnableConfig = None) -> str:
+    """Generates editorial suggestions and source leads on the article's Board."""
+    with httpx.Client(base_url=BACKEND_BASE_URL, headers=_get_headers(token, config), timeout=15.0) as client:
+        res = client.post(f"/ai/articles/{article_id}/board/", json={})
+        if res.status_code == 200:
+            return str(res.json())
+        return f"Error {res.status_code}: {res.text}"
+
+
+@tool
+def review_article_plagiarism_and_ai_tool(article_id: str, token: str = "", config: RunnableConfig = None) -> str:
+    """Runs plagiarism check, AI-writing detection, and plain-language improvement review on an article."""
+    with httpx.Client(base_url=BACKEND_BASE_URL, headers=_get_headers(token, config), timeout=15.0) as client:
+        res = client.post(f"/ai/articles/{article_id}/review/", json={})
+        if res.status_code == 200:
+            return str(res.json())
+        return f"Error {res.status_code}: {res.text}"
+
+
+@tool
+def save_agent_memory_tool(fact: str, category: str = "fact", article_id: str = None, token: str = "", config: RunnableConfig = None) -> str:
+    """Saves a key fact, source, or editorial preference to Saiph's long-term memory."""
+    payload = {"fact": fact, "category": category, "article_id": article_id}
+    with httpx.Client(base_url=BACKEND_BASE_URL, headers=_get_headers(token, config), timeout=10.0) as client:
+        res = client.post("/ai/memories/", json=payload)
+        if res.status_code in (200, 201):
+            return str(res.json())
+        return f"Error {res.status_code}: {res.text}"
+
+
+# 4. User Profile Tool
+@tool
+def get_user_profile(token: str = "", config: RunnableConfig = None) -> str:
     """Retrieves current user details and multilingual preferences (english, shona, ndebele)."""
-    with httpx.Client(base_url=BACKEND_BASE_URL, headers=_get_headers(token), timeout=10.0) as client:
+    with httpx.Client(base_url=BACKEND_BASE_URL, headers=_get_headers(token, config), timeout=10.0) as client:
         res = client.get("/auth/profile/")
         if res.status_code == 200:
             return str(res.json())
@@ -107,5 +175,10 @@ ALL_AGENT_TOOLS = [
     get_branch_draft_content,
     create_article_branch,
     update_branch_content,
+    generate_draft_from_summary,
+    generate_article_mindmap_tool,
+    generate_article_board_tool,
+    review_article_plagiarism_and_ai_tool,
+    save_agent_memory_tool,
     get_user_profile,
 ]

@@ -1,5 +1,5 @@
 import { createContext, useContext, useCallback, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import {  Animated, StyleSheet, Text, View , Platform } from 'react-native';
 import { useTheme } from './ThemeContext';
 
 const ToastContext = createContext(null);
@@ -15,25 +15,25 @@ export function ToastProvider({ children }) {
     ({ message, type = 'info', duration = 3000 }) => {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
-        Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver: true }).start();
+        Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver: Platform.OS !== 'web' }).start();
       }
 
       setToast({ message, type });
 
       Animated.parallel([
-        Animated.timing(opacity, { toValue: 1, duration: 250, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 250, useNativeDriver: Platform.OS !== 'web' }),
         Animated.spring(translateY, {
           toValue: 0,
           tension: 80,
           friction: 8,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
       ]).start();
 
       timerRef.current = setTimeout(() => {
         Animated.parallel([
-          Animated.timing(opacity, { toValue: 0, duration: 300, useNativeDriver: true }),
-          Animated.timing(translateY, { toValue: 20, duration: 300, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 0, duration: 300, useNativeDriver: Platform.OS !== 'web' }),
+          Animated.timing(translateY, { toValue: 20, duration: 300, useNativeDriver: Platform.OS !== 'web' }),
         ]).start(() => setToast(null));
       }, duration);
     },

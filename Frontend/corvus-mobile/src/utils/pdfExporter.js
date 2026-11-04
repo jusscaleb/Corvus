@@ -11,6 +11,7 @@ import { Platform, Alert } from 'react-native';
 import * as Print from 'expo-print';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import { contentToRichHtml, stripRichFormatting } from '../components/RichTextEditor';
 
 // ─── HTML Template ───────────────────────────────────────────────────────────
 
@@ -21,8 +22,9 @@ function buildArticleHtml(article) {
   const date     = article.timestamp || new Date().toLocaleDateString('en-US', {
     year: 'numeric', month: 'long', day: 'numeric',
   });
-  const summary = article.summary || '';
+  const summary = stripRichFormatting(article.summary || '');
   const content = article.content || '';
+  const richBodyHtml = contentToRichHtml(content) || `<p>${escapeHtml(content)}</p>`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -80,7 +82,19 @@ function buildArticleHtml(article) {
       padding: 16px 20px; font-style: italic; font-size: 16px;
       line-height: 1.5; color: #2E2C28; margin-bottom: 28px;
     }
-    .article-body { font-size: 15px; line-height: 1.75; color: #1A1A1A; text-align: justify; white-space: pre-wrap; }
+    .article-body { font-size: 15px; line-height: 1.75; color: #1A1A1A; text-align: justify; }
+    .article-body h1 { font-size: 24px; font-weight: 800; margin: 18px 0 8px 0; }
+    .article-body h2 { font-size: 19px; font-weight: 700; margin: 14px 0 6px 0; }
+    .article-body h3 { font-size: 16px; font-weight: 700; margin: 12px 0 4px 0; }
+    .article-body p { margin: 0 0 12px 0; }
+    .article-body blockquote {
+      border-left: 3px solid #C84B31; padding: 8px 14px; margin: 12px 0;
+      font-style: italic; background: #F7F4ED;
+    }
+    .article-body code {
+      font-family: monospace; background: #F1F5F9; padding: 2px 5px; border-radius: 3px;
+    }
+    .article-body hr { border: none; border-top: 1px solid #E0DED6; margin: 18px 0; }
     .footer {
       margin-top: 48px; border-top: 1px solid #E0DED6; padding-top: 14px;
       display: flex; justify-content: space-between;
@@ -120,7 +134,7 @@ function buildArticleHtml(article) {
 
   ${summary ? `<div class="lead-summary">${escapeHtml(summary)}</div>` : ''}
 
-  <div class="article-body">${escapeHtml(content)}</div>
+  <div class="article-body">${richBodyHtml}</div>
 
   <div class="footer">
     <div>CORVUS SECURE ARCHIVE &bull; REPRODUCTION SUBJECT TO EDITORIAL CLEARANCE</div>

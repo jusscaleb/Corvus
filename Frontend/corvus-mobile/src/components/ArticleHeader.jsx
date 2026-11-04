@@ -37,12 +37,10 @@ function TerminalIcon({ size = 14, color = '#666' }) {
   );
 }
 
-function TypeToolsIcon({ size = 14, color = '#666' }) {
+function SparklesIcon({ size = 13, color = '#fff' }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <Polyline points="4 7 4 4 20 4 20 7" />
-      <Line x1="9" y1="20" x2="15" y2="20" />
-      <Line x1="12" y1="4" x2="12" y2="20" />
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3L12 3z" />
     </Svg>
   );
 }
@@ -97,7 +95,7 @@ function GitDiffIcon({ size = 15, color = '#666' }) {
   );
 }
 
-function BoldIcon({ size = 15, color = '#666' }) {
+function BoldIcon({ size = 14, color = '#666' }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
       <Path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z" />
@@ -106,7 +104,7 @@ function BoldIcon({ size = 15, color = '#666' }) {
   );
 }
 
-function ItalicIcon({ size = 15, color = '#666' }) {
+function ItalicIcon({ size = 14, color = '#666' }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <Line x1="19" y1="4" x2="10" y2="4" />
@@ -116,7 +114,7 @@ function ItalicIcon({ size = 15, color = '#666' }) {
   );
 }
 
-function UnderlineIcon({ size = 15, color = '#666' }) {
+function UnderlineIcon({ size = 14, color = '#666' }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <Path d="M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3" />
@@ -125,7 +123,7 @@ function UnderlineIcon({ size = 15, color = '#666' }) {
   );
 }
 
-function Heading1Icon({ size = 15, color = '#666' }) {
+function Heading1Icon({ size = 14, color = '#666' }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <Path d="M4 12h8" />
@@ -136,7 +134,7 @@ function Heading1Icon({ size = 15, color = '#666' }) {
   );
 }
 
-function Heading2Icon({ size = 15, color = '#666' }) {
+function Heading2Icon({ size = 14, color = '#666' }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <Path d="M4 12h8" />
@@ -147,7 +145,7 @@ function Heading2Icon({ size = 15, color = '#666' }) {
   );
 }
 
-function ListIcon({ size = 15, color = '#666' }) {
+function ListIcon({ size = 14, color = '#666' }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <Line x1="8" y1="6" x2="21" y2="6" />
@@ -160,7 +158,7 @@ function ListIcon({ size = 15, color = '#666' }) {
   );
 }
 
-function QuoteIcon({ size = 15, color = '#666' }) {
+function QuoteIcon({ size = 14, color = '#666' }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <Path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z" />
@@ -169,7 +167,7 @@ function QuoteIcon({ size = 15, color = '#666' }) {
   );
 }
 
-function CodeIcon({ size = 15, color = '#666' }) {
+function CodeIcon({ size = 14, color = '#666' }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <Polyline points="16 18 22 12 16 6" />
@@ -213,11 +211,17 @@ export default function ArticleHeader({
   activeBranch = 'main',
   branches = ['main'],
   onSelectBranch = () => {},
-  onCreateBranch = null, // async (name) => void – throw an Error to show it inline
+  onCreateBranch = null,
   onExecuteCommand = () => {},
   onApplyFormat = () => {},
+  activeFormats = {},
+  activeSection = 'article', // 'article' | 'mindmap' | 'board' | 'review'
+  onSelectSection = null,
+  onOpenAIAgent = null,
+  boardCount = 0,
+  reviewScore = null,
 }) {
-  const [activeModal, setActiveModal] = useState(null); // 'branch' | 'commands' | 'tools' | null
+  const [activeModal, setActiveModal] = useState(null); // 'branch' | 'commands' | null
   const [anchorRect, setAnchorRect] = useState(null);
 
   // Inline "New branch" form state
@@ -226,7 +230,6 @@ export default function ArticleHeader({
   const [newBranchError, setNewBranchError] = useState('');
   const [creatingBranch, setCreatingBranch] = useState(false);
 
-  // Accept plain strings or rich branch objects { id, name, isMain, isPublic }
   const branchItems = branches.map((b) =>
     typeof b === 'string' ? { name: b, isMain: b === 'main', isPublic: true } : b
   );
@@ -238,7 +241,6 @@ export default function ArticleHeader({
 
   const branchBtnRef = useRef(null);
   const commandsBtnRef = useRef(null);
-  const toolsBtnRef = useRef(null);
 
   let themeColors = lightColors;
   try {
@@ -256,16 +258,23 @@ export default function ArticleHeader({
     { id: 'diff', label: 'View differences', Icon: GitDiffIcon },
   ];
 
-  // 2-Column Grid Word Tools Menu: symbol + name only
+  // Exposed directly on the toolbar ribbon (not hidden inside a dropdown)
   const wordTools = [
     { label: 'Bold', action: 'bold', Icon: BoldIcon },
     { label: 'Italic', action: 'italic', Icon: ItalicIcon },
     { label: 'Underline', action: 'underline', Icon: UnderlineIcon },
-    { label: 'Heading 1', action: 'h1', Icon: Heading1Icon },
-    { label: 'Heading 2', action: 'h2', Icon: Heading2Icon },
-    { label: 'Bullet List', action: 'bullet', Icon: ListIcon },
-    { label: 'Blockquote', action: 'quote', Icon: QuoteIcon },
-    { label: 'Inline Code', action: 'code', Icon: CodeIcon },
+    { label: 'H1', action: 'h1', Icon: Heading1Icon },
+    { label: 'H2', action: 'h2', Icon: Heading2Icon },
+    { label: 'Bullets', action: 'bullet', Icon: ListIcon },
+    { label: 'Quote', action: 'quote', Icon: QuoteIcon },
+    { label: 'Code', action: 'code', Icon: CodeIcon },
+  ];
+
+  const sectionTabs = [
+    { id: 'article', label: 'Article Draft' },
+    { id: 'mindmap', label: 'Mindmap' },
+    { id: 'board', label: boardCount > 0 ? `Board (${boardCount})` : 'Board' },
+    { id: 'review', label: reviewScore !== null ? `AI Review (${reviewScore})` : 'AI Review & Check' },
   ];
 
   const openMenu = (type, ref) => {
@@ -291,7 +300,7 @@ export default function ArticleHeader({
   };
 
   const closeModal = () => {
-    if (creatingBranch) return; // don't lose the request mid-flight
+    if (creatingBranch) return;
     setActiveModal(null);
     resetNewBranchForm();
   };
@@ -320,7 +329,6 @@ export default function ArticleHeader({
     }
   };
 
-  // Compute anchored position for dropdown menu popovers
   const getPopoverStyle = () => {
     if (isMobile || !anchorRect) {
       return {
@@ -338,25 +346,15 @@ export default function ArticleHeader({
         position: 'absolute',
         top: anchorRect.y,
         left: Math.max(12, Math.min(anchorRect.x, windowWidth - 260)),
-        width: 250,
+        width: 260,
       };
     }
 
-    if (activeModal === 'commands') {
-      return {
-        position: 'absolute',
-        top: anchorRect.y,
-        left: Math.max(12, Math.min(anchorRect.x - 20, windowWidth - 300)),
-        width: 270,
-      };
-    }
-
-    // Word Tools 2-column grid
     return {
       position: 'absolute',
       top: anchorRect.y,
-      left: Math.max(12, Math.min(anchorRect.x - 120, windowWidth - 360)),
-      width: Math.min(340, windowWidth - 24),
+      left: Math.max(12, Math.min(anchorRect.x - 20, windowWidth - 300)),
+      width: 270,
     };
   };
 
@@ -370,6 +368,7 @@ export default function ArticleHeader({
         },
       ]}
     >
+      {/* ─── ROW 1: Version Control + Article Workspace Section Switcher + 1-to-1 AI Agent Button ─── */}
       <View
         style={[
           styles.headerContainer,
@@ -433,34 +432,141 @@ export default function ArticleHeader({
           </Text>
         </TouchableOpacity>
 
-        <View style={[styles.divider, { backgroundColor: themeColors.line || '#d1d5db' }]} />
+        {/* 3. Article Sections: Draft | Mindmap | Board | AI Review */}
+        {onSelectSection && (
+          <>
+            <View style={[styles.divider, { backgroundColor: themeColors.line || '#d1d5db' }]} />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.sectionTabsRow}
+            >
+              {sectionTabs.map((sec) => {
+                const isCurrent = activeSection === sec.id;
+                return (
+                  <TouchableOpacity
+                    key={sec.id}
+                    onPress={() => onSelectSection(sec.id)}
+                    activeOpacity={0.75}
+                    style={[
+                      styles.sectionTabChip,
+                      {
+                        borderColor: isCurrent ? themeColors.forest || '#0066cc' : themeColors.line || '#cbd5e1',
+                        backgroundColor: isCurrent ? themeColors.forest || '#0066cc' : themeColors.cardBg || '#ffffff',
+                      },
+                    ]}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: isCurrent }}
+                  >
+                    <Text
+                      style={[
+                        styles.sectionTabText,
+                        { color: isCurrent ? '#ffffff' : themeColors.ink || '#334155' },
+                      ]}
+                    >
+                      {sec.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </>
+        )}
 
-        {/* 3. Word Tools Tab Dropdown Trigger */}
-        <TouchableOpacity
-          ref={toolsBtnRef}
-          style={[
-            styles.tabButton,
-            activeModal === 'tools' && [
-              styles.tabButtonActive,
-              { backgroundColor: themeColors.cardBg || '#ffffff', borderColor: themeColors.forest || '#0066cc' },
-            ],
-          ]}
-          onPress={() => openMenu('tools', toolsBtnRef)}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Open formatting and word tools grid menu"
-        >
-          <View style={styles.tabIconWrapper}>
-            <TypeToolsIcon size={13} color={themeColors.orange || '#ea580c'} />
-          </View>
-          <Text style={[styles.tabText, { color: themeColors.ink || '#333333' }]}>Word Tools</Text>
-          <Text style={[styles.caret, { color: themeColors.muted || '#666666' }]}>
-            {activeModal === 'tools' ? '▲' : '▼'}
-          </Text>
-        </TouchableOpacity>
+        <View style={{ flex: 1 }} />
+
+        {/* 4. 1-to-1 Saiph AI Agent Button */}
+        {onOpenAIAgent && (
+          <TouchableOpacity
+            onPress={onOpenAIAgent}
+            activeOpacity={0.8}
+            style={[styles.aiAgentBtn, { backgroundColor: themeColors.orange || '#ea580c' }]}
+            accessibilityRole="button"
+            accessibilityLabel="Open 1-on-1 Saiph AI Agent"
+          >
+            <SparklesIcon size={13} color="#ffffff" />
+            <Text style={styles.aiAgentBtnText}>Ask Saiph AI</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Normal Anchored Dropdown Menu Modal */}
+      {/* ─── ROW 2: Direct Word Tools Ribbon (Out of the Dropdown!) ─── */}
+      <View
+        style={[
+          styles.wordToolsRibbon,
+          {
+            backgroundColor: themeColors.cardBg || '#ffffff',
+            borderTopColor: themeColors.line || '#e2e8f0',
+          },
+        ]}
+      >
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="always"
+          contentContainerStyle={styles.wordToolsScroll}
+        >
+          {wordTools.map((tool) => {
+            const ToolIcon = tool.Icon;
+            const isActive = Boolean(activeFormats && activeFormats[tool.action]);
+            return (
+              <Pressable
+                key={tool.action}
+                focusable={false}
+                onMouseDown={(e) => {
+                  // Prevent browser from blurring the article editor when clicking a Word Tool
+                  if (e && typeof e.preventDefault === 'function') e.preventDefault();
+                }}
+                onPressIn={(e) => {
+                  if (e && typeof e.preventDefault === 'function') e.preventDefault();
+                }}
+                style={({ pressed }) => [
+                  styles.wordToolBtn,
+                  {
+                    backgroundColor:
+                      isActive || pressed
+                        ? themeColors.forest || '#315E4A'
+                        : themeColors.sidebarBg || '#f8fafc',
+                    borderColor:
+                      isActive || pressed
+                        ? themeColors.forest || '#315E4A'
+                        : themeColors.line || '#e2e8f0',
+                  },
+                ]}
+                onPress={() => onApplyFormat(tool.action)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isActive }}
+                accessibilityLabel={`Format ${tool.label}`}
+              >
+                {({ pressed }) => {
+                  const highlighted = isActive || pressed;
+                  return (
+                    <>
+                      <ToolIcon
+                        size={13}
+                        color={highlighted ? '#ffffff' : themeColors.forest || themeColors.ink || '#0f172a'}
+                      />
+                      <Text
+                        style={[
+                          styles.wordToolBtnText,
+                          {
+                            color: highlighted ? '#ffffff' : themeColors.ink || '#0f172a',
+                            fontWeight: isActive ? '800' : '600',
+                          },
+                        ]}
+                      >
+                        {tool.label}
+                      </Text>
+                    </>
+                  );
+                }}
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
+
+      {/* Anchored Dropdown Menu Modal for Branch & Commands */}
       <Modal
         visible={activeModal !== null}
         transparent={true}
@@ -664,50 +770,6 @@ export default function ArticleHeader({
                 </ScrollView>
               </View>
             )}
-
-            {/* ─── WORD TOOLS: ROWS & COLUMNS GRID MENU (SYMBOL + NAME ONLY) ─ */}
-            {activeModal === 'tools' && (
-              <View>
-                <View style={[styles.menuHeaderBar, { borderBottomColor: themeColors.line || '#f1f5f9' }]}>
-                  <View style={styles.menuHeaderTitleRow}>
-                    <TypeToolsIcon size={15} color={themeColors.orange || '#ea580c'} />
-                    <Text style={[styles.menuHeader, { color: themeColors.ink || '#0f172a' }]}>Text Formatting Tools</Text>
-                  </View>
-                </View>
-
-                <ScrollView style={{ maxHeight: 300 }} contentContainerStyle={{ paddingVertical: 2 }}>
-                  <View style={styles.gridContainer}>
-                    {wordTools.map((tool) => {
-                      const ToolIcon = tool.Icon;
-                      return (
-                        <TouchableOpacity
-                          key={tool.action}
-                          style={[
-                            styles.gridCard,
-                            {
-                              backgroundColor: themeColors.inputBg || '#ffffff',
-                              borderColor: themeColors.line || '#e2e8f0',
-                            },
-                          ]}
-                          onPress={() => {
-                            onApplyFormat(tool.action);
-                            closeModal();
-                          }}
-                          activeOpacity={0.7}
-                        >
-                          <View style={[styles.toolIconBadge, { backgroundColor: themeColors.sidebarBg || '#f1f5f9' }]}>
-                            <ToolIcon size={15} color={themeColors.forest || themeColors.ink || '#0f172a'} />
-                          </View>
-                          <Text style={[styles.toolTitle, { color: themeColors.ink || '#0f172a' }]} numberOfLines={1}>
-                            {tool.label}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </ScrollView>
-              </View>
-            )}
           </Pressable>
         </Pressable>
       </Modal>
@@ -729,7 +791,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 7,
     backgroundColor: '#f8f9fa',
     flexWrap: 'wrap',
     gap: 4,
@@ -758,7 +820,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   tabText: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '600',
     color: '#333333',
   },
@@ -777,6 +839,69 @@ const styles = StyleSheet.create({
     backgroundColor: '#d1d5db',
     marginHorizontal: 4,
   },
+  sectionTabsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 1,
+  },
+  sectionTabChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  sectionTabText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  aiAgentBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  aiAgentBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  // ── Direct Word Tools Ribbon (Exposed on Toolbar) ──
+  wordToolsRibbon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderTopWidth: 1,
+    gap: 8,
+  },
+  wordToolsLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.7,
+  },
+  wordToolsScroll: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  wordToolBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 5,
+    paddingHorizontal: 9,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  wordToolBtnText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+  },
+
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.25)',
@@ -961,39 +1086,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     color: '#0f172a',
-  },
-
-  // ── Word Tools 2-Column Grid Styling (Symbol + Name only) ────────────────
-  gridContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  gridCard: {
-    flexBasis: '48%',
-    flexGrow: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 9,
-    borderRadius: 7,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#ffffff',
-    gap: 8,
-  },
-  toolIconBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f1f5f9',
-  },
-  toolTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#0f172a',
-    flexShrink: 1,
   },
 });
