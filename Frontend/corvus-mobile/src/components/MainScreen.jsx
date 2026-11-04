@@ -613,6 +613,7 @@ function MainScreenContent() {
     );
     setEditContent(content);
     setEditSummary(summary);
+    richEditorRef.current?.resetContent?.(content);
   }, []);
 
   const handleSelectBranch = useCallback((branchName) => {
@@ -938,29 +939,60 @@ function MainScreenContent() {
         if (!isMounted) return;
         if (Array.isArray(articlesData)) {
           const next = formatArticlesList(articlesData);
-          setArticles(next);
+          setArticles((prev) => {
+            const unchanged =
+              prev.length === next.length &&
+              prev.every(
+                (a, idx) =>
+                  a.id === next[idx].id &&
+                  a.title === next[idx].title &&
+                  a.readTime === next[idx].readTime &&
+                  a.category === next[idx].category &&
+                  a.summary === next[idx].summary &&
+                  a.content === next[idx].content
+              );
+            return unchanged ? prev : next;
+          });
           // Keep currently selected article metadata fresh if we aren't actively editing it
           if (!isEditingArticle && !isEditingTitle) {
             setSelectedItem((prev) => {
               if (!prev || prev.type !== 'article') return prev;
               const updated = next.find((item) => item.id === prev.id);
-              return updated ? { ...prev, title: updated.title, readTime: updated.readTime, category: updated.category } : prev;
+              if (!updated) return prev;
+              if (
+                prev.title === updated.title &&
+                prev.readTime === updated.readTime &&
+                prev.category === updated.category
+              ) {
+                return prev;
+              }
+              return { ...prev, title: updated.title, readTime: updated.readTime, category: updated.category };
             });
           }
         }
         if (Array.isArray(groupsData)) {
-          setNewsrooms(
-            groupsData.map((g) => ({
-              id: g.group_id,
-              type: 'chat',
-              chatType: 'group',
-              title: g.group_name,
-              tagline: g.group_description || 'Newsroom desk channel',
-              subscribers: `${g.member_number || 1} members`,
-              symbol: '▤',
-              avatar: g.group_name.slice(0, 2).toUpperCase(),
-            }))
-          );
+          const nextGroups = groupsData.map((g) => ({
+            id: g.group_id,
+            type: 'chat',
+            chatType: 'group',
+            title: g.group_name,
+            tagline: g.group_description || 'Newsroom desk channel',
+            subscribers: `${g.member_number || 1} members`,
+            symbol: '▤',
+            avatar: g.group_name.slice(0, 2).toUpperCase(),
+          }));
+          setNewsrooms((prev) => {
+            const unchanged =
+              prev.length === nextGroups.length &&
+              prev.every(
+                (g, idx) =>
+                  g.id === nextGroups[idx].id &&
+                  g.title === nextGroups[idx].title &&
+                  g.tagline === nextGroups[idx].tagline &&
+                  g.subscribers === nextGroups[idx].subscribers
+              );
+            return unchanged ? prev : nextGroups;
+          });
         }
       } catch {
         // Ignore transient background sync errors
@@ -1086,6 +1118,8 @@ function MainScreenContent() {
     }).start();
   }, [hasRetractedSidebar]);
 
+  const useNativeDriver = Platform.OS !== 'web';
+
   // Subtle content crossfade when switching active item
   useEffect(() => {
     contentFadeAnim.setValue(0.7);
@@ -1093,9 +1127,10 @@ function MainScreenContent() {
       toValue: 1,
       duration: 180,
       easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
+      useNativeDriver,
     }).start();
-  }, [selectedItem]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedItem?.id]);
 
   // Drawer modal entry / exit animations
   useEffect(() => {
@@ -1106,16 +1141,17 @@ function MainScreenContent() {
         Animated.timing(drawerBackdropAnim, {
           toValue: 1,
           duration: 200,
-          useNativeDriver: true,
+          useNativeDriver,
         }),
         Animated.spring(drawerSlideAnim, {
           toValue: 0,
           tension: 65,
           friction: 10,
-          useNativeDriver: true,
+          useNativeDriver,
         }),
       ]).start();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawer]);
 
   function closeDrawer() {
@@ -1123,13 +1159,13 @@ function MainScreenContent() {
       Animated.timing(drawerBackdropAnim, {
         toValue: 0,
         duration: 160,
-        useNativeDriver: true,
+        useNativeDriver,
       }),
       Animated.timing(drawerSlideAnim, {
         toValue: 300,
         duration: 160,
         easing: Easing.in(Easing.quad),
-        useNativeDriver: true,
+        useNativeDriver,
       }),
     ]).start(() => setDrawer(null));
   }
@@ -1139,11 +1175,13 @@ function MainScreenContent() {
     if (drawer) closeDrawer();
     setReplyText('');
     if (item?.type === 'article') {
+      const nextContent = item.content || '';
       setEditTitle(item.title || '');
-      setEditContent(item.content || '');
+      setEditContent(nextContent);
       setEditSummary(item.summary || '');
       setIsEditingArticle(false);
       setIsEditingTitle(false);
+      richEditorRef.current?.resetContent?.(nextContent);
     }
   }
 
@@ -1756,18 +1794,22 @@ function MainScreenContent() {
                   ref={richEditorRef}
                   value={isEditingArticle ? editContent : (selectedItem.content || '')}
                   onChangeText={(nextMd) => {
-                    if (!isEditingArticle) {
-                      setEditSummary(selectedItem.summary || '');
-                      setIsEditingArticle(true);
-                    }
+                    setIsEditingArticle((wasEditing) => {
+                      if (!wasEditing) {
+                        setEditSummary((prevSum) => prevSum || selectedItem.summary || '');
+                      }
+                      return true;
+                    });
                     setEditContent(nextMd);
                   }}
                   onEditStart={() => {
-                    if (!isEditingArticle) {
-                      setEditContent(selectedItem.content || '');
-                      setEditSummary(selectedItem.summary || '');
-                      setIsEditingArticle(true);
-                    }
+                    setIsEditingArticle((wasEditing) => {
+                      if (!wasEditing) {
+                        setEditContent((prevContent) => prevContent || selectedItem.content || '');
+                        setEditSummary((prevSum) => prevSum || selectedItem.summary || '');
+                      }
+                      return true;
+                    });
                   }}
                   onActiveFormatsChange={setActiveFormats}
                   placeholder="Start writing your story..."

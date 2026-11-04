@@ -331,6 +331,9 @@ test('Feature 5: AI Draft Generation from Brief Summary in CreateArticleModal', 
   assert.match(createModal, /handleGenerateAIDraft/);
   assert.match(createModal, /✦ Saiph AI Draft Assistant/);
   assert.match(createModal, /✦ Generate AI Draft/);
+  // Ensure background newsroom polling never resets form inputs while the modal is open
+  assert.doesNotMatch(createModal, /\},\s*\[visible,\s*newsrooms\]\)/);
+  assert.match(createModal, /\},\s*\[visible\]\)/);
 
   const { api, calls, setMockResponse } = loadApiServiceWithMockFetch();
   api.authStorage.setTokens({ access: 'jwt-draft-test' });

@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [6.6.3] - 2026-11-04
+
+### Added
+
+- **Saiph AI 1-to-1 Editorial Agent & Workspace (`ArticleAIWorkspace.jsx`, `NewsroomHeader.jsx`, `ArticleHeader.jsx`, `MainScreen.jsx`, `services/api.js`)**:
+  - Added global **✦ Saiph AI** button in `NewsroomHeader.jsx` and article-level **Ask Saiph AI** button in `ArticleHeader.jsx` opening the 1-to-1 `SaiphAgentModal` drawer with short-term conversation history and long-term **Agent Memory** (`fact`, `style`, `source`, `goal`).
+  - Added **✦ Saiph AI Draft Assistant** inside `CreateArticleModal.jsx` to generate structured article drafts from a brief summary (`generateArticleDraft`).
+  - Added dedicated article workspace tabs in `ArticleHeader.jsx` and `MainScreen.jsx`:
+    - **Mindmap (`ArticleMindmapSection`)**: Interactive visual story concept map with categorized nodes (`angle`, `source`, `question`, `risk`, `timeline`) and one-click **+ Draft** leaf insertion.
+    - **Board (`ArticleBoardSection`)**: Curated editorial suggestions and verified source leads with category filtering and resolved status toggling (`toggleBoardItemResolved`).
+    - **AI Review & Check (`ArticleReviewSection`)**: Quality score, plagiarism overlap check, AI-writing cliché/burstiness detection, and plain-English improvement cards (`area`, `problem`, `how_to_fix`).
+- **Robust Branch Switching & Multi-Task Execution via Messaging (`ArticleAIWorkspace.jsx`, `MainScreen.jsx`)**:
+  - Added `resolveClientBranchIntent` and full `handleAIWorkspaceUpdated` synchronization (`switched_branch`, `created_branch`, `branches`, `pushed_branch`, `updated_title`, `open_section`, `updated_content`) so single-turn commands (*"switch to a new branch"*, *"switch to main"*), multi-turn branch naming (*"draft-v2"*), and draft/headline edits immediately update the active branch and editor.
+- **True WYSIWYG Rich Text Editor & Direct Word Tools Ribbon (`RichTextEditor.jsx`, `ArticleHeader.jsx`, `MainScreen.jsx`, `utils/pdfExporter.js`)**:
+  - Moved all **Word Tools** (`Bold`, `Italic`, `Underline`, `H1`, `H2`, `Bullets`, `Quote`, `Code`) out of the dropdown into a dedicated second-row toolbar ribbon in `ArticleHeader.jsx` with live active-state highlighting (`activeFormats`).
+  - Built `RichTextEditor.jsx` (`contentToRichHtml`, `richHtmlToMarkdown`, `stripRichFormatting`, `toggleActiveFormatState`) so text is styled visually without raw markdown characters (`#`, `**`, `*`, `---`) and active inline tools format newly typed text while toggled on.
+- **Article Deletion (`MainScreen.jsx`, `AppIcons.jsx`, `services/api.js`)**:
+  - Added `deleteArticle(articleId)` (`DELETE /api/project/articles/<id>/`), a **Delete Story** button in the article action bar, a quick-delete trash button in the sidebar `ARTICLES` list, and a confirmation modal.
+- **Frontend Node Unit Test Suite & GitHub Actions CI (`Frontend/corvus-mobile/test.jsx`, `.github/workflows/frontend-ci.yml`)**:
+  - Added 13 comprehensive frontend unit tests runnable via `node --test test.jsx` covering AST syntax verification across all `src/` files, Auth API, 1-to-1 AI Chat, Agent Memory, AI Draft Generation, Mindmap, Editorial Board, Plagiarism/AI Review, WYSIWYG Word Tools, Articles/Branches/Deletion, Newsrooms/DMs, Voice/PDF utilities, and AI Branch Switching.
+  - Added `.github/workflows/frontend-ci.yml` to run `node --test test.jsx` automatically on GitHub Actions pushes and pull requests.
+
+### Fixed
+
+- **Textbox Input Clearing & Background Sync Re-Renders (`CreateArticleModal.jsx`, `MainScreen.jsx`, `RichTextEditor.jsx`)**:
+  - Restricted the form-reset `useEffect` in `CreateArticleModal.jsx` to depend solely on `[visible]` instead of `[visible, newsrooms]`, preventing the 5-second background newsroom poll from wiping typed text while the modal is open.
+  - Updated `syncNewsroomArticles` in `MainScreen.jsx` to preserve existing `articles`, `newsrooms`, and `selectedItem` state references when polled data is unchanged, and anchored the content crossfade `useEffect` to `[selectedItem?.id]`.
+  - Added an active-focus guard (`document.activeElement === domRef.current`) in `RichTextEditor.jsx` and functional state updates in `MainScreen.jsx` so external re-renders never overwrite the live `contentEditable` DOM while typing.
+- **React Native Web Nested `<button>` DOM Errors & Animation Warnings (`MainScreen.jsx`, `ArticleAIWorkspace.jsx`, `CreateArticleModal.jsx`, `CreateNewsroomModal.jsx`, `NewDMModal.jsx`)**:
+  - Refactored `SelectableRow` in `MainScreen.jsx` and branch cards in `ArticleMindmapSection` so row selection and action `<Pressable>` buttons are siblings inside a `<View>` rather than nested `<button>` elements.
+  - Set `useNativeDriver: Platform.OS !== 'web'` across modal and screen animations to eliminate Web console warnings.
+
 ## [5.6.0] - 2026-11-03
 
 ### Added
