@@ -13,6 +13,7 @@ import {
 import Svg, { Path } from 'react-native-svg';
 import { useTheme } from '../context/ThemeContext';
 import { fetchPublicArticles } from '../services/api';
+import { t, getTranslatedArticle, getCategoryTranslation } from '../services/userSiteTranslations';
 
 const CATEGORIES = [
   'All',
@@ -143,7 +144,7 @@ Industry representatives present during the legislative debate expressed conditi
   },
 ];
 
-export default function NewsArticles({ selectedLang, setSelectedLang }) {
+export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
   const { colors, isDark } = useTheme();
   const { width } = useWindowDimensions();
 
@@ -247,46 +248,46 @@ export default function NewsArticles({ selectedLang, setSelectedLang }) {
           accessibilityLabel="Back to news articles"
         >
           <Text style={styles.backButtonArrow}>←</Text>
-          <Text style={styles.backButtonText}>BACK TO NEWS ARTICLES</Text>
+          <Text style={styles.backButtonText}>{t('backToDispatches', selectedLang)}</Text>
         </TouchableOpacity>
 
         {/* Category & Kicker */}
         <View style={styles.detailCategoryRow}>
-          <Text style={styles.detailCategoryBadge}>{selectedArticle.category.toUpperCase()}</Text>
+          <Text style={styles.detailCategoryBadge}>{detailArticle.category.toUpperCase()}</Text>
           <Text style={styles.detailTimeBadge}>
-            {selectedArticle.date} • {selectedArticle.time}
+            {detailArticle.date} • {detailArticle.time}
           </Text>
         </View>
 
         {/* Headline */}
-        <Text style={styles.detailHeadline}>{selectedArticle.title}</Text>
+        <Text style={styles.detailHeadline}>{detailArticle.title}</Text>
 
         {/* Byline and author info */}
         <View style={styles.bylineBox}>
           <View style={styles.bylineAvatar}>
             <Text style={styles.bylineAvatarText}>
-              {selectedArticle.author.slice(0, 2).toUpperCase()}
+              {detailArticle.author.slice(0, 2).toUpperCase()}
             </Text>
           </View>
           <View style={styles.bylineInfo}>
-            <Text style={styles.bylineAuthor}>By {selectedArticle.author}</Text>
+            <Text style={styles.bylineAuthor}>{t('bylinePrefix', selectedLang)} {detailArticle.author}</Text>
             <Text style={styles.bylineRole}>
-              {selectedArticle.authorRole || 'Investigative Journalist'} • {selectedArticle.readTime}
+              {detailArticle.authorRole || 'Investigative Journalist'} • {detailArticle.readTime}
             </Text>
           </View>
         </View>
 
         {/* Featured Image if available */}
-        {selectedArticle.imageUrl && (
+        {detailArticle.imageUrl && (
           <View style={styles.detailImageContainer}>
             <Image
-              source={{ uri: selectedArticle.imageUrl }}
+              source={{ uri: detailArticle.imageUrl }}
               style={styles.detailImage}
               resizeMode="cover"
             />
-            {selectedArticle.caption && (
+            {detailArticle.caption && (
               <Text style={styles.detailImageCaption}>
-                PHOTO DESK: {selectedArticle.caption}
+                PHOTO DESK: {detailArticle.caption}
               </Text>
             )}
           </View>
@@ -294,7 +295,7 @@ export default function NewsArticles({ selectedLang, setSelectedLang }) {
 
         {/* Full Article Content */}
         <View style={styles.detailBodyContainer}>
-          {selectedArticle.content.split('\n\n').map((paragraph, index) => (
+          {detailArticle.content.split('\n\n').map((paragraph, index) => (
             <Text key={index} style={styles.detailParagraph}>
               {paragraph}
             </Text>
@@ -302,10 +303,10 @@ export default function NewsArticles({ selectedLang, setSelectedLang }) {
         </View>
 
         {/* Source verification block */}
-        {selectedArticle.sources && (
+        {detailArticle.sources && (
           <View style={styles.sourcesBox}>
-            <Text style={styles.sourcesHeading}>SOURCES & VERIFICATION</Text>
-            <Text style={styles.sourcesText}>{selectedArticle.sources}</Text>
+            <Text style={styles.sourcesHeading}>{t('sourcesHeading', selectedLang)}</Text>
+            <Text style={styles.sourcesText}>{detailArticle.sources}</Text>
           </View>
         )}
 
@@ -314,7 +315,7 @@ export default function NewsArticles({ selectedLang, setSelectedLang }) {
 
         {/* Related Articles Section */}
         <View style={styles.relatedSection}>
-          <Text style={styles.relatedHeading}>RELATED EDITORIAL COVERAGE</Text>
+          <Text style={styles.relatedHeading}>{t('relatedHeading', selectedLang)}</Text>
           <View style={[styles.relatedGrid, isDesktop && styles.relatedGridDesktop]}>
             {relatedArticles.map((rel) => (
               <TouchableOpacity
@@ -342,7 +343,7 @@ export default function NewsArticles({ selectedLang, setSelectedLang }) {
           onPress={() => setSelectedArticle(null)}
         >
           <Text style={styles.backButtonArrow}>←</Text>
-          <Text style={styles.backButtonText}>RETURN TO ALL ARTICLES</Text>
+          <Text style={styles.backButtonText}>{t('backToDispatches', selectedLang)}</Text>
         </TouchableOpacity>
       </ScrollView>
     );
@@ -356,10 +357,8 @@ export default function NewsArticles({ selectedLang, setSelectedLang }) {
       {/* Top Editorial Kicker */}
       <View style={styles.editionBanner}>
         <View style={styles.editionLeft}>
-          <Text style={styles.editionTitle}>THE PUBLIC DISPATCH</Text>
-          <Text style={styles.editionSubtitle}>
-            INDEPENDENT REPORTING & VERIFIED INVESTIGATION DESK
-          </Text>
+          <Text style={styles.editionTitle}>{t('newsBannerKicker', selectedLang)}</Text>
+          <Text style={styles.editionSubtitle}>{t('newsBannerSubtitle', selectedLang)}</Text>
         </View>
         <Text style={styles.editionIssue}>CORVUS GAZETTE • ISSUE 2026.11</Text>
       </View>
@@ -375,7 +374,7 @@ export default function NewsArticles({ selectedLang, setSelectedLang }) {
           </Svg>
           <TextInput
             style={styles.searchInput}
-            placeholder="Search articles by title, author, or keyword..."
+            placeholder={t('searchPlaceholder', selectedLang)}
             placeholderTextColor={colors.muted}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -390,7 +389,7 @@ export default function NewsArticles({ selectedLang, setSelectedLang }) {
 
         {/* Category Filter Dropdown / Selector */}
         <View style={styles.categoryFilterRow}>
-          <Text style={styles.filterLabel}>DESK:</Text>
+          <Text style={styles.filterLabel}>{t('deskLabel', selectedLang).toUpperCase()}:</Text>
           <View style={styles.categoryDropdownWrapper}>
             <TouchableOpacity
               style={styles.categoryDropdownButton}
@@ -398,7 +397,7 @@ export default function NewsArticles({ selectedLang, setSelectedLang }) {
               accessibilityRole="combobox"
               accessibilityLabel="Select news category"
             >
-              <Text style={styles.categoryDropdownText}>{selectedCategory}</Text>
+              <Text style={styles.categoryDropdownText}>{getCategoryTranslation(selectedCategory, selectedLang)}</Text>
               <Text style={styles.dropdownArrow}>{showCategoryDropdown ? '▲' : '▼'}</Text>
             </TouchableOpacity>
 
@@ -422,7 +421,7 @@ export default function NewsArticles({ selectedLang, setSelectedLang }) {
                         selectedCategory === cat && styles.categoryMenuItemTextActive,
                       ]}
                     >
-                      {cat}
+                      {getCategoryTranslation(cat, selectedLang)}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -447,7 +446,7 @@ export default function NewsArticles({ selectedLang, setSelectedLang }) {
               onPress={() => setSelectedCategory(cat)}
             >
               <Text style={[styles.categoryPillText, isActive && styles.categoryPillTextActive]}>
-                {cat}
+                {getCategoryTranslation(cat, selectedLang)}
               </Text>
             </TouchableOpacity>
           );
@@ -468,7 +467,7 @@ export default function NewsArticles({ selectedLang, setSelectedLang }) {
           <View style={styles.emptyIconBox}>
             <Text style={styles.emptyIconText}>📰</Text>
           </View>
-          <Text style={styles.emptyHeadline}>No articles found in this section</Text>
+          <Text style={styles.emptyHeadline}>{t('noArticlesFound', selectedLang)}</Text>
           <Text style={styles.emptySubtitle}>
             We could not find any stories matching "{searchQuery}" under the "{selectedCategory}" desk.
           </Text>
@@ -525,7 +524,7 @@ export default function NewsArticles({ selectedLang, setSelectedLang }) {
               <View style={styles.cardFooter}>
                 <View style={styles.authorBox}>
                   <Text style={styles.authorName} numberOfLines={1}>
-                    By {article.author}
+                    {t('bylinePrefix', selectedLang)} {article.author}
                   </Text>
                 </View>
                 <Text style={styles.readTimeText}>{article.readTime}</Text>

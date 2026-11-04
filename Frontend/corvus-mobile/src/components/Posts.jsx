@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { fetchUserPosts } from '../services/api';
+import { t, getCategoryTranslation, getStatusTabTranslation } from '../services/userSiteTranslations';
 
 const STATUS_TABS = [
   'My Posts',
@@ -22,7 +23,7 @@ const STATUS_TABS = [
   'Rejected',
 ];
 
-export default function Posts({ submissions = [], onNavigateTab }) {
+export default function Posts({ submissions = [], onNavigateTab, selectedLang = 'EN' }) {
   const { colors, isDark } = useTheme();
   const { user } = useAuth();
   const router = useRouter();
@@ -151,10 +152,8 @@ export default function Posts({ submissions = [], onNavigateTab }) {
           <View style={styles.kickerDash} />
           <Text style={styles.kickerText}>SUBMISSION & EDITORIAL STATUS</Text>
         </View>
-        <Text style={styles.pageTitle}>Posts</Text>
-        <Text style={styles.pageSubtitle}>
-          Track the review status of stories, drafts, and investigative leads submitted to the editorial desk.
-        </Text>
+        <Text style={styles.pageTitle}>{t('postsTitle', selectedLang)}</Text>
+        <Text style={styles.pageSubtitle}>{t('postsSubtitle', selectedLang)}</Text>
       </View>
 
       <View style={styles.divider} />
@@ -193,7 +192,7 @@ export default function Posts({ submissions = [], onNavigateTab }) {
               accessibilityState={{ selected: isActive }}
             >
               <Text style={[styles.statusTabText, isActive && styles.statusTabTextActive]}>
-                {tab}
+                {getStatusTabTranslation(tab, selectedLang)}
               </Text>
             </TouchableOpacity>
           );
@@ -214,7 +213,7 @@ export default function Posts({ submissions = [], onNavigateTab }) {
           <View style={styles.emptyIconBox}>
             <Text style={styles.emptyIcon}>📋</Text>
           </View>
-          <Text style={styles.emptyHeadline}>No submissions in "{activeTab}"</Text>
+          <Text style={styles.emptyHeadline}>{t('noPostsMessage', selectedLang)}</Text>
           <Text style={styles.emptySubtitle}>
             {activeTab === 'Drafts'
               ? 'You have no unsent drafts saved at this time.'
@@ -229,7 +228,7 @@ export default function Posts({ submissions = [], onNavigateTab }) {
               style={styles.submitNewBtn}
               onPress={() => onNavigateTab('submit')}
             >
-              <Text style={styles.submitNewBtnText}>Submit a Lead Now →</Text>
+              <Text style={styles.submitNewBtnText}>{t('submitFirstLeadBtn', selectedLang)} →</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -245,7 +244,7 @@ export default function Posts({ submissions = [], onNavigateTab }) {
               {/* Card Topline: Desk & Status Badge */}
               <View style={styles.cardTopline}>
                 <View style={styles.deskTagRow}>
-                  <Text style={styles.deskTagText}>{(post.category || 'GENERAL').toUpperCase()}</Text>
+                  <Text style={styles.deskTagText}>{getCategoryTranslation(post.category || 'Local News', selectedLang).toUpperCase()}</Text>
                   {post.urgency && (
                     <Text style={styles.urgencyTag}>• {post.urgency.toUpperCase()}</Text>
                   )}
@@ -296,7 +295,7 @@ export default function Posts({ submissions = [], onNavigateTab }) {
                     style={styles.viewDetailsBtn}
                     onPress={() => setSelectedPost(post)}
                   >
-                    <Text style={styles.viewDetailsBtnText}>View Details</Text>
+                    <Text style={styles.viewDetailsBtnText}>{t('postDetailTitle', selectedLang)}</Text>
                   </TouchableOpacity>
 
                   {user && post.isBackendArticle && (
@@ -337,12 +336,12 @@ export default function Posts({ submissions = [], onNavigateTab }) {
 
             <ScrollView style={styles.modalBody}>
               <View style={styles.modalMetaRow}>
-                <Text style={styles.modalMetaLabel}>Review Status:</Text>
+                <Text style={styles.modalMetaLabel}>{t('postStatusLabel', selectedLang)}</Text>
                 <Text style={styles.modalMetaValue}>{selectedPost?.status}</Text>
               </View>
 
               <View style={styles.modalMetaRow}>
-                <Text style={styles.modalMetaLabel}>Filed On:</Text>
+                <Text style={styles.modalMetaLabel}>{t('postDateLabel', selectedLang)}</Text>
                 <Text style={styles.modalMetaValue}>
                   {selectedPost?.submittedDate} at {selectedPost?.submittedAt}
                 </Text>

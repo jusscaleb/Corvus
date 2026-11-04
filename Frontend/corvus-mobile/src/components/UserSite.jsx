@@ -16,6 +16,7 @@ import { useAuth } from '../context/AuthContext';
 import NewsArticles from './NewsArticle';
 import SubmitLead from './SubmitLead';
 import Posts from './Posts';
+import { t, LANGUAGES } from '../services/userSiteTranslations';
 
 const NAV_TABS = [
   { key: 'news', label: 'NEWS ARTICLES' },
@@ -23,11 +24,6 @@ const NAV_TABS = [
   { key: 'posts', label: 'POSTS' },
 ];
 
-const LANGUAGES = [
-  { code: 'EN', name: 'EN – English' },
-  { code: 'SN', name: 'SN – Shona' },
-  { code: 'ND', name: 'ND – Ndebele' },
-];
 
 export default function UserSite() {
   const { colors, isDark, toggleTheme } = useTheme();
@@ -90,7 +86,7 @@ export default function UserSite() {
               style={styles.brandContainer}
             >
               <Text style={styles.brandTitle}>CORVUS</Text>
-              <Text style={styles.brandKicker}>EDITORIAL DESK</Text>
+              <Text style={styles.brandKicker}>{t('brandKicker', selectedLang)}</Text>
             </TouchableOpacity>
 
             <View style={styles.brandDivider} />
@@ -154,7 +150,7 @@ export default function UserSite() {
                       accessibilityState={{ selected: isActive }}
                     >
                       <Text style={[styles.navTabText, isActive && styles.navTabTextActive]}>
-                        {tab.label}
+                        {tab.key === 'news' ? t('navNews', selectedLang) : tab.key === 'submit' ? t('navSubmit', selectedLang) : t('navPosts', selectedLang)}
                       </Text>
                       {isActive && <View style={styles.navTabIndicator} />}
                     </TouchableOpacity>
@@ -171,7 +167,7 @@ export default function UserSite() {
                     accessibilityRole="button"
                     accessibilityLabel="Enter newsroom workspace"
                   >
-                    <Text style={styles.workspaceBtnText}>NEWSROOM WORKSPACE →</Text>
+                    <Text style={styles.workspaceBtnText}>{t('workspaceBtn', selectedLang)}</Text>
                   </TouchableOpacity>
                 ) : (
                   <TouchableOpacity
@@ -180,7 +176,7 @@ export default function UserSite() {
                     accessibilityRole="button"
                     accessibilityLabel="Reporter sign in"
                   >
-                    <Text style={styles.signInBtnText}>REPORTER SIGN IN</Text>
+                    <Text style={styles.signInBtnText}>{t('signInBtn', selectedLang)}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -213,7 +209,7 @@ export default function UserSite() {
                   }}
                 >
                   <Text style={[styles.mobileNavText, isActive && styles.mobileNavTextActive]}>
-                    {tab.label}
+                    {tab.key === 'news' ? t('navNews', selectedLang) : tab.key === 'submit' ? t('navSubmit', selectedLang) : t('navPosts', selectedLang)}
                   </Text>
                 </TouchableOpacity>
               );
@@ -223,7 +219,7 @@ export default function UserSite() {
 
             {/* Mobile Language Selector */}
             <View style={styles.mobileLangRow}>
-              <Text style={styles.mobileLangLabel}>Language:</Text>
+              <Text style={styles.mobileLangLabel}>{t('languageLabel', selectedLang)}</Text>
               <View style={styles.mobileLangOptions}>
                 {LANGUAGES.map((lang) => (
                   <TouchableOpacity
@@ -260,7 +256,7 @@ export default function UserSite() {
                   router.push('/main_screen');
                 }}
               >
-                <Text style={styles.mobileWorkspaceBtnText}>OPEN NEWSROOM WORKSPACE →</Text>
+                <Text style={styles.mobileWorkspaceBtnText}>{t('openWorkspaceBtn', selectedLang)}</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
@@ -270,7 +266,7 @@ export default function UserSite() {
                   router.push('/login');
                 }}
               >
-                <Text style={styles.mobileSignInBtnText}>REPORTER SIGN IN</Text>
+                <Text style={styles.mobileSignInBtnText}>{t('signInBtn', selectedLang)}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -290,12 +286,14 @@ export default function UserSite() {
 
         {activeTab === 'submit' && (
           <SubmitLead
+            selectedLang={selectedLang}
             onSubmitLead={handleAddSubmission}
           />
         )}
 
         {activeTab === 'posts' && (
           <Posts
+            selectedLang={selectedLang}
             submissions={submissions}
             onNavigateTab={setActiveTab}
           />

@@ -11,6 +11,7 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
 import { submitLead } from '../services/api';
+import { t, getCategoryTranslation } from '../services/userSiteTranslations';
 
 const DESKS = [
   'Local News',
@@ -29,7 +30,13 @@ const URGENCY_LEVELS = [
   { label: 'Urgent Investigation', desc: 'High-impact whistleblowing or deep investigative matter' },
 ];
 
-export default function SubmitLead({ onSubmitLead }) {
+export default function SubmitLead({ onSubmitLead, selectedLang = 'EN' }) {
+  const getUrgencyTranslation = (u) => {
+    if (u === 'Lead Tip') return t('urgencyTip', selectedLang);
+    if (u === 'Developing Story') return t('urgencyDeveloping', selectedLang);
+    if (u === 'Breaking News' || u === 'Urgent Investigation') return t('urgencyBreaking', selectedLang);
+    return u;
+  };
   const { colors, isDark } = useTheme();
   const { showToast } = useToast();
 
@@ -66,7 +73,7 @@ export default function SubmitLead({ onSubmitLead }) {
   const handleSubmit = async () => {
     if (!validate()) {
       showToast({
-        message: 'Please complete all required fields indicated in the form.',
+        message: t('errFillRequired', selectedLang),
         type: 'error',
       });
       return;
@@ -152,10 +159,8 @@ export default function SubmitLead({ onSubmitLead }) {
           <View style={styles.kickerDash} />
           <Text style={styles.kickerText}>INVESTIGATION & NEWS DESK INTAKE</Text>
         </View>
-        <Text style={styles.pageTitle}>Share your story</Text>
-        <Text style={styles.pageSubtitle}>
-          Provide breaking news or leads for upcoming investigation articles.
-        </Text>
+        <Text style={styles.pageTitle}>{t('submitTitle', selectedLang)}</Text>
+        <Text style={styles.pageSubtitle}>{t('submitSubtitle', selectedLang)}</Text>
       </View>
 
       <View style={styles.divider} />
@@ -163,7 +168,7 @@ export default function SubmitLead({ onSubmitLead }) {
       {/* Success Notification Banner */}
       {submittedSuccess && (
         <View style={styles.successBanner}>
-          <Text style={styles.successBannerTitle}>SUBMISSION RECEIVED & FILED</Text>
+          <Text style={styles.successBannerTitle}>{t('submitSuccessTitle', selectedLang).toUpperCase()}</Text>
           <Text style={styles.successBannerText}>
             "{submittedSuccess.headline}" has entered the newsroom review workflow under priority level [
             {submittedSuccess.urgency}]. Editorial staff will evaluate your dispatch against primary sources.
@@ -182,12 +187,12 @@ export default function SubmitLead({ onSubmitLead }) {
         {/* 1. Headline / Summary */}
         <View style={styles.formGroup}>
           <View style={styles.labelRow}>
-            <Text style={styles.fieldLabel}>1. Headline / Summary</Text>
+            <Text style={styles.fieldLabel}>{t('step1Title', selectedLang)}</Text>
             <Text style={styles.requiredMark}>* REQUIRED</Text>
           </View>
           <TextInput
             style={[styles.input, errors.headline && styles.inputError]}
-            placeholder="Provide a succinct summary of the report or incident..."
+            placeholder={t('step1Placeholder', selectedLang)}
             placeholderTextColor={colors.muted}
             value={headline}
             onChangeText={(text) => {
@@ -203,7 +208,7 @@ export default function SubmitLead({ onSubmitLead }) {
         <View style={styles.dualDropdownRow}>
           {/* Category Desk */}
           <View style={[styles.dualColumn, { zIndex: 30 }]}>
-            <Text style={styles.fieldLabel}>2. Category Desk</Text>
+            <Text style={styles.fieldLabel}>{t('deskLabel', selectedLang)}</Text>
             <View style={styles.dropdownContainer}>
               <TouchableOpacity
                 style={styles.dropdownTrigger}
@@ -213,7 +218,7 @@ export default function SubmitLead({ onSubmitLead }) {
                 }}
                 accessibilityRole="combobox"
               >
-                <Text style={styles.dropdownTriggerText}>{category}</Text>
+                <Text style={styles.dropdownTriggerText}>{getCategoryTranslation(category, selectedLang)}</Text>
                 <Text style={styles.dropdownArrow}>{showDeskDropdown ? '▲' : '▼'}</Text>
               </TouchableOpacity>
 
@@ -237,7 +242,7 @@ export default function SubmitLead({ onSubmitLead }) {
                           category === desk && styles.dropdownMenuItemTextActive,
                         ]}
                       >
-                        {desk}
+                        {getCategoryTranslation(desk, selectedLang)}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -248,7 +253,7 @@ export default function SubmitLead({ onSubmitLead }) {
 
           {/* Urgency Level */}
           <View style={[styles.dualColumn, { zIndex: 25 }]}>
-            <Text style={styles.fieldLabel}>3. Urgency Level</Text>
+            <Text style={styles.fieldLabel}>{t('urgencyLabel', selectedLang)}</Text>
             <View style={styles.dropdownContainer}>
               <TouchableOpacity
                 style={styles.dropdownTrigger}
@@ -258,7 +263,7 @@ export default function SubmitLead({ onSubmitLead }) {
                 }}
                 accessibilityRole="combobox"
               >
-                <Text style={styles.dropdownTriggerText}>{urgency}</Text>
+                <Text style={styles.dropdownTriggerText}>{getUrgencyTranslation(urgency)}</Text>
                 <Text style={styles.dropdownArrow}>{showUrgencyDropdown ? '▲' : '▼'}</Text>
               </TouchableOpacity>
 
@@ -282,7 +287,7 @@ export default function SubmitLead({ onSubmitLead }) {
                           urgency === item.label && styles.dropdownMenuItemTextActive,
                         ]}
                       >
-                        {item.label}
+                        {getUrgencyTranslation(item.label)}
                       </Text>
                       <Text style={styles.urgencySubtext}>{item.desc}</Text>
                     </TouchableOpacity>
@@ -296,12 +301,12 @@ export default function SubmitLead({ onSubmitLead }) {
         {/* 4. Story Details / What Happened */}
         <View style={styles.formGroup}>
           <View style={styles.labelRow}>
-            <Text style={styles.fieldLabel}>4. Story Details / What Happened</Text>
+            <Text style={styles.fieldLabel}>{t('step2Title', selectedLang)}</Text>
             <Text style={styles.requiredMark}>* REQUIRED</Text>
           </View>
           <TextInput
             style={[styles.input, styles.textArea, errors.details && styles.inputError]}
-            placeholder="Detail the timeline, individuals or institutions involved, sequence of events, and known facts..."
+            placeholder={t('step2Placeholder', selectedLang)}
             placeholderTextColor={colors.muted}
             multiline
             numberOfLines={6}
@@ -318,10 +323,10 @@ export default function SubmitLead({ onSubmitLead }) {
 
         {/* 5. Origin / Geographic Location */}
         <View style={styles.formGroup}>
-          <Text style={styles.fieldLabel}>5. Location / Origin of Story</Text>
+          <Text style={styles.fieldLabel}>{t('step4Title', selectedLang)}</Text>
           <TextInput
             style={styles.input}
-            placeholder="City, District, Ward, or Specific Venue (e.g. Bulawayo CBD, Harare East)..."
+            placeholder={t('locationPlaceholder', selectedLang)}
             placeholderTextColor={colors.muted}
             value={location}
             onChangeText={setLocation}
@@ -330,7 +335,7 @@ export default function SubmitLead({ onSubmitLead }) {
 
         {/* 6. Supporting Evidence & Verification */}
         <View style={styles.formGroup}>
-          <Text style={styles.fieldLabel}>6. Supporting Evidence & Verification</Text>
+          <Text style={styles.fieldLabel}>{t('step5Title', selectedLang)}</Text>
           
           <TouchableOpacity
             style={styles.checkboxRow}
@@ -340,7 +345,7 @@ export default function SubmitLead({ onSubmitLead }) {
             <View style={[styles.checkbox, verification.eyewitness && styles.checkboxActive]}>
               {verification.eyewitness && <Text style={styles.checkboxCheck}>✓</Text>}
             </View>
-            <Text style={styles.checkboxText}>I am an eyewitness to the events described</Text>
+            <Text style={styles.checkboxText}>{t('eyewitnessCheckbox', selectedLang)}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -351,15 +356,13 @@ export default function SubmitLead({ onSubmitLead }) {
             <View style={[styles.checkbox, verification.evidence && styles.checkboxActive]}>
               {verification.evidence && <Text style={styles.checkboxCheck}>✓</Text>}
             </View>
-            <Text style={styles.checkboxText}>
-              I have supporting documents, logs, photos, or audio recordings
-            </Text>
+            <Text style={styles.checkboxText}>{t('evidenceCheckbox', selectedLang)}</Text>
           </TouchableOpacity>
 
           {verification.evidence && (
             <TextInput
               style={[styles.input, { marginTop: 8 }]}
-              placeholder="List available documents, record types, or reference files..."
+              placeholder={t('evidenceNotesPlaceholder', selectedLang)}
               placeholderTextColor={colors.muted}
               value={evidenceNotes}
               onChangeText={setEvidenceNotes}
@@ -369,7 +372,7 @@ export default function SubmitLead({ onSubmitLead }) {
 
         {/* 7. Identity & Source Protection */}
         <View style={styles.formGroup}>
-          <Text style={styles.fieldLabel}>7. Source Identity & Protection</Text>
+          <Text style={styles.fieldLabel}>{t('step6Title', selectedLang)}</Text>
 
           <TouchableOpacity
             style={styles.checkboxRow}
@@ -379,21 +382,19 @@ export default function SubmitLead({ onSubmitLead }) {
             <View style={[styles.checkbox, isAnonymous && styles.checkboxActive]}>
               {isAnonymous && <Text style={styles.checkboxCheck}>✓</Text>}
             </View>
-            <Text style={styles.checkboxText}>Submit tip anonymously (No contact information stored)</Text>
+            <Text style={styles.checkboxText}>{t('anonymousCheckbox', selectedLang)}</Text>
           </TouchableOpacity>
 
           {!isAnonymous && (
             <View style={{ marginTop: 8 }}>
               <TextInput
                 style={styles.input}
-                placeholder="Secure email or phone number for editorial verification (Kept strictly confidential)..."
+                placeholder={t('contactPlaceholder', selectedLang)}
                 placeholderTextColor={colors.muted}
                 value={contactInfo}
                 onChangeText={setContactInfo}
               />
-              <Text style={styles.helperNote}>
-                Editor pledge: Your confidential contact is shielded by investigative reporter privilege.
-              </Text>
+              <Text style={styles.helperNote}>{t('anonymousNotice', selectedLang)}</Text>
             </View>
           )}
         </View>
@@ -409,10 +410,10 @@ export default function SubmitLead({ onSubmitLead }) {
             {isSubmitting ? (
               <View style={styles.submittingRow}>
                 <ActivityIndicator color="#FFFFFF" size="small" />
-                <Text style={styles.submitButtonText}>TRANSMITTING TO DESK...</Text>
+                <Text style={styles.submitButtonText}>{t('submittingBtn', selectedLang).toUpperCase()}</Text>
               </View>
             ) : (
-              <Text style={styles.submitButtonText}>SUBMIT TO EDITORIAL DESK</Text>
+              <Text style={styles.submitButtonText}>{t('submitBtn', selectedLang).toUpperCase()}</Text>
             )}
           </TouchableOpacity>
           <Text style={styles.submitDisclaimer}>
