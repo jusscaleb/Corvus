@@ -41,17 +41,12 @@ DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 't')
 # MongoDB Settings
 # Supports Railway MongoDB (MONGO_URL / MONGODB_URL / MONGODB_URI) or local fallback
 MONGODB_URI = (
-    os.getenv('MONGODB_URI')
-    or os.getenv('MONGO_URL')
-    or os.getenv('MONGODB_URL')
-    or 'mongodb://127.0.0.1:27017'
+    os.getenv('MONGO_URL') or 'mongodb://127.0.0.1:27017'
 )
 
 # Parse database name safely and guard against unresolved Railway reference variables (${{...}})
 raw_mongodb_database = (
-    os.getenv('MONGODB_DATABASE')
-    or os.getenv('MONGO_INITDB_DATABASE')
-    or 'corvus_chats'
+    'corvus_chats'
 ).strip()
 
 if not raw_mongodb_database or '${{' in raw_mongodb_database or '.' in raw_mongodb_database or '$' in raw_mongodb_database:
