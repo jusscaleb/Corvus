@@ -557,9 +557,7 @@ function MainScreenContent() {
     initiatedVoiceCallRef.current = false;
     setActiveVoiceCallInvite(null);
     setActiveVoiceRoom(targetRoom);
-    setTimeout(() => {
-      voiceChat.connect();
-    }, 50);
+    voiceChat.connect(targetRoom.id);
     showToast({ message: `Joining ${targetRoom.title} voice...`, type: 'info' });
   }, [activeVoiceCallInvite, voiceChat, showToast]);
 
@@ -1863,9 +1861,7 @@ function MainScreenContent() {
                 id: selectedItem.id,
                 title: selectedItem.title || 'Newsroom Voice Channel',
               });
-              setTimeout(() => {
-                voiceChat.connect();
-              }, 50);
+              voiceChat.connect(selectedItem.id);
               showToast({ message: 'Connecting to live newsroom voice...', type: 'info' });
             }
           }}

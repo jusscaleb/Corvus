@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter, Link } from 'expo-router';
-import { Animated, Easing, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import {  Animated, Easing, Modal, Pressable, StyleSheet, Text, View , Platform } from 'react-native';
 import ConfirmModal from './ConfirmModal';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -34,14 +34,14 @@ export default function NewsroomHeader({ mode = 'landing', onOpenAI, onOpenPhone
         toValue: 1,
         tension: 80,
         friction: 9,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }).start();
     } else {
       Animated.timing(menuAnim, {
         toValue: 0,
         duration: 150,
         easing: Easing.in(Easing.quad),
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }).start();
     }
   }, [languageMenuOpen]);
@@ -52,13 +52,13 @@ export default function NewsroomHeader({ mode = 'landing', onOpenAI, onOpenPhone
         Animated.timing(privacyOpacityAnim, {
           toValue: 1,
           duration: 200,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
         Animated.spring(privacyScaleAnim, {
           toValue: 1,
           tension: 85,
           friction: 9,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
       ]).start();
     } else {
@@ -66,12 +66,12 @@ export default function NewsroomHeader({ mode = 'landing', onOpenAI, onOpenPhone
         Animated.timing(privacyOpacityAnim, {
           toValue: 0,
           duration: 140,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
         Animated.timing(privacyScaleAnim, {
           toValue: 0.92,
           duration: 140,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
       ]).start();
     }

@@ -52,6 +52,14 @@ function loadApiServiceWithMockFetch() {
         /import\s+\{\s*Platform\s*\}\s+from\s+['"]react-native['"];?/g,
         'const Platform = { OS: "web", select: (obj) => obj.web || obj.default };'
       )
+      .replace(
+        /import\s+Constants\s+from\s+['"]expo-constants['"];?/g,
+        'const Constants = { manifest: { extra: {} } };'
+      )
+      .replace(
+        /import\s+AsyncStorage\s+from\s+['"]@react-native-async-storage\/async-storage['"];?/g,
+        'const AsyncStorage = {};'
+      )
       .replace(/export\s+async\s+function\s+(\w+)/g, (_, name) => {
         exportedFuncs.push(name);
         return `async function ${name}`;

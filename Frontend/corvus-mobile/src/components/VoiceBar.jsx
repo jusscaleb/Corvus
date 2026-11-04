@@ -33,24 +33,24 @@ function SpeakingRing({ isSpeaking, color = '#10B981', children }) {
             Animated.timing(pulseAnim, {
               toValue: 1.25,
               duration: 500,
-              useNativeDriver: true,
+              useNativeDriver: Platform.OS !== 'web',
             }),
             Animated.timing(pulseAnim, {
               toValue: 1,
               duration: 500,
-              useNativeDriver: true,
+              useNativeDriver: Platform.OS !== 'web',
             }),
           ]),
           Animated.sequence([
             Animated.timing(opacityAnim, {
               toValue: 0.9,
               duration: 500,
-              useNativeDriver: true,
+              useNativeDriver: Platform.OS !== 'web',
             }),
             Animated.timing(opacityAnim, {
               toValue: 0.3,
               duration: 500,
-              useNativeDriver: true,
+              useNativeDriver: Platform.OS !== 'web',
             }),
           ]),
         ])
@@ -156,6 +156,9 @@ export default function VoiceBar({ voiceChat, roomTitle = 'Investigation Desk', 
     error,
     toggleMute,
     toggleDeafen,
+    isRecording,
+    startRecording,
+    stopRecordingAndSend,
     disconnect,
   } = voiceChat || {};
 
@@ -264,6 +267,21 @@ export default function VoiceBar({ voiceChat, roomTitle = 'Investigation Desk', 
 
             {/* Right: Audio Action Controls */}
             <View style={styles.actionsGroup}>
+              {/* Push-to-Talk Transmit Button (Expo Go Mobile Audio) */}
+              {startRecording && (
+                <Pressable
+                  onPressIn={startRecording}
+                  onPressOut={stopRecordingAndSend}
+                  style={[
+                    styles.controlButton,
+                    isRecording ? styles.controlBtnRecording : styles.controlBtnPtt,
+                  ]}
+                  accessibilityLabel="Hold to Speak"
+                >
+                  <Mic size={16} color={isRecording ? '#FFFFFF' : '#10B981'} />
+                </Pressable>
+              )}
+
               {/* Mute / Unmute Button */}
               <Pressable
                 onPress={toggleMute}
@@ -503,6 +521,15 @@ const styles = StyleSheet.create({
   },
   controlBtnActive: {
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  controlBtnRecording: {
+    backgroundColor: '#EF4444',
+    borderColor: '#F87171',
+    transform: [{ scale: 1.08 }],
+  },
+  controlBtnPtt: {
+    backgroundColor: '#064E3B',
+    borderColor: '#059669',
   },
   controlBtnMuted: {
     backgroundColor: '#C84B31',
