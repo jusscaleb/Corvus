@@ -39,9 +39,15 @@ TWILIO_SENDER_ID = os.getenv('TWILIO_SENDER_ID', 'Corvus')
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 't')
 
 # MongoDB Settings
-MONGODB_URI = os.getenv('MONGODB_URI') or 'mongodb://127.0.0.1:27017'
-MONGODB_DATABASE = os.getenv('MONGODB_DATABASE', 'corvus_chats')
-MONGODB_SERVER_SELECTION_TIMEOUT_MS = int(os.getenv('MONGODB_SERVER_SELECTION_TIMEOUT_MS', '3000'))
+# Supports Railway MongoDB (MONGO_URL / MONGODB_URL / MONGODB_URI) or local fallback
+MONGODB_URI = (
+    os.getenv('MONGODB_URI')
+    or os.getenv('MONGO_URL')
+    or os.getenv('MONGODB_URL')
+    or 'mongodb://127.0.0.1:27017'
+)
+MONGODB_DATABASE = os.getenv('MONGODB_DATABASE') or os.getenv('MONGO_INITDB_DATABASE') or 'corvus_chats'
+MONGODB_SERVER_SELECTION_TIMEOUT_MS = int(os.getenv('MONGODB_SERVER_SELECTION_TIMEOUT_MS', '5000'))
 
 
 
