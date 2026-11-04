@@ -87,7 +87,7 @@ export async function apiRequest(endpoint, { method = 'GET', body = null, requir
   try {
     response = await fetch(url, options);
   } catch (err) {
-    throw new Error(`Unable to connect to server. Check connection to ${API_BASE_URL}`);
+    throw new Error('Unable to connect to server. Please check your internet connection.');
   }
 
   // Prevent refresh loops if the refresh endpoint itself returns 401
