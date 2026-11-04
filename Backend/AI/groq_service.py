@@ -4,6 +4,12 @@ from groq import Groq
 
 _groq_client = None
 
+FALLBACK_CHAT_MODELS = (
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b",
+    "qwen/qwen3.8-27b",
+)
+
 
 def get_groq_client():
     global _groq_client
@@ -43,10 +49,16 @@ def is_prompt_safe(text: str) -> bool:
 
 def chat_with_groq(prompt: str, user_language: str = "english", system_instruction: str = "") -> str:
     """
-    Standard conversational chatbot response using Groq.
+    Standard conversational chatbot response using Groq with automatic model fallback
+    if the primary model is unavailable or deprecated.
     """
     client = get_groq_client()
-    chat_model = getattr(settings, 'GROQ_CHAT_MODEL', 'llama-3.3-70b-versatile')
+    configured_model = getattr(settings, 'GROQ_CHAT_MODEL', 'openai/gpt-oss-120b') or 'openai/gpt-oss-120b'
+
+    candidate_models = [configured_model]
+    for m in FALLBACK_CHAT_MODELS:
+        if m not in candidate_models:
+            candidate_models.append(m)
 
     system_prompt = system_instruction or (
         f"You are a friendly, helpful, and concise AI assistant. "
@@ -54,13 +66,26 @@ def chat_with_groq(prompt: str, user_language: str = "english", system_instructi
         "Answer questions clearly and assist the user with whatever they need."
     )
 
-    response = client.chat.completions.create(
-        model=chat_model,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt},
-        ],
-        temperature=0.7,
-        top_p=0.9,
-    )
-    return response.choices[0].message.content
+    last_err = None
+    for model_name in candidate_models:
+        try:
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.6,
+                top_p=0.9,
+            )
+            return response.choices[0].message.content
+        except Exception as err:
+            last_err = err
+            err_str = str(err).lower()
+            if "model_not_found" in err_str or "404" in err_str or "decommissioned" in err_str:
+                continue
+            raise
+
+    if last_err:
+        raise last_err
+    return ""

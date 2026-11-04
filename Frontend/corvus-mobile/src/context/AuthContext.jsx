@@ -34,13 +34,21 @@ export function AuthProvider({ children }) {
     setUser(userData);
   }, []);
 
+  const updateUser = useCallback((partialOrFullUser) => {
+    setUser((prev) => {
+      const next = prev ? { ...prev, ...partialOrFullUser } : partialOrFullUser;
+      authStorage.setUser(next);
+      return next;
+    });
+  }, []);
+
   const signOut = useCallback(() => {
     authStorage.clear();
     setUser(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signIn, updateUser, signOut }}>
       {children}
     </AuthContext.Provider>
   );

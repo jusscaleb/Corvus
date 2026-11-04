@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Animated,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -28,6 +29,7 @@ export default function NewDMModal({ visible, onClose, onCreated }) {
 
   const scale = useRef(new Animated.Value(0.92)).current;
   const opacity = useRef(new Animated.Value(0)).current;
+  const useNativeDriver = Platform.OS !== 'web';
 
   useEffect(() => {
     if (visible) {
@@ -36,17 +38,18 @@ export default function NewDMModal({ visible, onClose, onCreated }) {
       setStarting(false);
 
       Animated.parallel([
-        Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
-        Animated.spring(scale, { toValue: 1, tension: 85, friction: 9, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver }),
+        Animated.spring(scale, { toValue: 1, tension: 85, friction: 9, useNativeDriver }),
       ]).start();
 
       handleSearch('');
     } else {
       Animated.parallel([
-        Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver: true }),
-        Animated.timing(scale, { toValue: 0.92, duration: 150, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver }),
+        Animated.timing(scale, { toValue: 0.92, duration: 150, useNativeDriver }),
       ]).start();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   // Debounced user search

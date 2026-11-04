@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Animated, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import {  Animated, Modal, Pressable, StyleSheet, Text, View , Platform } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 
 export default function ConfirmModal({
@@ -19,13 +19,13 @@ export default function ConfirmModal({
   useEffect(() => {
     if (visible) {
       Animated.parallel([
-        Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
-        Animated.spring(scale, { toValue: 1, tension: 90, friction: 9, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: Platform.OS !== 'web' }),
+        Animated.spring(scale, { toValue: 1, tension: 90, friction: 9, useNativeDriver: Platform.OS !== 'web' }),
       ]).start();
     } else {
       Animated.parallel([
-        Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver: true }),
-        Animated.timing(scale, { toValue: 0.92, duration: 150, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver: Platform.OS !== 'web' }),
+        Animated.timing(scale, { toValue: 0.92, duration: 150, useNativeDriver: Platform.OS !== 'web' }),
       ]).start();
     }
   }, [visible]);
