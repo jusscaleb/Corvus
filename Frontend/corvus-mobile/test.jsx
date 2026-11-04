@@ -802,3 +802,58 @@ test('Feature 13: Saiph AI Branch Switching (single-turn, multi-turn, checkout) 
   assert.deepEqual(replyFallback, { action: 'create', branchName: 'draft-v2' });
 });
 
+// ─── 14. Offline SMS Phone Number Check & Prompt Modal ────────────────────────
+
+test('Feature 14: Offline SMS Phone Number Check, PhonePromptModal & updateUserProfile API', async () => {
+  const phoneModal = readSrc('components/PhonePromptModal.jsx');
+  const mainScreen = readSrc('components/MainScreen.jsx');
+  const newsroomHeader = readSrc('components/NewsroomHeader.jsx');
+
+  assert.doesNotThrow(() => parseModule(phoneModal, 'PhonePromptModal.jsx'));
+  assert.match(mainScreen, /shouldPromptForPhoneNumber/);
+  assert.match(mainScreen, /<PhonePromptModal/);
+  assert.match(newsroomHeader, /onOpenPhonePrompt/);
+  assert.match(newsroomHeader, /Add SMS #/);
+
+  // Extract pure phone helpers from PhonePromptModal.jsx
+  const startIdx = phoneModal.indexOf('export function hasValidPhoneNumber');
+  const endIdx = phoneModal.indexOf('function PhoneWireIcon');
+  assert.ok(startIdx !== -1 && endIdx > startIdx, 'Phone helpers must exist in PhonePromptModal.jsx');
+
+  const snippet = phoneModal
+    .slice(startIdx, endIdx)
+    .replace(/export\s+function\s+/g, 'function ');
+  const { hasValidPhoneNumber, formatPhoneForApi, shouldPromptForPhoneNumber } = new Function(
+    `${snippet}\nreturn { hasValidPhoneNumber, formatPhoneForApi, shouldPromptForPhoneNumber };`
+  )();
+
+  // 1. User without a phone number triggers the modal prompt
+  assert.equal(shouldPromptForPhoneNumber({ user_id: 'u1', username: 'reporter' }, false), true);
+  assert.equal(shouldPromptForPhoneNumber({ user_id: 'u1', phone_number: '' }, false), true);
+
+  // 2. User with a valid phone number does NOT trigger the modal prompt
+  assert.equal(shouldPromptForPhoneNumber({ user_id: 'u1', phone_number: '+263771234567' }, false), false);
+  assert.equal(shouldPromptForPhoneNumber({ user_id: 'u1', phone_number: '' }, true), false);
+
+  // 3. Phone validation & formatting
+  assert.equal(hasValidPhoneNumber('+263 77 123 4567'), true);
+  assert.equal(formatPhoneForApi('+263 (77) 123-4567'), '+263771234567');
+  assert.equal(hasValidPhoneNumber('abc'), false);
+
+  // 4. Verify updateUserProfile PATCH /api/auth/profile/ in api.js
+  const { api, calls, setMockResponse } = loadApiServiceWithMockFetch();
+  api.authStorage.setTokens({ access: 'jwt-phone-test' });
+  setMockResponse({
+    user_id: 'u1',
+    username: 'reporter',
+    phone_number: '+263771234567',
+  });
+  const updated = await api.updateUserProfile({ phone_number: '+263771234567' });
+  assert.equal(calls.at(-1).url, 'http://localhost:8000/api/auth/profile/');
+  assert.equal(calls.at(-1).method, 'PATCH');
+  assert.deepEqual(calls.at(-1).body, { phone_number: '+263771234567' });
+  assert.equal(updated.phone_number, '+263771234567');
+  assert.equal(api.authStorage.getUser().phone_number, '+263771234567');
+});
+
+

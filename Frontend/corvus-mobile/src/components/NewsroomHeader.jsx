@@ -12,11 +12,12 @@ const languages = [
   { label: 'Shona', value: 'SNA' },
 ];
 
-export default function NewsroomHeader({ mode = 'landing', onOpenAI }) {
+export default function NewsroomHeader({ mode = 'landing', onOpenAI, onOpenPhonePrompt }) {
   const { colors, isDark, toggleTheme } = useTheme();
   const { user, signOut } = useAuth();
   const { showToast } = useToast();
   const router = useRouter();
+  const hasPhone = Boolean(user?.phone_number && String(user.phone_number).trim());
 
   const [language, setLanguage] = useState('ENG');
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
@@ -128,6 +129,24 @@ export default function NewsroomHeader({ mode = 'landing', onOpenAI }) {
           )}
 
           <View style={styles.navigation}>
+            {/* Offline SMS Wire Status / Phone Prompt Trigger */}
+            {isApp && onOpenPhonePrompt && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={hasPhone ? 'Offline SMS Wire active' : 'Add phone number for offline SMS alerts'}
+                onPress={onOpenPhonePrompt}
+                style={[
+                  styles.smsHeaderButton,
+                  !hasPhone && styles.smsHeaderButtonMissing,
+                ]}
+              >
+                <View style={[styles.smsStatusDot, { backgroundColor: hasPhone ? '#10b981' : colors.orange }]} />
+                <Text style={styles.smsHeaderButtonText}>
+                  {hasPhone ? 'SMS Wire' : 'Add SMS #'}
+                </Text>
+              </Pressable>
+            )}
+
             {/* 1-to-1 Saiph AI Agent Button */}
             {isApp && onOpenAI && (
               <Pressable
@@ -309,6 +328,31 @@ function makeStyles(colors) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 16,
+    },
+    smsHeaderButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 11,
+      paddingVertical: 6,
+      borderRadius: 18,
+      backgroundColor: colors.cardBg,
+      borderWidth: 1,
+      borderColor: colors.line,
+    },
+    smsHeaderButtonMissing: {
+      borderColor: colors.orange,
+    },
+    smsStatusDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+    },
+    smsHeaderButtonText: {
+      color: colors.ink,
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 0.3,
     },
     aiHeaderButton: {
       flexDirection: 'row',

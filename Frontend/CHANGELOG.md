@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [8.6.3] - 2026-11-04
+
+### Added
+
+- **Offline Newsroom SMS Wire & Phone Number Check Modal (`PhonePromptModal.jsx`, `MainScreen.jsx`, `NewsroomHeader.jsx`, `AuthContext.jsx`, `services/api.js`)**:
+  - Added automatic phone-number check (`shouldPromptForPhoneNumber`) in `MainScreen.jsx` that detects when an authenticated user has not yet provided a phone number (`user.phone_number`) and opens `PhonePromptModal`.
+  - Built `PhonePromptModal.jsx` with a 160-character SMS dispatch preview card, one-tap country code chips (`+263`, `+27`, `+254`, `+44`, `+1`), E.164 validation (`hasValidPhoneNumber`, `formatPhoneForApi`), and `PATCH /api/auth/profile/` integration (`updateUserProfile`).
+  - Added an **SMS Wire / Add SMS #** status pill in `NewsroomHeader.jsx` so reporters can see whether offline SMS alerts are active and update their phone number anytime.
+  - Updated branch push notifications in `MainScreen.jsx` (`handleExecuteCommand('push')`) to report how many newsroom colleagues are receiving the AI-summarized offline SMS.
+  - Added Feature 14 unit tests in `Frontend/corvus-mobile/test.jsx` covering `PhonePromptModal`, `shouldPromptForPhoneNumber`, `hasValidPhoneNumber`, and `updateUserProfile`.
+
 ## [6.6.3] - 2026-11-04
 
 ### Added

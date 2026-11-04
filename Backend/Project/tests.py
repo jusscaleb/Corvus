@@ -349,3 +349,95 @@ class ProjectTests(APITestCase):
         group_res = self.client.get(create_url)
         self.assertEqual(group_res.status_code, status.HTTP_200_OK)
         self.assertTrue(any(a['article_id'] == article_id for a in group_res.data))
+
+    # ─── Offline SMS Dispatch (AI Summary + Twilio) ───────────────────────
+
+    def test_profile_phone_number_update_and_validation(self):
+        profile_url = reverse('user_profile')
+        # Valid phone number with spaces is normalized to compact E.164
+        res = self.client.patch(profile_url, {"phone_number": "+263 77 123 4567"})
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['phone_number'], '+263771234567')
+        self.user1.refresh_from_db()
+        self.assertEqual(self.user1.phone_number, '+263771234567')
+
+        # Invalid phone number is rejected with 400
+        bad_res = self.client.patch(profile_url, {"phone_number": "not-a-phone"})
+        self.assertEqual(bad_res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_push_branch_sends_ai_summarized_twilio_sms_to_newsroom_members(self):
+        from unittest.mock import patch, MagicMock
+        from django.test import override_settings
+        from Project.sms_service import notify_newsroom_branch_published
+
+        # Give user2 (newsroom colleague) and user1 (branch creator) phone numbers
+        self.user1.phone_number = '+263770000001'
+        self.user1.save()
+        self.user2.phone_number = '+263779998888'
+        self.user2.save()
+
+        article, private_branch = self._article_with_private_branch()
+        private_branch.content = (
+            "# Water Procurement Audit\n\n"
+            "Internal municipal records show $14M in water pipe tenders bypassed public bidding."
+        )
+        private_branch.save()
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 201
+        mock_resp.text = '{"sid": "SM123"}'
+
+        with override_settings(
+            TWILIO_ACCOUNT_SID='AC_TEST_SID',
+            TWILIO_AUTH_TOKEN='TEST_AUTH_TOKEN',
+            TWILIO_PHONE_NUMBER='+15005550006',
+        ), patch(
+            'Project.sms_service.chat_with_groq',
+            return_value='Audit reveals $14M in municipal water tenders bypassed public bidding.',
+        ) as mock_ai, patch('requests.Session.post', return_value=mock_resp) as mock_post:
+            result = notify_newsroom_branch_published(
+                private_branch,
+                pushed_by=self.user1,
+                async_dispatch=False,
+            )
+
+            self.assertTrue(result['queued'])
+            self.assertEqual(result['recipient_count'], 1)
+            self.assertEqual(result['sent_count'], 1)
+            self.assertEqual(result['recipients'], ['+263779998888'])
+            self.assertLessEqual(len(result['summary']), 160)
+            self.assertIn('$14M', result['summary'])
+            # AI called exactly once (O(1) regardless of recipient count)
+            self.assertEqual(mock_ai.call_count, 1)
+            # Twilio called only for user2 (never for the sender user1)
+            self.assertEqual(mock_post.call_count, 1)
+            _, kwargs = mock_post.call_args
+            self.assertEqual(kwargs['data']['To'], '+263779998888')
+            self.assertEqual(kwargs['data']['From'], '+15005550006')
+
+        # Also verify the HTTP push endpoint returns sms_notification metadata
+        push_url = reverse('branch_push', kwargs={'branch_id': private_branch.branch_id})
+        with patch('Project.sms_service.threading.Thread'):
+            push_res = self.client.post(push_url)
+            self.assertEqual(push_res.status_code, status.HTTP_200_OK)
+            self.assertIn('sms_notification', push_res.data)
+            self.assertEqual(push_res.data['sms_notification']['recipient_count'], 1)
+
+    def test_sms_short_circuits_when_no_members_have_phone_numbers(self):
+        from unittest.mock import patch
+        from Project.sms_service import notify_newsroom_branch_published
+
+        _, private_branch = self._article_with_private_branch()
+        with patch('Project.sms_service.chat_with_groq') as mock_ai, patch(
+            'Project.sms_service.send_twilio_sms'
+        ) as mock_twilio:
+            result = notify_newsroom_branch_published(
+                private_branch,
+                pushed_by=self.user1,
+                async_dispatch=False,
+            )
+            self.assertFalse(result['queued'])
+            self.assertEqual(result['recipient_count'], 0)
+            mock_ai.assert_not_called()
+            mock_twilio.assert_not_called()
+

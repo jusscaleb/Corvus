@@ -1,3 +1,4 @@
+import re
 import uuid
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
@@ -6,6 +7,25 @@ from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.utils.encoding import force_bytes, force_str
 
 User = get_user_model()
+
+
+def normalize_phone_number(raw_value):
+    """
+    Normalizes a user-provided phone number to compact E.164-friendly format (e.g. +263771234567).
+    Allows empty string if the user clears their phone number.
+    """
+    if raw_value is None:
+        return ""
+    cleaned = re.sub(r"[\s\-().]", "", str(raw_value).strip())
+    if not cleaned:
+        return ""
+    if cleaned.startswith("00"):
+        cleaned = "+" + cleaned[2:]
+    if not re.match(r"^\+?[0-9]{7,18}$", cleaned):
+        raise serializers.ValidationError(
+            "Enter a valid phone number with country code (e.g. +263771234567)."
+        )
+    return cleaned
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
@@ -19,11 +39,15 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             'username',
             'full_name',
             'email',
+            'phone_number',
             'preffered_language',
             'password',
             'password_confirm',
         ]
         read_only_fields = ['user_id']
+
+    def validate_phone_number(self, value):
+        return normalize_phone_number(value)
 
     def validate(self, attrs):
         if attrs.get('password') != attrs.get('password_confirm'):
@@ -52,10 +76,14 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'username',
             'full_name',
             'email',
+            'phone_number',
             'preffered_language',
             'is_active',
         ]
         read_only_fields = ['user_id', 'email', 'is_active']
+
+    def validate_phone_number(self, value):
+        return normalize_phone_number(value)
 
 
 class PasswordResetRequestSerializer(serializers.Serializer):

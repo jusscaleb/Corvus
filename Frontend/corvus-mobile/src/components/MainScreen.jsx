@@ -19,6 +19,7 @@ import NewsroomHeader from './NewsroomHeader';
 import CreateNewsroomModal from './CreateNewsroomModal';
 import NewDMModal from './NewDMModal';
 import CreateArticleModal from './CreateArticleModal';
+import PhonePromptModal, { shouldPromptForPhoneNumber } from './PhonePromptModal';
 import { LockIcon, UsersIcon, EditIcon, FilePdfIcon, PrinterIcon, EyeIcon, SaveIcon, TrashIcon } from './AppIcons';
 import { exportArticleToPdf, openPdfDocument } from '../utils/pdfExporter';
 import { useTheme } from '../context/ThemeContext';
@@ -419,9 +420,18 @@ function MainScreenContent() {
   // Saiph AI Article Workspace & Word Tools Selection States
   const [articleSection, setArticleSection] = useState('article'); // 'article' | 'mindmap' | 'board' | 'review'
   const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [phoneModalOpen, setPhoneModalOpen] = useState(false);
+  const [phonePromptDismissed, setPhonePromptDismissed] = useState(false);
   const [aiWorkspace, setAiWorkspace] = useState({ mindmap: null, board: [], review: null });
   const [activeFormats, setActiveFormats] = useState(DEFAULT_ACTIVE_FORMATS);
   const richEditorRef = useRef(null);
+
+  // Prompt the user to provide a phone number for offline SMS dispatches if they haven't yet
+  useEffect(() => {
+    if (!loadingInitial && shouldPromptForPhoneNumber(user, phonePromptDismissed)) {
+      setPhoneModalOpen(true);
+    }
+  }, [user, loadingInitial, phonePromptDismissed]);
 
   // Dedicated active voice room state { id, title } – persists across view navigation
   // (allows users to browse/edit articles, switch channels, and multitask while remaining on voice)
@@ -667,7 +677,12 @@ function MainScreenContent() {
       try {
         const updated = await pushBranch(current.branch_id);
         setArticleBranches((prev) => prev.map((b) => (b.branch_id === updated.branch_id ? updated : b)));
-        showToast({ message: `Pushed ${activeBranch} – your newsroom can now see it.`, type: 'info' });
+        const smsCount = updated?.sms_notification?.recipient_count || 0;
+        const smsSuffix =
+          smsCount > 0
+            ? ` • Saiph AI is texting a 160-char SMS summary to ${smsCount} colleague${smsCount === 1 ? '' : 's'}.`
+            : '';
+        showToast({ message: `Pushed ${activeBranch} – your newsroom can now see it.${smsSuffix}`, type: 'info' });
       } catch (err) {
         showToast({ message: err?.message || 'Push failed. Try again.', type: 'error' });
       }
@@ -2044,7 +2059,11 @@ function MainScreenContent() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <NewsroomHeader mode="app" onOpenAI={() => setAiModalOpen(true)} />
+      <NewsroomHeader
+        mode="app"
+        onOpenAI={() => setAiModalOpen(true)}
+        onOpenPhonePrompt={() => setPhoneModalOpen(true)}
+      />
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -2214,6 +2233,19 @@ function MainScreenContent() {
         onJumpToSection={(sec) => {
           setArticleSection(sec);
           setAiModalOpen(false);
+        }}
+      />
+
+      {/* Offline SMS Phone Number Check & Prompt Modal */}
+      <PhonePromptModal
+        visible={phoneModalOpen}
+        onClose={() => {
+          setPhoneModalOpen(false);
+          setPhonePromptDismissed(true);
+        }}
+        onSaved={() => {
+          setPhoneModalOpen(false);
+          setPhonePromptDismissed(true);
         }}
       />
 

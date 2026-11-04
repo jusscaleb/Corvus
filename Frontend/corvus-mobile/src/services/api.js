@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 
 export const API_BASE_URL = Platform.select({
   web: 'http://localhost:8000',
-  default: 'http://192.168.88.206:8081',
+  default: 'http://10.120.0.23:8081',
 });
 
 let currentTokens = { access: null, refresh: null };
@@ -120,16 +120,21 @@ export async function login({ email, password }) {
   }
 }
 
-export async function register({ username, email, full_name, password, password_confirm }) {
+export async function register({ username, email, full_name, phone_number, password, password_confirm }) {
+  const body = {
+    username,
+    email,
+    full_name: full_name || username,
+    password,
+    password_confirm: password_confirm || password,
+  };
+  if (phone_number !== undefined) {
+    body.phone_number = phone_number;
+  }
+
   const data = await apiRequest('/api/auth/register/', {
     method: 'POST',
-    body: {
-      username,
-      email,
-      full_name: full_name || username,
-      password,
-      password_confirm: password_confirm || password,
-    },
+    body,
   });
 
   if (data?.tokens) {
@@ -140,6 +145,26 @@ export async function register({ username, email, full_name, password, password_
   }
 
   return data;
+}
+
+export async function fetchUserProfile() {
+  const profile = await apiRequest('/api/auth/profile/', { requireAuth: true });
+  if (profile) {
+    authStorage.setUser(profile);
+  }
+  return profile;
+}
+
+export async function updateUserProfile(payload = {}) {
+  const updated = await apiRequest('/api/auth/profile/', {
+    method: 'PATCH',
+    requireAuth: true,
+    body: payload,
+  });
+  if (updated) {
+    authStorage.setUser(updated);
+  }
+  return updated;
 }
 
 export async function refreshToken() {
