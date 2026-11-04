@@ -2,8 +2,6 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 const MOBILE_API_IP = Constants.manifest?.extra?.MOBILE_API_IP || process.env.MOBILE_API_IP || '';
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
 // Configure backend API base URL with production environment variable support (Vercel / Expo).
 // In Vercel, set EXPO_PUBLIC_API_URL (e.g. https://your-backend.fly.dev)
 const rawApiUrl = process.env.EXPO_PUBLIC_API_URL;
