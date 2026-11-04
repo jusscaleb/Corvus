@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [8.6.4] - 2026-11-04
+
+### Fixed
+
+- **Mobile API Service Update (`services/api.js`)**:
+  - Imported `AsyncStorage` for persistent token storage.
+  - Updated `API_BASE_URL` comment to remind developers to set a reachable address for mobile devices.
+
 ## [8.6.3] - 2026-11-04
 
 ### Added
@@ -20,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [6.6.3] - 2026-11-04
 
 ### Added
+
+- **Mobile API Service Update (`services/api.js`)**:
+  - Imported `AsyncStorage` for persistent token storage.
+  - Updated `API_BASE_URL` comment to remind developers to set a reachable address for mobile devices.
 
 - **Saiph AI 1-to-1 Editorial Agent & Workspace (`ArticleAIWorkspace.jsx`, `NewsroomHeader.jsx`, `ArticleHeader.jsx`, `MainScreen.jsx`, `services/api.js`)**:
   - Added global **✦ Saiph AI** button in `NewsroomHeader.jsx` and article-level **Ask Saiph AI** button in `ArticleHeader.jsx` opening the 1-to-1 `SaiphAgentModal` drawer with short-term conversation history and long-term **Agent Memory** (`fact`, `style`, `source`, `goal`).
@@ -53,6 +65,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Mobile API Service Update (`services/api.js`)**:
+  - Imported `AsyncStorage` for persistent token storage.
+  - Updated `API_BASE_URL` comment to remind developers to set a reachable address for mobile devices.
+
 - **Article Branch Creation, Switching & Version Control Wiring (`ArticleHeader.jsx`, `MainScreen.jsx`, `services/api.js`)**:
   - Added `fetchBranches(articleId)` and `createBranch(articleId, { name, description, content })` in `services/api.js` alongside `pushBranch` and `diffBranch`.
   - Built an inline **+ New branch** composer inside the `ArticleHeader` branch dropdown with live slug preview (spaces converted to hyphens), duplicate/empty validation, inline error feedback, and support for branching directly from an in-progress draft without overwriting the source branch.
@@ -71,6 +87,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [5.5.2] - 2026-11-03
 
 ### Added
+
+- **Mobile API Service Update (`services/api.js`)**:
+  - Imported `AsyncStorage` for persistent token storage.
+  - Updated `API_BASE_URL` comment to remind developers to set a reachable address for mobile devices.
 
 - **Global Voice Session Multitasking & Root Overlay Architecture**:
   - Decoupled `useVoiceChat` room state (`activeVoiceRoom`) from `selectedItem`, allowing journalists to remain connected to an ongoing voice call while simultaneously navigating articles, reviewing branches, opening PDFs, or switching newsroom desks.
@@ -92,6 +112,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [5.4.1] - 2026-11-02
 
 ### Added
+
+- **Mobile API Service Update (`services/api.js`)**:
+  - Imported `AsyncStorage` for persistent token storage.
+  - Updated `API_BASE_URL` comment to remind developers to set a reachable address for mobile devices.
 
 - **Voice Call Invite Banner (VoiceCallInviteBanner.jsx)**:
   - Animated slide-down notification banner that appears at the top of the chat pane when a peer starts a voice session in the active conversation.
@@ -116,6 +140,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [5.3.1] - 2026-11-02
 
 ### Added
+
+- **Mobile API Service Update (`services/api.js`)**:
+  - Imported `AsyncStorage` for persistent token storage.
+  - Updated `API_BASE_URL` comment to remind developers to set a reachable address for mobile devices.
 
 - **Full-Duplex WebRTC Voice Hook (useVoiceChat.js)**:
   - Implemented custom React WebRTC hook connecting to Django Channels signaling server via WebSockets (\ws/rooms/<room_id>/voice/\).
@@ -142,6 +170,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Mobile API Service Update (`services/api.js`)**:
+  - Imported `AsyncStorage` for persistent token storage.
+  - Updated `API_BASE_URL` comment to remind developers to set a reachable address for mobile devices.
+
 - **Native Mobile PDF Export & Storage (`pdfExporter.js`)**:
   - Implemented mobile document generation using `expo-print` to render styled editorial articles to PDF on device.
   - Automatically creates and manages a local `Corvus/` directory inside `FileSystem.documentDirectory`.
@@ -161,6 +193,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.3.0] - 2026-11-02
 
 ### Added
+
+- **Mobile API Service Update (`services/api.js`)**:
+  - Imported `AsyncStorage` for persistent token storage.
+  - Updated `API_BASE_URL` comment to remind developers to set a reachable address for mobile devices.
 
 - **In-App Article Editor & Live Content Saving (`MainScreen.jsx`, `api.js`)**:
   - Implemented an editorial in-app story editor allowing reporters to compose and refine draft copy directly inside the reading pane.
@@ -225,6 +261,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Mobile API Service Update (`services/api.js`)**:
+  - Imported `AsyncStorage` for persistent token storage.
+  - Updated `API_BASE_URL` comment to remind developers to set a reachable address for mobile devices.
+
 - **Voice Chat UI Implementation**
   -Include a phone icon and an AI toggle.
 
@@ -248,6 +288,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.1.0] - 2026-11-01
 
 ### Added
+
+- **Mobile API Service Update (`services/api.js`)**:
+  - Imported `AsyncStorage` for persistent token storage.
+  - Updated `API_BASE_URL` comment to remind developers to set a reachable address for mobile devices.
 
 - **Animated Window & Panel Expanding/Retracting (`MainScreen.jsx` & `NewsroomHeader.jsx`)**:
   - Added spring-driven animated width, opacity, and horizontal slide transitions for collapsing/expanding desktop sidebars (Articles panel & Newsrooms/DMs panel).
@@ -275,6 +319,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.0] - 2026-10-31
 
 ### Added
+
+- **Mobile API Service Update (`services/api.js`)**:
+  - Imported `AsyncStorage` for persistent token storage.
+  - Updated `API_BASE_URL` comment to remind developers to set a reachable address for mobile devices.
 
 - Dual MongoDB and relational API data transport bindings.
 - Real-time WebSocket connection to Daphne ASGI server (`ws/chat/<conversation_id>/`).

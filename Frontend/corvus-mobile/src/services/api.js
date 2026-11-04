@@ -1,11 +1,12 @@
 import { Platform } from 'react-native';
+import { MOBILE_API_IP } from '@env';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Adjust the default mobile API URL to point to a server reachable from your device.
 // Replace the IP/port below with the address of the machine running the Django backend.
 export const API_BASE_URL = Platform.select({
   web: 'http://localhost:8000',
-  default: 'http://10.120.0.23:8081', // TODO: update for mobile network
+  default: `http://${MOBILE_API_IP}:8000`,
 });
 
 let currentTokens = { access: null, refresh: null };
