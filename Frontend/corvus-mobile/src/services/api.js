@@ -4,12 +4,15 @@ const MOBILE_API_IP = Constants.manifest?.extra?.MOBILE_API_IP || process.env.MO
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Adjust the default mobile API URL to point to a server reachable from your device.
-// Replace the IP/port below with the address of the machine running the Django backend.
-export const API_BASE_URL = Platform.select({
-  web: 'http://localhost:8000',
-  default: `http://10.120.0.23:8000`,
-});
+// Configure backend API base URL with production environment variable support (Vercel / Expo).
+// In Vercel, set EXPO_PUBLIC_API_URL (e.g. https://your-backend.fly.dev)
+const rawApiUrl = process.env.EXPO_PUBLIC_API_URL;
+export const API_BASE_URL = rawApiUrl
+  ? rawApiUrl.replace(/\/+$/, '')
+  : Platform.select({
+      web: 'http://localhost:8000',
+      default: MOBILE_API_IP ? `http://${MOBILE_API_IP}:8000` : 'http://10.120.0.23:8000',
+    });
 
 let currentTokens = { access: null, refresh: null };
 let currentUser = null;
