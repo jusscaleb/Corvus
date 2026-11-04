@@ -25,7 +25,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "test": "node --test test.jsx"
+    "test": "node --test test.jsx",
+    "lint": "expo lint"
   },
   "private": true,
   "devDependencies": {
