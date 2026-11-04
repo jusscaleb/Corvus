@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+﻿import { useState, useRef, useEffect } from 'react';
 import { useRouter, Link } from 'expo-router';
 import { Animated, Easing, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import ConfirmModal from './ConfirmModal';
@@ -183,6 +183,18 @@ export default function NewsroomHeader({ mode = 'landing', onOpenAI }) {
                 </Animated.View>
               )}
             </View>
+
+            {/* Link to Public News Portal */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="View Public News Portal"
+              onPress={() => router.push('/')}
+              style={styles.navigationButton}
+            >
+              <Text style={[styles.navigationText, { color: colors.forest, fontWeight: '700' }]}>
+                Public Portal →
+              </Text>
+            </Pressable>
 
             {/* Privacy policy */}
             <Pressable

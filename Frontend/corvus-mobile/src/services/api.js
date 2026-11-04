@@ -404,3 +404,38 @@ export async function deleteAgentMemory(memoryId) {
   });
 }
 
+
+
+// ─── Public Portal & Lead Submissions ──────────────────────────────────────────
+
+export async function fetchPublicArticles() {
+  try {
+    return await apiRequest('/api/project/public/', { method: 'GET', requireAuth: false });
+  } catch (err) {
+    return [];
+  }
+}
+
+export async function submitLead({ headline, details, desk = 'General News', urgency = 'Lead Tip', contact_info = 'Anonymous', is_anonymous = false, location = '' }) {
+  return await apiRequest('/api/project/leads/', {
+    method: 'POST',
+    requireAuth: false,
+    body: {
+      headline,
+      details,
+      desk,
+      urgency,
+      contact_info,
+      is_anonymous,
+      location,
+    },
+  });
+}
+
+export async function fetchUserPosts() {
+  try {
+    return await apiRequest('/api/project/articles/', { method: 'GET', requireAuth: true });
+  } catch (err) {
+    return [];
+  }
+}

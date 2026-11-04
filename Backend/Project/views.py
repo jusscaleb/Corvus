@@ -1,7 +1,7 @@
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.shortcuts import get_object_or_404
 from django.db import transaction, IntegrityError
 from django.db.models import Q, Prefetch
@@ -37,6 +37,88 @@ def branch_name_taken(article, name, exclude_id=None):
     if exclude_id:
         qs = qs.exclude(pk=exclude_id)
     return qs.exists()
+
+
+class PublicArticleListView(APIView):
+    """
+    GET: List published or public articles for the public news portal.
+    Open to unauthenticated visitors and authenticated reporters alike.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        user = request.user if request.user.is_authenticated else None
+        articles = (
+            Article.objects.filter(
+                Q(branches__is_public=True) | Q(branches__status='merged') | Q(branches__is_main=True)
+            )
+            .select_related('group', 'author')
+            .prefetch_related(
+                Prefetch(
+                    'branches',
+                    queryset=Branch.objects.filter(Q(is_main=True) | Q(is_public=True)).select_related('created_by'),
+                    to_attr='visible_branches'
+                )
+            )
+            .distinct()
+            .order_by('-updated_at')
+        )
+        serializer = ArticleSerializer(articles, many=True, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class PublicLeadSubmissionView(APIView):
+    """
+    POST: Submit a news tip or investigative lead from the public or a reporter.
+    Creates an article entered into the newsroom review workflow (status='in_review', is_public=False).
+    Submissions do not automatically appear as published articles.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        headline = request.data.get('headline', '').strip()
+        details = request.data.get('details', '').strip()
+        desk = request.data.get('desk', 'General News')
+        urgency = request.data.get('urgency', 'Lead Tip')
+        contact_info = request.data.get('contact_info', 'Anonymous')
+        is_anonymous = request.data.get('is_anonymous', False)
+        location = request.data.get('location', '')
+
+        if not headline or not details:
+            return Response(
+                {"detail": "Headline and story details are required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user = request.user if request.user.is_authenticated else None
+
+        with transaction.atomic():
+            article = Article.objects.create(
+                title=headline,
+                author=user,
+                group=None,
+            )
+            loc_str = f" | Location: {location}" if location else ""
+            summary = f"[{urgency}] Desk: {desk}{loc_str} | Source: {'Anonymous' if is_anonymous else contact_info}"
+            Branch.objects.create(
+                branch_name='lead-submission',
+                branch_description=summary,
+                content=details,
+                status='in_review',
+                is_main=True,
+                is_public=False,
+                article=article,
+                created_by=user,
+            )
+
+        return Response(
+            {
+                "message": "Lead submitted successfully and routed to the editorial review workflow.",
+                "article_id": article.article_id,
+                "status": "in_review",
+            },
+            status=status.HTTP_201_CREATED
+        )
 
 
 class UserArticleListView(APIView):
