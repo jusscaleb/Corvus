@@ -7,15 +7,11 @@ on:
       - master
       - 'backend*'
       - 'feature/**'
-      - 'v*'
-      - 'v**'
   pull_request:
     branches:
       - main
       - master
       - 'backend*'
-      - 'v*'
-      - 'v**'
 
 jobs:
   test:

@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Animated,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -32,7 +31,6 @@ export default function CreateNewsroomModal({ visible, onClose, onCreated }) {
 
   const scale = useRef(new Animated.Value(0.92)).current;
   const opacity = useRef(new Animated.Value(0)).current;
-  const useNativeDriver = Platform.OS !== 'web';
 
   useEffect(() => {
     if (visible) {
@@ -44,18 +42,17 @@ export default function CreateNewsroomModal({ visible, onClose, onCreated }) {
       setSubmitting(false);
 
       Animated.parallel([
-        Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver }),
-        Animated.spring(scale, { toValue: 1, tension: 85, friction: 9, useNativeDriver }),
+        Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.spring(scale, { toValue: 1, tension: 85, friction: 9, useNativeDriver: true }),
       ]).start();
 
       handleSearch('');
     } else {
       Animated.parallel([
-        Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver }),
-        Animated.timing(scale, { toValue: 0.92, duration: 150, useNativeDriver }),
+        Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver: true }),
+        Animated.timing(scale, { toValue: 0.92, duration: 150, useNativeDriver: true }),
       ]).start();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   // Debounced user search

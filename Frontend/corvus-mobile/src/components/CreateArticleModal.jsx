@@ -14,10 +14,9 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { createArticle, generateArticleDraft } from '../services/api';
+import { createArticle } from '../services/api';
 import { exportArticleToPdf } from '../utils/pdfExporter';
 import { LockIcon, UsersIcon, EditIcon, FilePdfIcon, FileTextIcon, PrinterIcon } from './AppIcons';
-import RichTextEditor, { stripRichFormatting } from './RichTextEditor';
 
 export default function CreateArticleModal({
   visible,
@@ -37,7 +36,6 @@ export default function CreateArticleModal({
   const [summary, setSummary] = useState('');
   const [content, setContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [generatingDraft, setGeneratingDraft] = useState(false);
 
   // PDF Upload states
   const [pdfFile, setPdfFile] = useState(null); // { name, size, dataUrl }
@@ -45,19 +43,15 @@ export default function CreateArticleModal({
   const scale = useRef(new Animated.Value(0.92)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const fileInputRef = useRef(null);
-  const richEditorRef = useRef(null);
-  const useNativeDriver = Platform.OS !== 'web';
 
   useEffect(() => {
     if (visible) {
       setTitle('');
       setSummary('');
       setContent('');
-      richEditorRef.current?.resetContent?.('');
       setPdfFile(null);
       setMode('write');
       setSubmitting(false);
-      setGeneratingDraft(false);
 
       // Default to the active newsroom (or the user's first newsroom) so stories
       // are shared with the desk unless the reporter explicitly chooses Personal Draft
@@ -68,18 +62,16 @@ export default function CreateArticleModal({
       setSelectedGroupId(preferred);
 
       Animated.parallel([
-        Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver }),
-        Animated.spring(scale, { toValue: 1, tension: 85, friction: 9, useNativeDriver }),
+        Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.spring(scale, { toValue: 1, tension: 85, friction: 9, useNativeDriver: true }),
       ]).start();
     } else {
       Animated.parallel([
-        Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver }),
-        Animated.timing(scale, { toValue: 0.92, duration: 150, useNativeDriver }),
+        Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver: true }),
+        Animated.timing(scale, { toValue: 0.92, duration: 150, useNativeDriver: true }),
       ]).start();
     }
-    // Only reset form state when `visible` transitions, NEVER when background polls refresh `newsrooms`
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
+  }, [visible, newsrooms]);
 
   function handleFileSelect(e) {
     const file = e.target?.files?.[0];
@@ -137,49 +129,6 @@ export default function CreateArticleModal({
       summary: summary.trim(),
       content: content.trim() || 'Draft content in progress...',
     });
-  }
-
-  async function handleGenerateAIDraft() {
-    const cleanTitle = title.trim();
-    const cleanBrief = summary.trim();
-    if (!cleanTitle && !cleanBrief) {
-      showToast({
-        message: 'Enter a brief summary or headline first so Saiph AI knows what to draft.',
-        type: 'error',
-      });
-      return;
-    }
-
-    setGeneratingDraft(true);
-    try {
-      const targetGroup = newsrooms.find((g) => g.id === selectedGroupId);
-      const draft = await generateArticleDraft({
-        title: cleanTitle,
-        brief: cleanBrief || cleanTitle,
-        category: targetGroup?.title || 'Investigative Report',
-      });
-      if (!cleanTitle && draft?.headline) {
-        setTitle(draft.headline);
-      }
-      if (draft?.summary && !cleanBrief) {
-        setSummary(draft.summary);
-      }
-      if (draft?.content) {
-        setContent(draft.content);
-        richEditorRef.current?.resetContent?.(draft.content);
-      }
-      showToast({
-        message: '✦ Saiph AI generated a full structured draft from your brief!',
-        type: 'info',
-      });
-    } catch (err) {
-      showToast({
-        message: err?.message || 'Could not generate AI draft right now.',
-        type: 'error',
-      });
-    } finally {
-      setGeneratingDraft(false);
-    }
   }
 
   async function handlePublish() {
@@ -334,11 +283,11 @@ export default function CreateArticleModal({
 
             {mode === 'write' ? (
               <>
-                {/* Lead Summary / Brief for AI Draft Generation */}
+                {/* Lead Summary */}
                 <View style={styles.fieldBlock}>
-                  <Text style={styles.fieldLabel}>LEAD SUMMARY / BRIEF FOR SAIPH AI</Text>
+                  <Text style={styles.fieldLabel}>LEAD SUMMARY / SCOPE (OPTIONAL)</Text>
                   <TextInput
-                    placeholder="Give a brief summary of your story angle, key facts, or sources..."
+                    placeholder="Short summary highlighting key findings..."
                     placeholderTextColor={colors.muted}
                     value={summary}
                     onChangeText={setSummary}
@@ -346,29 +295,6 @@ export default function CreateArticleModal({
                     numberOfLines={2}
                     style={[styles.input, styles.textAreaSmall]}
                   />
-                  <View style={styles.aiDraftBanner}>
-                    <View style={styles.aiDraftInfo}>
-                      <Text style={styles.aiDraftTitle}>✦ Saiph AI Draft Assistant</Text>
-                      <Text style={styles.aiDraftSub}>
-                        Type a brief summary above and let Saiph AI generate a structured article draft.
-                      </Text>
-                    </View>
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={handleGenerateAIDraft}
-                      disabled={generatingDraft || (!title.trim() && !summary.trim())}
-                      style={[
-                        styles.aiDraftBtn,
-                        (generatingDraft || (!title.trim() && !summary.trim())) && styles.btnDisabled,
-                      ]}
-                    >
-                      {generatingDraft ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
-                      ) : (
-                        <Text style={styles.aiDraftBtnText}>✦ Generate AI Draft</Text>
-                      )}
-                    </Pressable>
-                  </View>
                 </View>
 
                 {/* Article Body */}
@@ -376,17 +302,17 @@ export default function CreateArticleModal({
                   <View style={styles.fieldLabelRow}>
                     <Text style={styles.fieldLabel}>ARTICLE BODY (EDITABLE & PRINTABLE)</Text>
                     <Text style={styles.countText}>
-                      {stripRichFormatting(content).length} chars •{' '}
-                      {stripRichFormatting(content) ? stripRichFormatting(content).split(/\s+/).length : 0} words
+                      {content.length} chars • {content.trim() ? content.trim().split(/\s+/).length : 0} words
                     </Text>
                   </View>
-                  <RichTextEditor
-                    ref={richEditorRef}
+                  <TextInput
                     placeholder="Compose your article, investigative evidence, and sources here..."
+                    placeholderTextColor={colors.muted}
                     value={content}
                     onChangeText={setContent}
-                    colors={colors}
-                    minHeight={240}
+                    multiline
+                    textAlignVertical="top"
+                    style={[styles.input, styles.textAreaLarge]}
                   />
                 </View>
               </>
@@ -777,47 +703,6 @@ function makeStyles(colors) {
     },
     btnDisabled: {
       opacity: 0.5,
-    },
-    aiDraftBanner: {
-      marginTop: 6,
-      padding: 12,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: colors.forest,
-      backgroundColor: colors.note,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: 12,
-      flexWrap: 'wrap',
-    },
-    aiDraftInfo: {
-      flex: 1,
-      minWidth: 200,
-      gap: 2,
-    },
-    aiDraftTitle: {
-      color: colors.forest,
-      fontSize: 12,
-      fontWeight: '800',
-    },
-    aiDraftSub: {
-      color: colors.muted,
-      fontSize: 11,
-      lineHeight: 16,
-    },
-    aiDraftBtn: {
-      paddingHorizontal: 14,
-      paddingVertical: 9,
-      borderRadius: 6,
-      backgroundColor: colors.forest,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    aiDraftBtnText: {
-      color: '#FFFFFF',
-      fontSize: 12,
-      fontWeight: '800',
     },
   });
 }

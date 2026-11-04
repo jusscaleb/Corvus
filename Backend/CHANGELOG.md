@@ -3,20 +3,6 @@
 All notable backend changes are documented here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [8.6.3] - 2026-11-04
-
-### Added
-
-- **AI-Summarized Offline SMS Dispatch via Twilio (`Project/sms_service.py`, `Project/views.py`, `AI/article_agent.py`, `accounts/models.py`, `accounts/serializer.py`, `corvus/settings.py`)**:
-  - Added `phone_number` field (`0002_user_phone_number` migration) to `accounts.User` and E.164 normalization/validation (`normalize_phone_number`) on `UserRegistrationSerializer` and `UserProfileSerializer`.
-  - Created `Project/sms_service.py` (`notify_newsroom_branch_published`, `summarize_branch_for_sms`, `send_twilio_sms`, `get_newsroom_sms_recipients`):
-    - Fetches recipient phone numbers for all newsroom members (excluding the branch publisher) in a single `O(1)` SQL query (`values_list('member__phone_number', flat=True)`).
-    - Short-circuits immediately when no newsroom members have phone numbers configured (0 AI calls, 0 Twilio calls).
-    - Calls `chat_with_groq` once (`O(1)` AI call per branch push) to summarize the newly published branch into a `<= 160`-character plain-text SMS with an instant deterministic fallback.
-    - Dispatches SMS messages asynchronously in a background daemon thread using a connection-pooled `requests.Session` against the Twilio REST API (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`) so `BranchPushView.post` returns `200 OK` without blocking on network I/O.
-  - Hooked `notify_newsroom_branch_published` into `BranchPushView.post` (`POST /api/project/branches/<branch_id>/push/`) and Saiph AI's conversational branch push action in `AI/article_agent.py`.
-  - Added 3 unit tests in `Project/tests.py` verifying profile phone number normalization/validation, AI-summarized Twilio SMS dispatch on branch push, and empty-recipient short-circuiting.
-
 ## [4.3.1] - 2026-11-03
 
 ### Added

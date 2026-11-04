@@ -245,9 +245,6 @@ class BranchPushView(APIView):
         # Broadcast via Django Channels to newsroom members
         from asgiref.sync import async_to_sync
         from channels.layers import get_channel_layer
-        from .sms_service import notify_newsroom_branch_published
-
-        serialized = dict(BranchSerializer(branch).data)
         channel_layer = get_channel_layer()
         if branch.article.group:
             group_name = f'newsroom_{branch.article.group.group_id}'
@@ -255,13 +252,10 @@ class BranchPushView(APIView):
                 group_name,
                 {
                     'type': 'branch_pushed',
-                    'branch': serialized,
+                    'branch': BranchSerializer(branch).data,
                 }
             )
-            # Summarize article branch with AI and send offline SMS via Twilio to newsroom members
-            sms_info = notify_newsroom_branch_published(branch, pushed_by=request.user)
-            serialized['sms_notification'] = sms_info
-        return Response(serialized, status=status.HTTP_200_OK)
+        return Response(BranchSerializer(branch).data, status=status.HTTP_200_OK)
 
 
 def get_accessible_branch(branch_id, user):

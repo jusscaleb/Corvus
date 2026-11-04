@@ -1,5 +1,1 @@
-﻿import MainScreen from '../../components/MainScreen';
-
-export default function MainScreenRoute() {
-  return <MainScreen />;
-}
+export { default } from '../../components/MainScreen';
