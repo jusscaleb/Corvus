@@ -6,9 +6,68 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [8.6.4] - 2026-11-04
+
+### Fixed
+
+- **Mobile API Service Update (`services/api.js`)**:
+  - Imported `AsyncStorage` for persistent token storage.
+  - Updated `API_BASE_URL` comment to remind developers to set a reachable address for mobile devices.
+
+## [8.6.3] - 2026-11-04
+
+### Added
+
+- **Offline Newsroom SMS Wire & Phone Number Check Modal (`PhonePromptModal.jsx`, `MainScreen.jsx`, `NewsroomHeader.jsx`, `AuthContext.jsx`, `services/api.js`)**:
+  - Added automatic phone-number check (`shouldPromptForPhoneNumber`) in `MainScreen.jsx` that detects when an authenticated user has not yet provided a phone number (`user.phone_number`) and opens `PhonePromptModal`.
+  - Built `PhonePromptModal.jsx` with a 160-character SMS dispatch preview card, one-tap country code chips (`+263`, `+27`, `+254`, `+44`, `+1`), E.164 validation (`hasValidPhoneNumber`, `formatPhoneForApi`), and `PATCH /api/auth/profile/` integration (`updateUserProfile`).
+  - Added an **SMS Wire / Add SMS #** status pill in `NewsroomHeader.jsx` so reporters can see whether offline SMS alerts are active and update their phone number anytime.
+  - Updated branch push notifications in `MainScreen.jsx` (`handleExecuteCommand('push')`) to report how many newsroom colleagues are receiving the AI-summarized offline SMS.
+  - Added Feature 14 unit tests in `Frontend/corvus-mobile/test.jsx` covering `PhonePromptModal`, `shouldPromptForPhoneNumber`, `hasValidPhoneNumber`, and `updateUserProfile`.
+
+## [6.6.3] - 2026-11-04
+
+### Added
+
+- **Mobile API Service Update (`services/api.js`)**:
+  - Imported `AsyncStorage` for persistent token storage.
+  - Updated `API_BASE_URL` comment to remind developers to set a reachable address for mobile devices.
+
+- **Saiph AI 1-to-1 Editorial Agent & Workspace (`ArticleAIWorkspace.jsx`, `NewsroomHeader.jsx`, `ArticleHeader.jsx`, `MainScreen.jsx`, `services/api.js`)**:
+  - Added global **✦ Saiph AI** button in `NewsroomHeader.jsx` and article-level **Ask Saiph AI** button in `ArticleHeader.jsx` opening the 1-to-1 `SaiphAgentModal` drawer with short-term conversation history and long-term **Agent Memory** (`fact`, `style`, `source`, `goal`).
+  - Added **✦ Saiph AI Draft Assistant** inside `CreateArticleModal.jsx` to generate structured article drafts from a brief summary (`generateArticleDraft`).
+  - Added dedicated article workspace tabs in `ArticleHeader.jsx` and `MainScreen.jsx`:
+    - **Mindmap (`ArticleMindmapSection`)**: Interactive visual story concept map with categorized nodes (`angle`, `source`, `question`, `risk`, `timeline`) and one-click **+ Draft** leaf insertion.
+    - **Board (`ArticleBoardSection`)**: Curated editorial suggestions and verified source leads with category filtering and resolved status toggling (`toggleBoardItemResolved`).
+    - **AI Review & Check (`ArticleReviewSection`)**: Quality score, plagiarism overlap check, AI-writing cliché/burstiness detection, and plain-English improvement cards (`area`, `problem`, `how_to_fix`).
+- **Robust Branch Switching & Multi-Task Execution via Messaging (`ArticleAIWorkspace.jsx`, `MainScreen.jsx`)**:
+  - Added `resolveClientBranchIntent` and full `handleAIWorkspaceUpdated` synchronization (`switched_branch`, `created_branch`, `branches`, `pushed_branch`, `updated_title`, `open_section`, `updated_content`) so single-turn commands (*"switch to a new branch"*, *"switch to main"*), multi-turn branch naming (*"draft-v2"*), and draft/headline edits immediately update the active branch and editor.
+- **True WYSIWYG Rich Text Editor & Direct Word Tools Ribbon (`RichTextEditor.jsx`, `ArticleHeader.jsx`, `MainScreen.jsx`, `utils/pdfExporter.js`)**:
+  - Moved all **Word Tools** (`Bold`, `Italic`, `Underline`, `H1`, `H2`, `Bullets`, `Quote`, `Code`) out of the dropdown into a dedicated second-row toolbar ribbon in `ArticleHeader.jsx` with live active-state highlighting (`activeFormats`).
+  - Built `RichTextEditor.jsx` (`contentToRichHtml`, `richHtmlToMarkdown`, `stripRichFormatting`, `toggleActiveFormatState`) so text is styled visually without raw markdown characters (`#`, `**`, `*`, `---`) and active inline tools format newly typed text while toggled on.
+- **Article Deletion (`MainScreen.jsx`, `AppIcons.jsx`, `services/api.js`)**:
+  - Added `deleteArticle(articleId)` (`DELETE /api/project/articles/<id>/`), a **Delete Story** button in the article action bar, a quick-delete trash button in the sidebar `ARTICLES` list, and a confirmation modal.
+- **Frontend Node Unit Test Suite & GitHub Actions CI (`Frontend/corvus-mobile/test.jsx`, `.github/workflows/frontend-ci.yml`)**:
+  - Added 13 comprehensive frontend unit tests runnable via `node --test test.jsx` covering AST syntax verification across all `src/` files, Auth API, 1-to-1 AI Chat, Agent Memory, AI Draft Generation, Mindmap, Editorial Board, Plagiarism/AI Review, WYSIWYG Word Tools, Articles/Branches/Deletion, Newsrooms/DMs, Voice/PDF utilities, and AI Branch Switching.
+  - Added `.github/workflows/frontend-ci.yml` to run `node --test test.jsx` automatically on GitHub Actions pushes and pull requests.
+
+### Fixed
+
+- **Textbox Input Clearing & Background Sync Re-Renders (`CreateArticleModal.jsx`, `MainScreen.jsx`, `RichTextEditor.jsx`)**:
+  - Restricted the form-reset `useEffect` in `CreateArticleModal.jsx` to depend solely on `[visible]` instead of `[visible, newsrooms]`, preventing the 5-second background newsroom poll from wiping typed text while the modal is open.
+  - Updated `syncNewsroomArticles` in `MainScreen.jsx` to preserve existing `articles`, `newsrooms`, and `selectedItem` state references when polled data is unchanged, and anchored the content crossfade `useEffect` to `[selectedItem?.id]`.
+  - Added an active-focus guard (`document.activeElement === domRef.current`) in `RichTextEditor.jsx` and functional state updates in `MainScreen.jsx` so external re-renders never overwrite the live `contentEditable` DOM while typing.
+- **React Native Web Nested `<button>` DOM Errors & Animation Warnings (`MainScreen.jsx`, `ArticleAIWorkspace.jsx`, `CreateArticleModal.jsx`, `CreateNewsroomModal.jsx`, `NewDMModal.jsx`)**:
+  - Refactored `SelectableRow` in `MainScreen.jsx` and branch cards in `ArticleMindmapSection` so row selection and action `<Pressable>` buttons are siblings inside a `<View>` rather than nested `<button>` elements.
+  - Set `useNativeDriver: Platform.OS !== 'web'` across modal and screen animations to eliminate Web console warnings.
+
 ## [5.6.0] - 2026-11-03
 
 ### Added
+
+- **Mobile API Service Update (`services/api.js`)**:
+  - Imported `AsyncStorage` for persistent token storage.
+  - Updated `API_BASE_URL` comment to remind developers to set a reachable address for mobile devices.
 
 - **Article Branch Creation, Switching & Version Control Wiring (`ArticleHeader.jsx`, `MainScreen.jsx`, `services/api.js`)**:
   - Added `fetchBranches(articleId)` and `createBranch(articleId, { name, description, content })` in `services/api.js` alongside `pushBranch` and `diffBranch`.
@@ -28,6 +87,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [5.5.2] - 2026-11-03
 
 ### Added
+
+- **Mobile API Service Update (`services/api.js`)**:
+  - Imported `AsyncStorage` for persistent token storage.
+  - Updated `API_BASE_URL` comment to remind developers to set a reachable address for mobile devices.
 
 - **Global Voice Session Multitasking & Root Overlay Architecture**:
   - Decoupled `useVoiceChat` room state (`activeVoiceRoom`) from `selectedItem`, allowing journalists to remain connected to an ongoing voice call while simultaneously navigating articles, reviewing branches, opening PDFs, or switching newsroom desks.
@@ -49,6 +112,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [5.4.1] - 2026-11-02
 
 ### Added
+
+- **Mobile API Service Update (`services/api.js`)**:
+  - Imported `AsyncStorage` for persistent token storage.
+  - Updated `API_BASE_URL` comment to remind developers to set a reachable address for mobile devices.
 
 - **Voice Call Invite Banner (VoiceCallInviteBanner.jsx)**:
   - Animated slide-down notification banner that appears at the top of the chat pane when a peer starts a voice session in the active conversation.
@@ -73,6 +140,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [5.3.1] - 2026-11-02
 
 ### Added
+
+- **Mobile API Service Update (`services/api.js`)**:
+  - Imported `AsyncStorage` for persistent token storage.
+  - Updated `API_BASE_URL` comment to remind developers to set a reachable address for mobile devices.
 
 - **Full-Duplex WebRTC Voice Hook (useVoiceChat.js)**:
   - Implemented custom React WebRTC hook connecting to Django Channels signaling server via WebSockets (\ws/rooms/<room_id>/voice/\).
@@ -99,6 +170,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Mobile API Service Update (`services/api.js`)**:
+  - Imported `AsyncStorage` for persistent token storage.
+  - Updated `API_BASE_URL` comment to remind developers to set a reachable address for mobile devices.
+
 - **Native Mobile PDF Export & Storage (`pdfExporter.js`)**:
   - Implemented mobile document generation using `expo-print` to render styled editorial articles to PDF on device.
   - Automatically creates and manages a local `Corvus/` directory inside `FileSystem.documentDirectory`.
@@ -118,6 +193,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.3.0] - 2026-11-02
 
 ### Added
+
+- **Mobile API Service Update (`services/api.js`)**:
+  - Imported `AsyncStorage` for persistent token storage.
+  - Updated `API_BASE_URL` comment to remind developers to set a reachable address for mobile devices.
 
 - **In-App Article Editor & Live Content Saving (`MainScreen.jsx`, `api.js`)**:
   - Implemented an editorial in-app story editor allowing reporters to compose and refine draft copy directly inside the reading pane.
@@ -182,6 +261,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Mobile API Service Update (`services/api.js`)**:
+  - Imported `AsyncStorage` for persistent token storage.
+  - Updated `API_BASE_URL` comment to remind developers to set a reachable address for mobile devices.
+
 - **Voice Chat UI Implementation**
   -Include a phone icon and an AI toggle.
 
@@ -205,6 +288,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.1.0] - 2026-11-01
 
 ### Added
+
+- **Mobile API Service Update (`services/api.js`)**:
+  - Imported `AsyncStorage` for persistent token storage.
+  - Updated `API_BASE_URL` comment to remind developers to set a reachable address for mobile devices.
 
 - **Animated Window & Panel Expanding/Retracting (`MainScreen.jsx` & `NewsroomHeader.jsx`)**:
   - Added spring-driven animated width, opacity, and horizontal slide transitions for collapsing/expanding desktop sidebars (Articles panel & Newsrooms/DMs panel).
@@ -232,6 +319,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.0] - 2026-10-31
 
 ### Added
+
+- **Mobile API Service Update (`services/api.js`)**:
+  - Imported `AsyncStorage` for persistent token storage.
+  - Updated `API_BASE_URL` comment to remind developers to set a reachable address for mobile devices.
 
 - Dual MongoDB and relational API data transport bindings.
 - Real-time WebSocket connection to Daphne ASGI server (`ws/chat/<conversation_id>/`).

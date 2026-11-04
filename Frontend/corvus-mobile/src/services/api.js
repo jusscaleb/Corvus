@@ -1,9 +1,18 @@
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
+const MOBILE_API_IP = Constants.manifest?.extra?.MOBILE_API_IP || process.env.MOBILE_API_IP || '';
 
-export const API_BASE_URL = Platform.select({
-  web: 'http://localhost:8000',
-  default: 'http://192.168.88.206:8081',
-});
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Configure backend API base URL with production environment variable support (Vercel / Expo).
+// In Vercel, set EXPO_PUBLIC_API_URL (e.g. https://your-backend.fly.dev)
+const rawApiUrl = process.env.EXPO_PUBLIC_API_URL;
+export const API_BASE_URL = rawApiUrl
+  ? rawApiUrl.replace(/\/+$/, '')
+  : Platform.select({
+      web: 'http://localhost:8000',
+      default: MOBILE_API_IP ? `http://${MOBILE_API_IP}:8000` : 'http://10.120.0.23:8000',
+    });
 
 let currentTokens = { access: null, refresh: null };
 let currentUser = null;
@@ -120,16 +129,21 @@ export async function login({ email, password }) {
   }
 }
 
-export async function register({ username, email, full_name, password, password_confirm }) {
+export async function register({ username, email, full_name, phone_number, password, password_confirm }) {
+  const body = {
+    username,
+    email,
+    full_name: full_name || username,
+    password,
+    password_confirm: password_confirm || password,
+  };
+  if (phone_number !== undefined) {
+    body.phone_number = phone_number;
+  }
+
   const data = await apiRequest('/api/auth/register/', {
     method: 'POST',
-    body: {
-      username,
-      email,
-      full_name: full_name || username,
-      password,
-      password_confirm: password_confirm || password,
-    },
+    body,
   });
 
   if (data?.tokens) {
@@ -140,6 +154,26 @@ export async function register({ username, email, full_name, password, password_
   }
 
   return data;
+}
+
+export async function fetchUserProfile() {
+  const profile = await apiRequest('/api/auth/profile/', { requireAuth: true });
+  if (profile) {
+    authStorage.setUser(profile);
+  }
+  return profile;
+}
+
+export async function updateUserProfile(payload = {}) {
+  const updated = await apiRequest('/api/auth/profile/', {
+    method: 'PATCH',
+    requireAuth: true,
+    body: payload,
+  });
+  if (updated) {
+    authStorage.setUser(updated);
+  }
+  return updated;
 }
 
 export async function refreshToken() {

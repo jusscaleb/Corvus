@@ -33,13 +33,13 @@ export default function VoiceCallInviteBanner({ invite, onJoin, onDismiss }) {
           toValue: 0,
           tension: 70,
           friction: 11,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
         Animated.timing(opacityAnim, {
           toValue: 1,
           duration: 220,
           easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
       ]).start();
     } else {
@@ -49,12 +49,12 @@ export default function VoiceCallInviteBanner({ invite, onJoin, onDismiss }) {
           toValue: -90,
           duration: 200,
           easing: Easing.in(Easing.quad),
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
         Animated.timing(opacityAnim, {
           toValue: 0,
           duration: 180,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
       ]).start();
     }

@@ -19,6 +19,7 @@ import NewsroomHeader from './NewsroomHeader';
 import CreateNewsroomModal from './CreateNewsroomModal';
 import NewDMModal from './NewDMModal';
 import CreateArticleModal from './CreateArticleModal';
+import PhonePromptModal, { shouldPromptForPhoneNumber } from './PhonePromptModal';
 import { LockIcon, UsersIcon, EditIcon, FilePdfIcon, PrinterIcon, EyeIcon, SaveIcon, TrashIcon } from './AppIcons';
 import { exportArticleToPdf, openPdfDocument } from '../utils/pdfExporter';
 import { useTheme } from '../context/ThemeContext';
@@ -419,9 +420,18 @@ function MainScreenContent() {
   // Saiph AI Article Workspace & Word Tools Selection States
   const [articleSection, setArticleSection] = useState('article'); // 'article' | 'mindmap' | 'board' | 'review'
   const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [phoneModalOpen, setPhoneModalOpen] = useState(false);
+  const [phonePromptDismissed, setPhonePromptDismissed] = useState(false);
   const [aiWorkspace, setAiWorkspace] = useState({ mindmap: null, board: [], review: null });
   const [activeFormats, setActiveFormats] = useState(DEFAULT_ACTIVE_FORMATS);
   const richEditorRef = useRef(null);
+
+  // Prompt the user to provide a phone number for offline SMS dispatches if they haven't yet
+  useEffect(() => {
+    if (!loadingInitial && shouldPromptForPhoneNumber(user, phonePromptDismissed)) {
+      setPhoneModalOpen(true);
+    }
+  }, [user, loadingInitial, phonePromptDismissed]);
 
   // Dedicated active voice room state { id, title } – persists across view navigation
   // (allows users to browse/edit articles, switch channels, and multitask while remaining on voice)
@@ -547,9 +557,7 @@ function MainScreenContent() {
     initiatedVoiceCallRef.current = false;
     setActiveVoiceCallInvite(null);
     setActiveVoiceRoom(targetRoom);
-    setTimeout(() => {
-      voiceChat.connect();
-    }, 50);
+    voiceChat.connect(targetRoom.id);
     showToast({ message: `Joining ${targetRoom.title} voice...`, type: 'info' });
   }, [activeVoiceCallInvite, voiceChat, showToast]);
 
@@ -613,6 +621,7 @@ function MainScreenContent() {
     );
     setEditContent(content);
     setEditSummary(summary);
+    richEditorRef.current?.resetContent?.(content);
   }, []);
 
   const handleSelectBranch = useCallback((branchName) => {
@@ -666,7 +675,12 @@ function MainScreenContent() {
       try {
         const updated = await pushBranch(current.branch_id);
         setArticleBranches((prev) => prev.map((b) => (b.branch_id === updated.branch_id ? updated : b)));
-        showToast({ message: `Pushed ${activeBranch} – your newsroom can now see it.`, type: 'info' });
+        const smsCount = updated?.sms_notification?.recipient_count || 0;
+        const smsSuffix =
+          smsCount > 0
+            ? ` • Saiph AI is texting a 160-char SMS summary to ${smsCount} colleague${smsCount === 1 ? '' : 's'}.`
+            : '';
+        showToast({ message: `Pushed ${activeBranch} – your newsroom can now see it.${smsSuffix}`, type: 'info' });
       } catch (err) {
         showToast({ message: err?.message || 'Push failed. Try again.', type: 'error' });
       }
@@ -938,29 +952,60 @@ function MainScreenContent() {
         if (!isMounted) return;
         if (Array.isArray(articlesData)) {
           const next = formatArticlesList(articlesData);
-          setArticles(next);
+          setArticles((prev) => {
+            const unchanged =
+              prev.length === next.length &&
+              prev.every(
+                (a, idx) =>
+                  a.id === next[idx].id &&
+                  a.title === next[idx].title &&
+                  a.readTime === next[idx].readTime &&
+                  a.category === next[idx].category &&
+                  a.summary === next[idx].summary &&
+                  a.content === next[idx].content
+              );
+            return unchanged ? prev : next;
+          });
           // Keep currently selected article metadata fresh if we aren't actively editing it
           if (!isEditingArticle && !isEditingTitle) {
             setSelectedItem((prev) => {
               if (!prev || prev.type !== 'article') return prev;
               const updated = next.find((item) => item.id === prev.id);
-              return updated ? { ...prev, title: updated.title, readTime: updated.readTime, category: updated.category } : prev;
+              if (!updated) return prev;
+              if (
+                prev.title === updated.title &&
+                prev.readTime === updated.readTime &&
+                prev.category === updated.category
+              ) {
+                return prev;
+              }
+              return { ...prev, title: updated.title, readTime: updated.readTime, category: updated.category };
             });
           }
         }
         if (Array.isArray(groupsData)) {
-          setNewsrooms(
-            groupsData.map((g) => ({
-              id: g.group_id,
-              type: 'chat',
-              chatType: 'group',
-              title: g.group_name,
-              tagline: g.group_description || 'Newsroom desk channel',
-              subscribers: `${g.member_number || 1} members`,
-              symbol: '▤',
-              avatar: g.group_name.slice(0, 2).toUpperCase(),
-            }))
-          );
+          const nextGroups = groupsData.map((g) => ({
+            id: g.group_id,
+            type: 'chat',
+            chatType: 'group',
+            title: g.group_name,
+            tagline: g.group_description || 'Newsroom desk channel',
+            subscribers: `${g.member_number || 1} members`,
+            symbol: '▤',
+            avatar: g.group_name.slice(0, 2).toUpperCase(),
+          }));
+          setNewsrooms((prev) => {
+            const unchanged =
+              prev.length === nextGroups.length &&
+              prev.every(
+                (g, idx) =>
+                  g.id === nextGroups[idx].id &&
+                  g.title === nextGroups[idx].title &&
+                  g.tagline === nextGroups[idx].tagline &&
+                  g.subscribers === nextGroups[idx].subscribers
+              );
+            return unchanged ? prev : nextGroups;
+          });
         }
       } catch {
         // Ignore transient background sync errors
@@ -1086,6 +1131,8 @@ function MainScreenContent() {
     }).start();
   }, [hasRetractedSidebar]);
 
+  const useNativeDriver = Platform.OS !== 'web';
+
   // Subtle content crossfade when switching active item
   useEffect(() => {
     contentFadeAnim.setValue(0.7);
@@ -1093,9 +1140,10 @@ function MainScreenContent() {
       toValue: 1,
       duration: 180,
       easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
+      useNativeDriver,
     }).start();
-  }, [selectedItem]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedItem?.id]);
 
   // Drawer modal entry / exit animations
   useEffect(() => {
@@ -1106,16 +1154,17 @@ function MainScreenContent() {
         Animated.timing(drawerBackdropAnim, {
           toValue: 1,
           duration: 200,
-          useNativeDriver: true,
+          useNativeDriver,
         }),
         Animated.spring(drawerSlideAnim, {
           toValue: 0,
           tension: 65,
           friction: 10,
-          useNativeDriver: true,
+          useNativeDriver,
         }),
       ]).start();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawer]);
 
   function closeDrawer() {
@@ -1123,13 +1172,13 @@ function MainScreenContent() {
       Animated.timing(drawerBackdropAnim, {
         toValue: 0,
         duration: 160,
-        useNativeDriver: true,
+        useNativeDriver,
       }),
       Animated.timing(drawerSlideAnim, {
         toValue: 300,
         duration: 160,
         easing: Easing.in(Easing.quad),
-        useNativeDriver: true,
+        useNativeDriver,
       }),
     ]).start(() => setDrawer(null));
   }
@@ -1139,11 +1188,13 @@ function MainScreenContent() {
     if (drawer) closeDrawer();
     setReplyText('');
     if (item?.type === 'article') {
+      const nextContent = item.content || '';
       setEditTitle(item.title || '');
-      setEditContent(item.content || '');
+      setEditContent(nextContent);
       setEditSummary(item.summary || '');
       setIsEditingArticle(false);
       setIsEditingTitle(false);
+      richEditorRef.current?.resetContent?.(nextContent);
     }
   }
 
@@ -1756,18 +1807,22 @@ function MainScreenContent() {
                   ref={richEditorRef}
                   value={isEditingArticle ? editContent : (selectedItem.content || '')}
                   onChangeText={(nextMd) => {
-                    if (!isEditingArticle) {
-                      setEditSummary(selectedItem.summary || '');
-                      setIsEditingArticle(true);
-                    }
+                    setIsEditingArticle((wasEditing) => {
+                      if (!wasEditing) {
+                        setEditSummary((prevSum) => prevSum || selectedItem.summary || '');
+                      }
+                      return true;
+                    });
                     setEditContent(nextMd);
                   }}
                   onEditStart={() => {
-                    if (!isEditingArticle) {
-                      setEditContent(selectedItem.content || '');
-                      setEditSummary(selectedItem.summary || '');
-                      setIsEditingArticle(true);
-                    }
+                    setIsEditingArticle((wasEditing) => {
+                      if (!wasEditing) {
+                        setEditContent((prevContent) => prevContent || selectedItem.content || '');
+                        setEditSummary((prevSum) => prevSum || selectedItem.summary || '');
+                      }
+                      return true;
+                    });
                   }}
                   onActiveFormatsChange={setActiveFormats}
                   placeholder="Start writing your story..."
@@ -1806,9 +1861,7 @@ function MainScreenContent() {
                 id: selectedItem.id,
                 title: selectedItem.title || 'Newsroom Voice Channel',
               });
-              setTimeout(() => {
-                voiceChat.connect();
-              }, 50);
+              voiceChat.connect(selectedItem.id);
               showToast({ message: 'Connecting to live newsroom voice...', type: 'info' });
             }
           }}
@@ -2002,7 +2055,11 @@ function MainScreenContent() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <NewsroomHeader mode="app" onOpenAI={() => setAiModalOpen(true)} />
+      <NewsroomHeader
+        mode="app"
+        onOpenAI={() => setAiModalOpen(true)}
+        onOpenPhonePrompt={() => setPhoneModalOpen(true)}
+      />
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -2172,6 +2229,19 @@ function MainScreenContent() {
         onJumpToSection={(sec) => {
           setArticleSection(sec);
           setAiModalOpen(false);
+        }}
+      />
+
+      {/* Offline SMS Phone Number Check & Prompt Modal */}
+      <PhonePromptModal
+        visible={phoneModalOpen}
+        onClose={() => {
+          setPhoneModalOpen(false);
+          setPhonePromptDismissed(true);
+        }}
+        onSaved={() => {
+          setPhoneModalOpen(false);
+          setPhonePromptDismissed(true);
         }}
       />
 
