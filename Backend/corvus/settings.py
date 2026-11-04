@@ -46,7 +46,18 @@ MONGODB_URI = (
     or os.getenv('MONGODB_URL')
     or 'mongodb://127.0.0.1:27017'
 )
-MONGODB_DATABASE = os.getenv('MONGODB_DATABASE') or os.getenv('MONGO_INITDB_DATABASE') or 'corvus_chats'
+
+# Parse database name safely and guard against unresolved Railway reference variables (${{...}})
+raw_mongodb_database = (
+    os.getenv('MONGODB_DATABASE')
+    or os.getenv('MONGO_INITDB_DATABASE')
+    or 'corvus_chats'
+).strip()
+
+if not raw_mongodb_database or '${{' in raw_mongodb_database or '.' in raw_mongodb_database or '$' in raw_mongodb_database:
+    raw_mongodb_database = 'corvus_chats'
+
+MONGODB_DATABASE = raw_mongodb_database
 MONGODB_SERVER_SELECTION_TIMEOUT_MS = int(os.getenv('MONGODB_SERVER_SELECTION_TIMEOUT_MS', '5000'))
 
 
