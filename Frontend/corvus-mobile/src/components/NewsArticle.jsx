@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { useTheme } from '../context/ThemeContext';
-import { fetchPublicArticles } from '../services/api';
+import { fetchPublicArticles, translateTexts } from '../services/api';
 
 const CATEGORIES = [
   'All',
@@ -21,8 +21,13 @@ const CATEGORIES = [
   'Transit',
   'Environment',
   'Education',
-  'Politics',
 ];
+
+// Language codes from the header selector mapped to translation targets.
+const LANGUAGE_TARGETS = { EN: 'english', SN: 'shona', ND: 'ndebele' };
+const LANGUAGE_NAMES = { EN: 'English', SN: 'Shona', ND: 'Ndebele' };
+// Fields written in English that are translated for readers.
+const TRANSLATABLE_FIELDS = ['title', 'excerpt', 'content', 'caption'];
 
 const INITIAL_ARTICLES = [
   {
@@ -122,25 +127,6 @@ Pedagogical researchers noted that children introduced to scientific and mathema
 The education ministry plans to provide solar-rechargeable classroom tablets loaded with open educational courseware to an additional one hundred rural schools before the start of the upcoming academic calendar.`,
     sources: 'National Curriculum Development Institute pedagogical review; field assessments across pilot districts.',
   },
-  {
-    id: 'art-6',
-    title: 'Parliamentary Committee Demands Transparency in Regional Mineral Concession Pacts',
-    category: 'Politics',
-    author: 'Farai Marange',
-    authorRole: 'Parliamentary Bureau Chief',
-    date: 'Oct 31, 2026',
-    time: '04:10 PM',
-    readTime: '7 min read',
-    imageUrl: 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?auto=format&fit=crop&w=1200&q=80',
-    caption: 'Parliamentary committee chambers during public hearings on extractives governance.',
-    excerpt: 'Legislators table a bipartisan resolution requiring full public disclosure of royalty schedules, community trust distributions, and environmental compliance bonds.',
-    content: `In a landmark legislative session, the Parliamentary Portfolio Committee on Mines and Energy voted unanimously to mandate public registry publication for all extractive resource concessions exceeding ten million dollars in valuation.
-
-The resolution mandates that concession contracts include itemized fiscal schedules detailing corporate tax contributions, surface rentals, and direct allocations earmarked for surrounding community development trusts. Lawmakers emphasized that historical ambiguities surrounding revenue-sharing mechanisms have disadvantaged district councils attempting to fund road and health infrastructure.
-
-Industry representatives present during the legislative debate expressed conditional endorsement, provided that fiscal disclosures maintain standard confidentiality protections for proprietary geological exploration models.`,
-    sources: 'Parliamentary Hansard Official Records; Committee on Mines and Energy Report No. 14.',
-  },
 ];
 
 export default function NewsArticles({ selectedLang, setSelectedLang }) {
@@ -223,6 +209,98 @@ export default function NewsArticles({ selectedLang, setSelectedLang }) {
     });
   }, [articles, selectedCategory, searchQuery]);
 
+  // ── Reader-facing translation (English → Shona / Ndebele) ──────────────────
+  const targetLanguage = LANGUAGE_TARGETS[selectedLang] || 'english';
+  const [translations, setTranslations] = useState({});
+  const [translating, setTranslating] = useState(false);
+  const translationsRef = useRef({});
+  const requestedRef = useRef(new Set());
+
+  const localize = (article) => {
+    if (!article || targetLanguage === 'english') return article;
+    const overlay = translations[targetLanguage]?.[article.id];
+    return overlay ? { ...article, ...overlay } : article;
+  };
+
+  useEffect(() => {
+    if (targetLanguage === 'english') {
+      setTranslating(false);
+      return undefined;
+    }
+
+    const source = selectedArticle ? [selectedArticle] : filteredArticles;
+    const missing = source.filter(
+      (article) =>
+        !translationsRef.current[targetLanguage]?.[article.id] &&
+        !requestedRef.current.has(`${targetLanguage}:${article.id}`)
+    );
+    if (missing.length === 0) {
+      setTranslating(false);
+      return undefined;
+    }
+
+    const keys = missing.map((article) => `${targetLanguage}:${article.id}`);
+    keys.forEach((key) => requestedRef.current.add(key));
+    let cancelled = false;
+    setTranslating(true);
+
+    (async () => {
+      // Collect the English fields the reader will see, then translate them in
+      // small batches that stay inside the server's per-request limits.
+      const entries = [];
+      missing.forEach((article) => {
+        TRANSLATABLE_FIELDS.forEach((field) => {
+          if (typeof article[field] === 'string' && article[field].trim()) {
+            entries.push({ id: article.id, field, text: article[field] });
+          }
+        });
+      });
+
+      const batches = [];
+      let current = [];
+      let size = 0;
+      entries.forEach((entry) => {
+        if (current.length >= 8 || (size + entry.text.length > 3500 && current.length > 0)) {
+          batches.push(current);
+          current = [];
+          size = 0;
+        }
+        current.push(entry);
+        size += entry.text.length;
+      });
+      if (current.length > 0) batches.push(current);
+
+      for (const batch of batches) {
+        const response = await translateTexts(batch.map((entry) => entry.text), targetLanguage);
+        if (cancelled) return;
+        // The server returns the English source when it cannot translate
+        // (for example when the translation model is unavailable); keep the
+        // original text rather than caching untranslated copy.
+        if (response?.complete === false) continue;
+        const results = Array.isArray(response?.translations) ? response.translations : [];
+        const next = { ...(translationsRef.current[targetLanguage] || {}) };
+        batch.forEach((entry, index) => {
+          const value = results[index];
+          if (typeof value === 'string' && value.trim()) {
+            next[entry.id] = { ...(next[entry.id] || {}), [entry.field]: value };
+          }
+        });
+        translationsRef.current = { ...translationsRef.current, [targetLanguage]: next };
+        setTranslations(translationsRef.current);
+      }
+
+      if (!cancelled) {
+        keys.forEach((key) => requestedRef.current.delete(key));
+        setTranslating(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      keys.forEach((key) => requestedRef.current.delete(key));
+    };
+  }, [targetLanguage, selectedArticle, filteredArticles]);
+
   // Related articles for the detail view
   const relatedArticles = useMemo(() => {
     if (!selectedArticle) return [];
@@ -237,6 +315,8 @@ export default function NewsArticles({ selectedLang, setSelectedLang }) {
   // VIEW: INDIVIDUAL ARTICLE DETAIL
   // ─────────────────────────────────────────────────────────────────────────────
   if (selectedArticle) {
+    const view = localize(selectedArticle);
+
     return (
       <ScrollView style={styles.detailContainer} contentContainerStyle={styles.detailContentContainer}>
         {/* Back navigation */}
@@ -259,7 +339,13 @@ export default function NewsArticles({ selectedLang, setSelectedLang }) {
         </View>
 
         {/* Headline */}
-        <Text style={styles.detailHeadline}>{selectedArticle.title}</Text>
+        <Text style={styles.detailHeadline}>{view.title}</Text>
+
+        {translating && (
+          <Text style={styles.translatingNote}>
+            Translating this dispatch into {LANGUAGE_NAMES[selectedLang]}...
+          </Text>
+        )}
 
         {/* Byline and author info */}
         <View style={styles.bylineBox}>
@@ -286,7 +372,7 @@ export default function NewsArticles({ selectedLang, setSelectedLang }) {
             />
             {selectedArticle.caption && (
               <Text style={styles.detailImageCaption}>
-                PHOTO DESK: {selectedArticle.caption}
+                PHOTO DESK: {view.caption}
               </Text>
             )}
           </View>
@@ -294,7 +380,7 @@ export default function NewsArticles({ selectedLang, setSelectedLang }) {
 
         {/* Full Article Content */}
         <View style={styles.detailBodyContainer}>
-          {selectedArticle.content.split('\n\n').map((paragraph, index) => (
+          {view.content.split('\n\n').map((paragraph, index) => (
             <Text key={index} style={styles.detailParagraph}>
               {paragraph}
             </Text>
@@ -316,7 +402,7 @@ export default function NewsArticles({ selectedLang, setSelectedLang }) {
         <View style={styles.relatedSection}>
           <Text style={styles.relatedHeading}>RELATED EDITORIAL COVERAGE</Text>
           <View style={[styles.relatedGrid, isDesktop && styles.relatedGridDesktop]}>
-            {relatedArticles.map((rel) => (
+            {relatedArticles.map(localize).map((rel) => (
               <TouchableOpacity
                 key={rel.id}
                 style={styles.relatedCard}
@@ -462,6 +548,15 @@ export default function NewsArticles({ selectedLang, setSelectedLang }) {
         </View>
       )}
 
+      {translating && targetLanguage !== 'english' && (
+        <View style={styles.loadingBox}>
+          <ActivityIndicator color={colors.forest} size="small" />
+          <Text style={styles.loadingText}>
+            Translating dispatches into {LANGUAGE_NAMES[selectedLang]}...
+          </Text>
+        </View>
+      )}
+
       {/* Empty state when no articles match */}
       {filteredArticles.length === 0 && !loading && (
         <View style={styles.emptyContainer}>
@@ -487,6 +582,7 @@ export default function NewsArticles({ selectedLang, setSelectedLang }) {
       {/* Responsive Three-Column Grid on Desktop */}
       <View style={styles.articlesGrid}>
         {filteredArticles.map((article) => {
+          const card = localize(article);
           // Card width calculations based on column layout
           const cardWidthStyle =
             numColumns === 3
@@ -513,12 +609,12 @@ export default function NewsArticles({ selectedLang, setSelectedLang }) {
 
               {/* Headline */}
               <Text style={styles.cardHeadline} numberOfLines={3}>
-                {article.title}
+                {card.title}
               </Text>
 
               {/* Summary / Excerpt */}
               <Text style={styles.cardExcerpt} numberOfLines={4}>
-                {article.excerpt}
+                {card.excerpt}
               </Text>
 
               {/* Card Footer: Author & Read Time */}
@@ -956,6 +1052,13 @@ function makeStyles(colors, isDark) {
       color: ink,
       lineHeight: 38,
       letterSpacing: -0.3,
+      marginBottom: 16,
+    },
+    translatingNote: {
+      fontSize: 12,
+      fontStyle: 'italic',
+      color: muted,
+      marginTop: -8,
       marginBottom: 16,
     },
     bylineBox: {

@@ -1,0 +1,71 @@
+Performing system checks...
+
+System check identified no issues (0 silenced).
+November 03, 2026 - 21:05:41
+Django version 6.0.6, using settings 'corvus.settings'
+Starting ASGI/Daphne version 4.2.3 development server at http://127.0.0.1:8000/
+Quit the server with CTRL-BREAK.
+Listen failure: Couldn't listen on 127.0.0.1:8000: [WinError 10048] Only one usage of each socket address (protocol/network address/port) is normally permitted.
+Performing system checks...
+
+System check identified no issues (0 silenced).
+
+You have 1 unapplied migration(s). Your project may not work properly until you apply the migrations for app(s): AI.
+Run 'python manage.py migrate' to apply them.
+November 04, 2026 - 10:54:42
+Django version 6.0.6, using settings 'corvus.settings'
+Starting ASGI/Daphne version 4.2.3 development server at http://127.0.0.1:8000/
+Quit the server with CTRL-BREAK.
+Listen failure: Couldn't listen on 127.0.0.1:8000: [WinError 10048] Only one usage of each socket address (protocol/network address/port) is normally permitted.
+Performing system checks...
+
+System check identified no issues (0 silenced).
+
+You have 1 unapplied migration(s). Your project may not work properly until you apply the migrations for app(s): AI.
+Run 'python manage.py migrate' to apply them.
+November 04, 2026 - 10:58:35
+Django version 6.0.6, using settings 'corvus.settings'
+Starting ASGI/Daphne version 4.2.3 development server at http://127.0.0.1:8000/
+Quit the server with CTRL-BREAK.
+Listen failure: Couldn't listen on 127.0.0.1:8000: [WinError 10048] Only one usage of each socket address (protocol/network address/port) is normally permitted.
+Performing system checks...
+
+System check identified no issues (0 silenced).
+
+You have 1 unapplied migration(s). Your project may not work properly until you apply the migrations for app(s): AI.
+Run 'python manage.py migrate' to apply them.
+November 04, 2026 - 11:00:11
+Django version 6.0.6, using settings 'corvus.settings'
+Starting ASGI/Daphne version 4.2.3 development server at http://127.0.0.1:8000/
+Quit the server with CTRL-BREAK.
+Performing system checks...
+
+System check identified no issues (0 silenced).
+
+You have 1 unapplied migration(s). Your project may not work properly until you apply the migrations for app(s): AI.
+Run 'python manage.py migrate' to apply them.
+November 04, 2026 - 11:33:37
+Django version 6.0.6, using settings 'corvus.settings'
+Starting ASGI/Daphne version 4.2.3 development server at http://127.0.0.1:8000/
+Quit the server with CTRL-BREAK.
+Listen failure: Couldn't listen on 127.0.0.1:8000: [WinError 10048] Only one usage of each socket address (protocol/network address/port) is normally permitted.
+Performing system checks...
+
+System check identified no issues (0 silenced).
+
+You have 1 unapplied migration(s). Your project may not work properly until you apply the migrations for app(s): AI.
+Run 'python manage.py migrate' to apply them.
+November 04, 2026 - 12:54:27
+Django version 6.0.6, using settings 'corvus.settings'
+Starting ASGI/Daphne version 4.2.3 development server at http://127.0.0.1:8000/
+Quit the server with CTRL-BREAK.
+Performing system checks...
+
+System check identified no issues (0 silenced).
+
+You have 2 unapplied migration(s). Your project may not work properly until you apply the migrations for app(s): AI.
+Run 'python manage.py migrate' to apply them.
+November 04, 2026 - 15:57:38
+Django version 6.0.6, using settings 'corvus.settings'
+Starting ASGI/Daphne version 4.2.3 development server at http://127.0.0.1:8000/
+Quit the server with CTRL-BREAK.

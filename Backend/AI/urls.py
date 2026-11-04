@@ -8,6 +8,7 @@ from .views import (
     AgentChatView,
     AgentMemoryListCreateView,
     AgentMemoryDeleteView,
+    PublicTranslateView,
 )
 
 urlpatterns = [
@@ -19,5 +20,6 @@ urlpatterns = [
     path('chat/', AgentChatView.as_view(), name='ai_agent_chat'),
     path('memories/', AgentMemoryListCreateView.as_view(), name='ai_agent_memories'),
     path('memories/<str:memory_id>/', AgentMemoryDeleteView.as_view(), name='ai_agent_memory_delete'),
+    path('translate/', PublicTranslateView.as_view(), name='ai_translate'),
 ]
 

@@ -439,3 +439,18 @@ export async function fetchUserPosts() {
     return [];
   }
 }
+
+// Translate reader-facing English news text into 'shona' or 'ndebele'.
+// The backend caches results, so repeat calls for the same paragraphs are free.
+export async function translateTexts(texts, target) {
+  const endpoint = '/api/ai/translate/';
+  try {
+    return await apiRequest(endpoint, {
+      method: 'POST',
+      requireAuth: false,
+      body: { texts, target },
+    });
+  } catch (err) {
+    return { target, translations: texts, complete: false };
+  }
+}

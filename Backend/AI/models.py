@@ -111,3 +111,29 @@ class AgentConversationMessage(models.Model):
 
     def __str__(self):
         return f"{self.role} ({self.user.username}): {self.content[:40]}"
+
+
+class TextTranslation(models.Model):
+    """
+    Cached translation of reader-facing English text into Shona or Ndebele.
+    Keyed by a hash of the source text so each paragraph is translated once.
+    """
+    source_hash = models.CharField(max_length=64)
+    target_language = models.CharField(max_length=16)
+    source_text = models.TextField()
+    translated_text = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=('source_hash', 'target_language'),
+                name='unique_translation_per_language',
+            )
+        ]
+        indexes = [
+            models.Index(fields=['target_language', 'source_hash'], name='ai_trans_lang_hash_idx'),
+        ]
+
+    def __str__(self):
+        return f"{self.target_language}: {self.source_text[:50]}"

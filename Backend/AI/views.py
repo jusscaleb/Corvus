@@ -1,10 +1,17 @@
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.db.models import Q
 
 from .models import AgentMemory, AgentConversationMessage
+from .translation import (
+    MAX_CHARS_PER_ITEM,
+    MAX_ITEMS,
+    MAX_TOTAL_CHARS,
+    SUPPORTED_LANGUAGES,
+    translate_texts,
+)
 from .article_agent import (
     get_accessible_article,
     get_or_create_workspace,
@@ -336,3 +343,56 @@ class AgentMemoryDeleteView(APIView):
             return Response({"detail": "You do not have permission to delete this memory."}, status=status.HTTP_403_FORBIDDEN)
         mem.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PublicTranslateView(APIView):
+    """
+    POST /api/ai/translate/
+    Translates reader-facing English news text into Shona or Ndebele.
+    Body: { "target": "shona" | "ndebele", "texts": ["...", "..."] }
+    Returns { "target", "translations": [...], "complete": bool }.
+    Translations are cached server-side, so repeat reads cost nothing.
+    """
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        target = str(request.data.get("target") or "").strip().lower()
+        texts = request.data.get("texts")
+
+        if target not in SUPPORTED_LANGUAGES:
+            return Response(
+                {"detail": "Unsupported target language. Use 'shona' or 'ndebele'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not isinstance(texts, list) or not texts:
+            return Response(
+                {"detail": "Provide a non-empty list of texts to translate."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not all(isinstance(text, str) for text in texts):
+            return Response(
+                {"detail": "Every item in 'texts' must be a string."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if len(texts) > MAX_ITEMS:
+            return Response(
+                {"detail": f"Translate at most {MAX_ITEMS} texts per request."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if any(len(text) > MAX_CHARS_PER_ITEM for text in texts):
+            return Response(
+                {"detail": f"Each text must be under {MAX_CHARS_PER_ITEM} characters."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if sum(len(text) for text in texts) > MAX_TOTAL_CHARS:
+            return Response(
+                {"detail": f"Send at most {MAX_TOTAL_CHARS} characters per request."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        translations, complete = translate_texts(texts, target)
+        return Response(
+            {"target": target, "translations": translations, "complete": complete},
+            status=status.HTTP_200_OK,
+        )

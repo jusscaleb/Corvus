@@ -18,7 +18,6 @@ const DESKS = [
   'Transit',
   'Environment',
   'Education',
-  'Politics',
   'Investigative Desk',
   'General News',
 ];
