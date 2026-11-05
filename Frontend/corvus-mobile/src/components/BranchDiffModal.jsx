@@ -1,9 +1,20 @@
-import React from 'react';
-import { View, Text, Modal, Pressable, ScrollView, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, Modal, Pressable, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
+import { canMergeBranch } from '../services/branchDiffUtil';
 
-export default function BranchDiffModal({ visible, diff, onClose, onSwitchBranch }) {
+export default function BranchDiffModal({
+  visible,
+  diff,
+  currentUser,
+  onClose,
+  onSwitchBranch,
+  onMergeBranch,
+  onRequestPermission,
+}) {
   const { colors } = useTheme();
+  const [merging, setMerging] = useState(false);
+  const [permissionNotice, setPermissionNotice] = useState(null);
 
   if (!visible || !diff) {
     return null;
@@ -17,6 +28,34 @@ export default function BranchDiffModal({ visible, diff, onClose, onSwitchBranch
   const removed = stats.removed_lines ?? 0;
   const chunks = Array.isArray(diff.chunks) ? diff.chunks : [];
   const isIdentical = similarity === 100 && added === 0 && removed === 0;
+
+  const handleMergeAttempt = async () => {
+    setPermissionNotice(null);
+    const permission = canMergeBranch(currentUser, diff.compare_branch);
+
+    if (!permission.allowed) {
+      setPermissionNotice({
+        type: 'error',
+        message: permission.reason || `Permission required from creator (@${permission.creatorName}) to merge this branch.`,
+        creatorName: permission.creatorName,
+      });
+      return;
+    }
+
+    if (!onMergeBranch) return;
+    setMerging(true);
+    try {
+      await onMergeBranch(diff.compare_branch, diff.base_branch);
+      onClose();
+    } catch (err) {
+      setPermissionNotice({
+        type: 'error',
+        message: err?.message || 'Failed to merge branch.',
+      });
+    } finally {
+      setMerging(false);
+    }
+  };
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -78,6 +117,25 @@ export default function BranchDiffModal({ visible, diff, onClose, onSwitchBranch
             )}
           </View>
 
+          {/* Creator Permission Alert Banner */}
+          {permissionNotice && (
+            <View style={[styles.permissionBanner, { backgroundColor: '#fef2f2', borderColor: '#fca5a5' }]}>
+              <Text style={styles.permissionBannerIcon}>🔒</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.permissionBannerTitle}>Creator Permission Required</Text>
+                <Text style={styles.permissionBannerText}>{permissionNotice.message}</Text>
+              </View>
+              {onRequestPermission && permissionNotice.creatorName && (
+                <Pressable
+                  onPress={() => onRequestPermission(diff.compare_branch)}
+                  style={styles.requestPermBtn}
+                >
+                  <Text style={styles.requestPermBtnText}>Request Permission</Text>
+                </Pressable>
+              )}
+            </View>
+          )}
+
           {/* Diff Content */}
           <ScrollView style={styles.diffBody} contentContainerStyle={{ padding: 12 }}>
             {isIdentical ? (
@@ -138,6 +196,27 @@ export default function BranchDiffModal({ visible, diff, onClose, onSwitchBranch
               <Text style={[styles.footerSecondaryBtnText, { color: colors?.ink || '#0f172a' }]}>Close</Text>
             </Pressable>
 
+            {onMergeBranch && compareName !== baseName && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Merge branch ${compareName} into ${baseName}`}
+                onPress={handleMergeAttempt}
+                disabled={merging}
+                style={[
+                  styles.mergeBranchBtn,
+                  { backgroundColor: '#059669', opacity: merging ? 0.7 : 1 },
+                ]}
+              >
+                {merging ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text style={styles.mergeBranchBtnText}>
+                    Merge "{compareName}" → "{baseName}"
+                  </Text>
+                )}
+              </Pressable>
+            )}
+
             {onSwitchBranch && compareName !== baseName && (
               <Pressable
                 accessibilityRole="button"
@@ -182,30 +261,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
   },
   superTitle: {
     fontSize: 10,
     fontWeight: '800',
-    letterSpacing: 1.2,
+    letterSpacing: 1,
   },
   branchComparisonRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginTop: 2,
   },
   branchPill: {
     paddingHorizontal: 10,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: 6,
   },
   branchPillText: {
     fontSize: 13,
     fontWeight: '700',
-    fontFamily: 'monospace',
   },
   closeBtn: {
     width: 32,
@@ -221,146 +298,180 @@ const styles = StyleSheet.create({
   statsBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingVertical: 10,
     paddingHorizontal: 16,
+    paddingVertical: 10,
     borderBottomWidth: 1,
+    gap: 16,
   },
   statItem: {
-    alignItems: 'center',
+    flexDirection: 'column',
   },
   statLabel: {
-    fontSize: 10,
+    fontSize: 10.5,
     fontWeight: '600',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
   statValue: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
-    marginTop: 1,
   },
   statDivider: {
     width: 1,
-    height: 22,
-    backgroundColor: '#cbd5e1',
-    opacity: 0.6,
+    height: 20,
+    backgroundColor: '#e2e8f0',
+  },
+  permissionBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    gap: 10,
+  },
+  permissionBannerIcon: {
+    fontSize: 18,
+  },
+  permissionBannerTitle: {
+    color: '#991b1b',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  permissionBannerText: {
+    color: '#b91c1c',
+    fontSize: 11.5,
+    marginTop: 1,
+  },
+  requestPermBtn: {
+    backgroundColor: '#dc2626',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  requestPermBtnText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
   },
   diffBody: {
     flex: 1,
-    minHeight: 200,
-  },
-  metaLine: {
-    backgroundColor: '#f1f5f9',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
-    marginVertical: 4,
-  },
-  metaLineText: {
-    fontSize: 11,
-    color: '#64748b',
-    fontFamily: 'monospace',
-    fontWeight: '700',
-  },
-  addedLine: {
-    flexDirection: 'row',
-    backgroundColor: '#DCFCE7',
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    borderRadius: 3,
-    marginVertical: 1,
-  },
-  addedPrefix: {
-    color: '#166534',
-    fontWeight: '800',
-    fontFamily: 'monospace',
-    fontSize: 12,
-    width: 16,
-  },
-  addedText: {
-    flex: 1,
-    color: '#166534',
-    fontFamily: 'monospace',
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  removedLine: {
-    flexDirection: 'row',
-    backgroundColor: '#FEE2E2',
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    borderRadius: 3,
-    marginVertical: 1,
-  },
-  removedPrefix: {
-    color: '#991B1B',
-    fontWeight: '800',
-    fontFamily: 'monospace',
-    fontSize: 12,
-    width: 16,
-  },
-  removedText: {
-    flex: 1,
-    color: '#991B1B',
-    fontFamily: 'monospace',
-    fontSize: 12,
-    lineHeight: 18,
-    textDecorationLine: 'line-through',
-  },
-  contextLine: {
-    flexDirection: 'row',
-    paddingVertical: 1,
-    paddingHorizontal: 6,
-  },
-  contextPrefix: {
-    fontFamily: 'monospace',
-    fontSize: 12,
-    width: 16,
-  },
-  contextText: {
-    flex: 1,
-    fontFamily: 'monospace',
-    fontSize: 12,
-    lineHeight: 18,
   },
   identicalNotice: {
-    padding: 32,
+    padding: 24,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
   },
   identicalNoticeTitle: {
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   identicalNoticeSub: {
     fontSize: 13,
     textAlign: 'center',
-    maxWidth: 400,
+  },
+  metaLine: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    marginVertical: 2,
+  },
+  metaLineText: {
+    fontFamily: 'monospace',
+    fontSize: 11.5,
+    color: '#475569',
+    fontWeight: '700',
+  },
+  addedLine: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(22, 163, 74, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 3,
+    marginVertical: 1,
+  },
+  addedPrefix: {
+    color: '#15803d',
+    fontFamily: 'monospace',
+    fontSize: 12,
+    fontWeight: '800',
+    width: 16,
+  },
+  addedText: {
+    color: '#166534',
+    fontFamily: 'monospace',
+    fontSize: 12,
+    flex: 1,
+  },
+  removedLine: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(220, 38, 38, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 3,
+    marginVertical: 1,
+  },
+  removedPrefix: {
+    color: '#b91c1c',
+    fontFamily: 'monospace',
+    fontSize: 12,
+    fontWeight: '800',
+    width: 16,
+  },
+  removedText: {
+    color: '#991b1b',
+    fontFamily: 'monospace',
+    fontSize: 12,
+    flex: 1,
+  },
+  contextLine: {
+    flexDirection: 'row',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  contextPrefix: {
+    width: 16,
+    fontFamily: 'monospace',
+  },
+  contextText: {
+    fontFamily: 'monospace',
+    fontSize: 12,
+    flex: 1,
   },
   footer: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'flex-end',
-    gap: 10,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderTopWidth: 1,
+    gap: 10,
+    flexWrap: 'wrap',
   },
   footerSecondaryBtn: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 7,
     borderWidth: 1,
   },
   footerSecondaryBtnText: {
     fontSize: 13,
     fontWeight: '600',
   },
-  footerPrimaryBtn: {
-    paddingHorizontal: 16,
+  mergeBranchBtn: {
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 7,
+  },
+  mergeBranchBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  footerPrimaryBtn: {
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 7,
   },
   footerPrimaryBtnText: {
     color: '#ffffff',
@@ -368,4 +479,3 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-

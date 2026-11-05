@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Article, Branch, ArticleTranslation
+from .models import Article, Branch, ArticleTranslation, ArticleApproval
 
 User = get_user_model()
 
@@ -70,6 +70,7 @@ class ArticleSerializer(serializers.ModelSerializer):
     translated_content = serializers.SerializerMethodField()
     translated_excerpt = serializers.SerializerMethodField()
     current_lang = serializers.SerializerMethodField()
+    approvals_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Article
@@ -82,6 +83,7 @@ class ArticleSerializer(serializers.ModelSerializer):
             'is_published',
             'published_at',
             'branch_count',
+            'approvals_count',
             'branches',
             'translated_title',
             'translated_content',
@@ -132,6 +134,14 @@ class ArticleSerializer(serializers.ModelSerializer):
         main = [b for b in self._visible(obj) if b.is_main]
         return BranchSerializer(main, many=True).data
 
+
+    def get_approvals_count(self, obj):
+        if hasattr(obj, 'approval_count_annotated'):
+            return obj.approval_count_annotated
+        if 'approvals' in getattr(obj, '_prefetched_objects_cache', {}):
+            return len(obj.approvals.all())
+        return 0
+
     def get_branch_count(self, obj):
         return len(self._visible(obj))
 
@@ -151,3 +161,12 @@ class ArticleTranslationSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['translation_id', 'article', 'created_at', 'updated_at']
 
+
+
+class ArticleApprovalSerializer(serializers.ModelSerializer):
+    user = ProjectUserSerializer(read_only=True)
+
+    class Meta:
+        model = ArticleApproval
+        fields = ['approval_id', 'article', 'user', 'approved_at']
+        read_only_fields = ['approval_id', 'article', 'user', 'approved_at']

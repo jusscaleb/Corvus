@@ -120,3 +120,34 @@ class ArticleTranslation(models.Model):
 
     def __str__(self):
         return f"{self.article.title} ({self.language_code})"
+
+
+class ArticleApproval(models.Model):
+    approval_id = models.CharField(
+        primary_key=True,
+        max_length=256,
+        default=generate_uuid,
+        editable=False,
+    )
+    article = models.ForeignKey(
+        Article,
+        on_delete=models.CASCADE,
+        related_name='approvals',
+    )
+    user = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.CASCADE,
+        related_name='article_approvals',
+    )
+    approved_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=('article', 'user'),
+                name='unique_article_approval_per_user',
+            )
+        ]
+
+    def __str__(self):
+        return f'{self.user.username} approved {self.article.title}'

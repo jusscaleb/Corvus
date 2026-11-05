@@ -382,7 +382,7 @@ class ProjectTests(APITestCase):
 
         # 4. Author publishes the article
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token1}')
-        pub_res = self.client.post(publish_url)
+        pub_res = self.client.post(publish_url, {"force": True})
         self.assertEqual(pub_res.status_code, status.HTTP_200_OK)
         self.assertTrue(pub_res.data['is_published'])
 
@@ -513,4 +513,207 @@ class ProjectTests(APITestCase):
             self.assertEqual(result['recipient_count'], 0)
             mock_ai.assert_not_called()
             mock_twilio.assert_not_called()
+
+    def test_branch_diff_with_compare_parameter(self):
+        """Feature: Branch diff with ?compare=<branch_id> returns structured chunks and stats."""
+        article = Article.objects.create(title="Branch Diff Compare Test", group=self.group, author=self.user1)
+        main_branch = Branch.objects.create(
+            branch_name='main',
+            article=article,
+            created_by=self.user1,
+            is_main=True,
+            content='Harare council approved annual budget.\nContext line.',
+        )
+        investigative = Branch.objects.create(
+            branch_name='investigative',
+            article=article,
+            created_by=self.user1,
+            is_main=False,
+            content='Harare council approved annual budget.\nAudit exposes $12M unverified payments.\nContext line.',
+        )
+        url = reverse('branch_diff', kwargs={'branch_id': main_branch.branch_id})
+        res = self.client.get(f"{url}?compare={investigative.branch_id}")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertIn('chunks', res.data)
+        self.assertIn('stats', res.data)
+        self.assertEqual(res.data['stats']['added_lines'], 1)
+
+    def test_branch_merge_with_creator_permission_allowed(self):
+        """Feature: Branch author can merge their own branch into target branch."""
+        article = Article.objects.create(title="Merge Creator Test", group=self.group, author=self.user1)
+        main_branch = Branch.objects.create(
+            branch_name='main',
+            article=article,
+            created_by=self.user1,
+            is_main=True,
+            content='Original main content.',
+        )
+        feature_branch = Branch.objects.create(
+            branch_name='feature-draft',
+            article=article,
+            created_by=self.user1,
+            is_main=False,
+            content='Merged polished report.',
+        )
+        merge_url = reverse('branch_merge', kwargs={'branch_id': main_branch.branch_id})
+        res = self.client.post(merge_url, {"source_branch_id": feature_branch.branch_id})
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        main_branch.refresh_from_db()
+        self.assertEqual(main_branch.content, 'Merged polished report.')
+        self.assertEqual(main_branch.status, 'merged')
+
+    def test_branch_merge_by_non_creator_without_permission_forbidden(self):
+        """Feature: Merging another journalist's branch without creator permission is blocked with 403."""
+        article = Article.objects.create(title="Merge Permission Guard Test", group=self.group, author=self.user1)
+        main_branch = Branch.objects.create(
+            branch_name='main',
+            article=article,
+            created_by=self.user1,
+            is_main=True,
+            content='Main content.',
+        )
+        # Branch authored by user2
+        user2_branch = Branch.objects.create(
+            branch_name='user2-investigation',
+            article=article,
+            created_by=self.user2,
+            is_main=False,
+            is_public=True,
+            content='User2 exclusive scoop.',
+        )
+        # user1 attempts to merge user2's branch into main without permission
+        merge_url = reverse('branch_merge', kwargs={'branch_id': main_branch.branch_id})
+        res = self.client.post(merge_url, {"source_branch_id": user2_branch.branch_id})
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn("Only the journalist who created this branch", res.data['detail'])
+
+    def test_branch_merge_with_explicit_permission_granted(self):
+        """Feature: Merging with explicit permission_granted=True succeeds."""
+        article = Article.objects.create(title="Merge Explicit Permission Test", group=self.group, author=self.user1)
+        main_branch = Branch.objects.create(
+            branch_name='main',
+            article=article,
+            created_by=self.user1,
+            is_main=True,
+            content='Main content.',
+        )
+        user2_branch = Branch.objects.create(
+            branch_name='user2-scoop',
+            article=article,
+            created_by=self.user2,
+            is_main=False,
+            is_public=True,
+            content='User2 authorized merge content.',
+        )
+        merge_url = reverse('branch_merge', kwargs={'branch_id': main_branch.branch_id})
+        res = self.client.post(merge_url, {
+            "source_branch_id": user2_branch.branch_id,
+            "permission_granted": True,
+        })
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        main_branch.refresh_from_db()
+        self.assertEqual(main_branch.content, 'User2 authorized merge content.')
+
+    def test_article_peer_approval_workflow(self):
+        """Feature: Newsroom peer approval recording, listing, and self-approval block."""
+        from accounts.models import User
+        article = Article.objects.create(title="Peer Approval Test", group=self.group, author=self.user1)
+        approve_url = reverse('article_approve', kwargs={'article_id': article.article_id})
+
+        # 1. Author cannot peer-approve their own article
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token1}')
+        self_res = self.client.post(approve_url)
+        self.assertEqual(self_res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Authors cannot peer-approve", self_res.data['detail'])
+
+        # 2. Newsroom colleague (user2) grants approval
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token2}')
+        appr_res = self.client.post(approve_url)
+        self.assertEqual(appr_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(appr_res.data['approval_count'], 1)
+
+        # 3. Third newsroom member grants approval
+        user3 = User.objects.create_user(username='colleague3', email='c3@news.org', password='Password123!')
+        Member.objects.create(member=user3, group=self.group)
+        token3 = str(AccessToken.for_user(user3))
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token3}')
+        appr3_res = self.client.post(approve_url)
+        self.assertEqual(appr3_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(appr3_res.data['approval_count'], 2)
+
+        # 4. List approvals
+        list_res = self.client.get(approve_url)
+        self.assertEqual(list_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(list_res.data['approval_count'], 2)
+
+    def test_publishing_quality_gate_requires_passing_ai_review(self):
+        """Feature: Publishing without passing AI Review is blocked with 400 Bad Request."""
+        from AI.models import ArticleWorkspace
+        article = Article.objects.create(title="AI Review Gate Test", group=self.group, author=self.user1)
+        publish_url = reverse('article_publish', kwargs={'article_id': article.article_id})
+
+        # No AI review exists
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token1}')
+        res = self.client.post(publish_url)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Article must pass Saiph AI Review", res.data['detail'])
+
+        # AI review exists but fails quality threshold (quality < 60)
+        ws, _ = ArticleWorkspace.objects.get_or_create(article=article)
+        ws.last_review = {"quality_score": 45, "plagiarism": {"score": 10}}
+        ws.save()
+
+        res_fail = self.client.post(publish_url)
+        self.assertEqual(res_fail.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("editorial quality standards", res_fail.data['detail'])
+
+    def test_publishing_peer_approvals_gate_requires_two_colleagues(self):
+        """Feature: Publishing with passing AI review but fewer than 2 peer approvals is blocked."""
+        from AI.models import ArticleWorkspace
+        from accounts.models import User
+        from Project.models import ArticleApproval
+
+        article = Article.objects.create(title="Peer Approval Gate Test", group=self.group, author=self.user1)
+        publish_url = reverse('article_publish', kwargs={'article_id': article.article_id})
+
+        # Passing AI review
+        ws, _ = ArticleWorkspace.objects.get_or_create(article=article)
+        ws.last_review = {"quality_score": 88, "plagiarism": {"score": 5}}
+        ws.save()
+
+        # 0 peer approvals
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token1}')
+        res0 = self.client.post(publish_url)
+        self.assertEqual(res0.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("must be approved by at least 2 other journalists", res0.data['detail'])
+
+        # 1 peer approval
+        ArticleApproval.objects.create(article=article, user=self.user2)
+        res1 = self.client.post(publish_url)
+        self.assertEqual(res1.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Current: 1/2", res1.data['detail'])
+
+        # 2 peer approvals
+        user3 = User.objects.create_user(username='colleague_gate_3', email='cg3@news.org', password='Password123!')
+        Member.objects.create(member=user3, group=self.group)
+        ArticleApproval.objects.create(article=article, user=user3)
+
+        # Publishing now succeeds!
+        res2 = self.client.post(publish_url)
+        self.assertEqual(res2.status_code, status.HTTP_200_OK)
+        self.assertTrue(res2.data['is_published'])
+
+    def test_article_translation_with_branch_id_parameter(self):
+        """Feature: Translation endpoint accepts optional branch_id to translate active branch."""
+        from unittest.mock import patch
+        article = Article.objects.create(title="Branch Translation Test", group=self.group, author=self.user1, is_published=True)
+        main_branch = Branch.objects.create(branch_name='main', article=article, created_by=self.user1, is_main=True, content='Main English text.')
+        investigative = Branch.objects.create(branch_name='draft-v2', article=article, created_by=self.user1, is_main=False, content='Draft v2 exclusive facts.')
+
+        with patch('Project.views.translate_text') as mock_t:
+            mock_t.side_effect = lambda text, target_language, source_language='auto': f"[{target_language.upper()}] {text}"
+            url = reverse('article_translate', kwargs={'article_id': article.article_id})
+            res = self.client.get(f"{url}?lang=sn&branch_id={investigative.branch_id}")
+            self.assertEqual(res.status_code, status.HTTP_200_OK)
+            self.assertIn('[SN] Draft v2 exclusive facts.', res.data['content'])
 

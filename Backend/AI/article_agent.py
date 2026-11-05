@@ -719,15 +719,15 @@ def review_article_branch(article: Article, branch: Branch = None, user=None) ->
     if content.strip():
         try:
             sys_prompt = (
-                "You are Saiph, a supportive editorial coach. Explain feedback in very simple, everyday terms "
-                "(no jargon). Return ONLY valid JSON:\n"
+                "You are Saiph, a supportive editorial coach for Zimbabwean journalism. Explain feedback in simple, everyday terms "
+                "(no jargon). Do NOT invent fictional character names, dates, or made-up quotations.\n"
+                "Return ONLY valid JSON:\n"
                 "{\n"
                 '  "coach_summary": "2-3 warm, simple sentences telling the writer what works well and the #1 thing to improve",\n'
                 '  "extra_tip": {\n'
                 '    "area": "Specific Story Tip",\n'
                 '    "problem": "Simple description of a weak spot in this specific text",\n'
-                '    "how_to_fix": "Simple step to fix it",\n'
-                '    "example": "A concrete rewrite example from their text"\n'
+                '    "how_to_fix": "Simple step to fix it"\n'
                 '  }\n'
                 "}"
             )

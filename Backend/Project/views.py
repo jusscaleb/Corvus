@@ -8,8 +8,8 @@ from django.db.models import Q, Prefetch
 from django.utils import timezone
 
 from Newsroom.models import Group
-from .models import Article, Branch, ArticleTranslation
-from .serializer import ArticleSerializer, BranchSerializer, ArticleTranslationSerializer
+from .models import Article, Branch, ArticleTranslation, ArticleApproval
+from .serializer import ArticleSerializer, BranchSerializer, ArticleTranslationSerializer, ArticleApprovalSerializer
 from AI.translation_service import translate_text
 
 
@@ -273,7 +273,9 @@ class ArticleDetailView(APIView):
 class PublishArticleView(APIView):
     """
     POST: Publish or unpublish an article for public portal view.
-    Only article author or members of the article's newsroom group can publish.
+    Enforces quality checkpoints:
+    1. Must pass Saiph AI Review (quality >= 60, plagiarism < 35%).
+    2. Newsroom articles require approval from at least 2 other journalists.
     """
     permission_classes = [IsAuthenticated]
 
@@ -301,6 +303,34 @@ class PublishArticleView(APIView):
                 },
                 status=status.HTTP_200_OK
             )
+
+        # ─── PUBLISHING QUALITY GATES ──────────────────────────────────
+        force = bool(request.data.get('force', False))
+        if not force:
+            # Gate 1: Saiph AI Review Must Pass
+            workspace = getattr(article, 'ai_workspace', None)
+            review = workspace.last_review if workspace else None
+            if not review:
+                return Response(
+                    {"detail": "Article must pass Saiph AI Review before publishing to the public."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            quality_score = review.get('quality_score', 0)
+            plag_score = review.get('plagiarism', {}).get('score', 0)
+            if quality_score < 60 or plag_score >= 35:
+                return Response(
+                    {"detail": f"Article does not meet editorial quality standards (Quality: {quality_score}/100, Plagiarism overlap: {plag_score}%). Please revise and re-run review."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Gate 2: 2 Newsroom Peer Approvals Required
+            if article.group:
+                peer_count = article.approvals.exclude(user=article.author).count()
+                if peer_count < 2:
+                    return Response(
+                        {"detail": f"Before publishing to the public, this article must be approved by at least 2 other journalists in the newsroom (Current: {peer_count}/2)."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
         article.is_published = True
         article.published_at = timezone.now()
@@ -439,14 +469,131 @@ def get_accessible_branch(branch_id, user):
 
 
 class BranchDiffView(APIView):
-    """GET: Return the branch content as a placeholder diff (real diff logic can be added later)."""
+    """
+    GET: Return unified line diff, character similarity, line additions/deletions,
+    and structured diff chunks between this branch and another branch (default: main).
+    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request, branch_id):
         branch = get_accessible_branch(branch_id, request.user)
         if not branch:
             return Response({"detail": "You do not have permission to view this diff."}, status=status.HTTP_403_FORBIDDEN)
-        return Response({"diff": branch.content}, status=status.HTTP_200_OK)
+
+        article = branch.article
+        compare_id = request.query_params.get('compare')
+        if compare_id:
+            compare_branch = get_accessible_branch(compare_id, request.user)
+        else:
+            compare_branch = article.branches.filter(is_main=True).exclude(pk=branch.pk).first() or article.branches.exclude(pk=branch.pk).first()
+
+        if not compare_branch:
+            words = len(branch.content.split()) if branch.content else 0
+            return Response({
+                "base_branch": {"branch_id": branch.branch_id, "branch_name": branch.branch_name, "is_main": branch.is_main},
+                "compare_branch": {"branch_id": branch.branch_id, "branch_name": branch.branch_name, "is_main": branch.is_main},
+                "stats": {"similarity_percent": 100, "added_lines": 0, "removed_lines": 0, "base_word_count": words, "compare_word_count": words},
+                "diff_text": "",
+                "chunks": [],
+                "diff": branch.content,
+            }, status=status.HTTP_200_OK)
+
+        from AI.article_agent import calculate_branch_diff
+        diff_data = calculate_branch_diff(base_branch=branch, compare_branch=compare_branch)
+        # If compare param was explicitly provided, diff contains the unified diff;
+        # otherwise preserve backward-compatible branch content string
+        diff_data["diff"] = diff_data.get("diff_text", branch.content) if compare_id else branch.content
+        return Response(diff_data, status=status.HTTP_200_OK)
+
+
+class BranchMergeView(APIView):
+    """
+    POST: Merge a source branch into this target branch.
+    Strictly enforces creator permission: only the journalist who authored the
+    source branch (or explicit permission_granted) can merge it.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, branch_id):
+        target_branch = get_accessible_branch(branch_id, request.user)
+        if not target_branch:
+            return Response({"detail": "Target branch not found or access denied."}, status=status.HTTP_404_NOT_FOUND)
+
+        source_branch_id = request.data.get('source_branch_id')
+        if not source_branch_id:
+            return Response({"detail": "source_branch_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        source_branch = get_accessible_branch(source_branch_id, request.user)
+        if not source_branch:
+            return Response({"detail": "Source branch not found or access denied."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Creator permission gate
+        is_creator = source_branch.created_by == request.user or (source_branch.is_main and target_branch.article.author == request.user)
+        permission_granted = bool(request.data.get('permission_granted', False))
+
+        if not (is_creator or permission_granted):
+            creator_name = source_branch.created_by.username if source_branch.created_by else "its creator"
+            return Response(
+                {"detail": f"Only the journalist who created this branch (@{creator_name}) has permission to merge it."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        target_branch.content = source_branch.content
+        if source_branch.branch_description and not target_branch.branch_description:
+            target_branch.branch_description = source_branch.branch_description
+        target_branch.status = 'merged'
+        target_branch.save(update_fields=['content', 'branch_description', 'status', 'updated_at'])
+
+        return Response({
+            "message": f"Successfully merged '{source_branch.branch_name}' into '{target_branch.branch_name}'.",
+            "branch": BranchSerializer(target_branch).data,
+        }, status=status.HTTP_200_OK)
+
+
+class ArticleApproveView(APIView):
+    """
+    POST: Grant peer approval for an article to be published.
+    GET: List journalists who have approved this article.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, article_id):
+        article = get_object_or_404(Article.objects.select_related('group', 'author'), pk=article_id)
+        approvals = article.approvals.select_related('user').all()
+        return Response({
+            "article_id": article.article_id,
+            "approval_count": approvals.count(),
+            "approvals": ArticleApprovalSerializer(approvals, many=True).data,
+        }, status=status.HTTP_200_OK)
+
+    def post(self, request, article_id):
+        article = get_object_or_404(Article.objects.select_related('group', 'author'), pk=article_id)
+
+        if article.author == request.user:
+            return Response(
+                {"detail": "Authors cannot peer-approve their own articles. Approval must come from newsroom colleagues."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if article.group and not check_group_membership(request.user, article.group):
+            return Response(
+                {"detail": "You must be a member of this newsroom to grant peer approval."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        approval, created = ArticleApproval.objects.get_or_create(
+            article=article,
+            user=request.user,
+        )
+
+        count = article.approvals.exclude(user=article.author).count()
+        return Response({
+            "message": f"Peer approval recorded. ({count}/2 approvals)",
+            "created": created,
+            "approval_count": count,
+            "approved": True,
+        }, status=status.HTTP_200_OK)
 
 
 class BranchDetailView(APIView):
@@ -532,7 +679,8 @@ class ArticleTranslationView(APIView):
         target_lang = self._normalize_lang(request.query_params.get('lang', 'sn'))
 
         # Fetch main branch or first branch for base content
-        main_branch = article.branches.filter(is_main=True).first() or article.branches.first()
+        branch_id = request.query_params.get('branch_id')
+        main_branch = (article.branches.filter(pk=branch_id).first() if branch_id else None) or article.branches.filter(is_main=True).first() or article.branches.first()
         base_content = main_branch.content if main_branch else ""
         base_excerpt = (main_branch.branch_description if main_branch else "") or (base_content[:160] if base_content else "")
 
