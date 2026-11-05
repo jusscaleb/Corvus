@@ -414,7 +414,6 @@ class ProjectTests(APITestCase):
         self.client.credentials()
         res_unpub = self.client.get(public_url)
         self.assertFalse(any(a['article_id'] == article.article_id for a in res_unpub.data))
-<<<<<<< HEAD
 
     @patch('Project.views.translate_text')
     def test_article_translation_and_caching_workflow(self, mock_translate):
@@ -481,7 +480,6 @@ class ProjectTests(APITestCase):
         self.assertEqual(res_en.status_code, status.HTTP_200_OK)
         self.assertEqual(res_en.data['title'], "Clean Water for Bulawayo Suburbs")
         self.assertTrue(res_en.data['cached'])
-=======
     # ─── Offline SMS Dispatch (AI Summary + Twilio) ───────────────────────
 
     def test_profile_phone_number_update_and_validation(self):
@@ -515,5 +513,4 @@ class ProjectTests(APITestCase):
             self.assertEqual(result['recipient_count'], 0)
             mock_ai.assert_not_called()
             mock_twilio.assert_not_called()
->>>>>>> ffa6f01b52e635fe842da4acf996eda25b66790d
 

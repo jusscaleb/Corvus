@@ -810,7 +810,6 @@ test('Feature 13: Saiph AI Branch Switching (single-turn, multi-turn, checkout) 
   assert.deepEqual(replyFallback, { action: 'create', branchName: 'draft-v2' });
 });
 
-<<<<<<< HEAD
 test('Feature 14: Article Translation System (Saiph AI Groq translation, multilingual fetch & caching)', async () => {
   const { api, calls } = loadApiServiceWithMockFetch();
 
@@ -841,10 +840,9 @@ test('Feature 14: Article Translation System (Saiph AI Groq translation, multili
   // 5. Verify UserSite.jsx passes selectedLang
   const userSiteCode = readSrc('components/UserSite.jsx');
   assert.match(userSiteCode, /selectedLang=\{selectedLang\}/);
-=======
-// ─── 14. Offline SMS Phone Number Check & Prompt Modal ────────────────────────
-
-test('Feature 14: Offline SMS Phone Number Check, PhonePromptModal & updateUserProfile API', async () => {
+// ─── 15. Offline SMS Phone Number Check & Prompt Modal ────────────────────────
+});
+test('Feature 15: Offline SMS Phone Number Check, PhonePromptModal & updateUserProfile API', async () => {
   const phoneModal = readSrc('components/PhonePromptModal.jsx');
   const mainScreen = readSrc('components/MainScreen.jsx');
   const newsroomHeader = readSrc('components/NewsroomHeader.jsx');
@@ -894,7 +892,5 @@ test('Feature 14: Offline SMS Phone Number Check, PhonePromptModal & updateUserP
   assert.deepEqual(calls.at(-1).body, { phone_number: '+263771234567' });
   assert.equal(updated.phone_number, '+263771234567');
   assert.equal(api.authStorage.getUser().phone_number, '+263771234567');
->>>>>>> ffa6f01b52e635fe842da4acf996eda25b66790d
 });
-
 
