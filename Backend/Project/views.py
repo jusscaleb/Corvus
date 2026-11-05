@@ -1,14 +1,16 @@
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.shortcuts import get_object_or_404
 from django.db import transaction, IntegrityError
 from django.db.models import Q, Prefetch
+from django.utils import timezone
 
 from Newsroom.models import Group
-from .models import Article, Branch
-from .serializer import ArticleSerializer, BranchSerializer
+from .models import Article, Branch, ArticleTranslation
+from .serializer import ArticleSerializer, BranchSerializer, ArticleTranslationSerializer
+from AI.translation_service import translate_text
 
 
 def check_group_membership(user, group):
@@ -37,6 +39,112 @@ def branch_name_taken(article, name, exclude_id=None):
     if exclude_id:
         qs = qs.exclude(pk=exclude_id)
     return qs.exists()
+
+
+class PublicArticleListView(APIView):
+    """
+    GET: List published or public articles for the public news portal.
+    Open to unauthenticated visitors and authenticated reporters alike.
+    Supports optional ?lang=sn or ?lang=nd for localized dispatches.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        user = request.user if request.user.is_authenticated else None
+        raw_lang = (request.query_params.get('lang') or 'en').strip().lower()
+        if raw_lang in ['shona', 'chishona', 'sn']:
+            lang = 'sn'
+        elif raw_lang in ['ndebele', 'isindebele', 'nd']:
+            lang = 'nd'
+        else:
+            lang = 'en'
+
+        prefetch_list = [
+            Prefetch(
+                'branches',
+                queryset=Branch.objects.filter(Q(is_main=True) | Q(is_public=True)).select_related('created_by'),
+                to_attr='visible_branches'
+            )
+        ]
+
+        if lang != 'en':
+            prefetch_list.append(
+                Prefetch(
+                    'translations',
+                    queryset=ArticleTranslation.objects.filter(language_code__iexact=lang),
+                    to_attr='current_translations'
+                )
+            )
+
+        articles = (
+            Article.objects.filter(is_published=True)
+            .select_related('group', 'author')
+            .prefetch_related(*prefetch_list)
+            .distinct()
+            .order_by('-published_at', '-updated_at')
+        )
+
+        if lang != 'en':
+            for art in articles:
+                curr_list = getattr(art, 'current_translations', None)
+                art.current_translation = curr_list[0] if curr_list else None
+
+        serializer = ArticleSerializer(articles, many=True, context={'request': request, 'lang': lang})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class PublicLeadSubmissionView(APIView):
+    """
+    POST: Submit a news tip or investigative lead from the public or a reporter.
+    Creates an article entered into the newsroom review workflow (status='in_review', is_public=False).
+    Submissions do not automatically appear as published articles.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        headline = request.data.get('headline', '').strip()
+        details = request.data.get('details', '').strip()
+        desk = request.data.get('desk', 'General News')
+        urgency = request.data.get('urgency', 'Lead Tip')
+        contact_info = request.data.get('contact_info', 'Anonymous')
+        is_anonymous = request.data.get('is_anonymous', False)
+        location = request.data.get('location', '')
+
+        if not headline or not details:
+            return Response(
+                {"detail": "Headline and story details are required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user = request.user if request.user.is_authenticated else None
+
+        with transaction.atomic():
+            article = Article.objects.create(
+                title=headline,
+                author=user,
+                group=None,
+            )
+            loc_str = f" | Location: {location}" if location else ""
+            summary = f"[{urgency}] Desk: {desk}{loc_str} | Source: {'Anonymous' if is_anonymous else contact_info}"
+            Branch.objects.create(
+                branch_name='lead-submission',
+                branch_description=summary,
+                content=details,
+                status='in_review',
+                is_main=True,
+                is_public=False,
+                article=article,
+                created_by=user,
+            )
+
+        return Response(
+            {
+                "message": "Lead submitted successfully and routed to the editorial review workflow.",
+                "article_id": article.article_id,
+                "status": "in_review",
+            },
+            status=status.HTTP_201_CREATED
+        )
 
 
 class UserArticleListView(APIView):
@@ -162,6 +270,59 @@ class ArticleDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+class PublishArticleView(APIView):
+    """
+    POST: Publish or unpublish an article for public portal view.
+    Only article author or members of the article's newsroom group can publish.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, article_id):
+        article = get_object_or_404(Article.objects.select_related('group'), pk=article_id)
+
+        is_author = article.author_id == request.user.pk
+        is_member = bool(article.group and check_group_membership(request.user, article.group))
+        if not (is_author or is_member):
+            return Response(
+                {"detail": "You do not have permission to publish this story."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        action = request.data.get('action', 'publish')
+        if action == 'unpublish':
+            article.is_published = False
+            article.published_at = None
+            article.save(update_fields=['is_published', 'published_at'])
+            return Response(
+                {
+                    "message": "Article unpublished from public portal.",
+                    "is_published": False,
+                    "article": ArticleSerializer(article, context={'request': request}).data,
+                },
+                status=status.HTTP_200_OK
+            )
+
+        article.is_published = True
+        article.published_at = timezone.now()
+        article.save(update_fields=['is_published', 'published_at'])
+
+        # If article has branches, make sure main branch is marked public
+        main_branch = article.branches.filter(is_main=True).first()
+        if main_branch and not main_branch.is_public:
+            main_branch.is_public = True
+            main_branch.status = 'merged'
+            main_branch.save(update_fields=['is_public', 'status'])
+
+        return Response(
+            {
+                "message": "Article published to public portal.",
+                "is_published": True,
+                "article": ArticleSerializer(article, context={'request': request}).data,
+            },
+            status=status.HTTP_200_OK
+        )
+
+
 class ArticleBranchListCreateView(APIView):
     """
     GET: List all branches of an article.
@@ -222,7 +383,7 @@ class ArticleBranchListCreateView(APIView):
 
 class BranchPushView(APIView):
     """POST: Mark a branch as public and broadcast a notification to the newsroom.
-    Only the branch's creator can push it – nobody else should publish someone's private draft.
+    Only the branch's creator can push it â€“ nobody else should publish someone's private draft.
     """
     permission_classes = [IsAuthenticated]
 
@@ -328,3 +489,139 @@ class BranchDetailView(APIView):
 
         branch.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ArticleTranslationView(APIView):
+    """
+    GET: Retrieve or dynamically generate and cache an article translation (en, sn, nd).
+    POST: Update or save manual translation overrides.
+    """
+    permission_classes = [AllowAny]
+
+    def _normalize_lang(self, code):
+        if not code:
+            return 'en'
+        c = code.strip().lower()
+        if c in ['sn', 'shona', 'chishona']:
+            return 'sn'
+        if c in ['nd', 'ndebele', 'isindebele']:
+            return 'nd'
+        return 'en'
+
+    def get(self, request, article_id):
+        article = get_object_or_404(
+            Article.objects.select_related('group', 'author').prefetch_related('branches'),
+            pk=article_id
+        )
+
+        # Access check: published articles are public; unpublished require author/membership
+        if not article.is_published:
+            if not request.user.is_authenticated:
+                return Response(
+                    {"detail": "Authentication required to view unpublished drafts."},
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+            is_author = article.author_id == request.user.pk
+            is_member = bool(article.group and check_group_membership(request.user, article.group))
+            if not (is_author or is_member):
+                return Response(
+                    {"detail": "You do not have permission to view this article translation."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+        target_lang = self._normalize_lang(request.query_params.get('lang', 'sn'))
+
+        # Fetch main branch or first branch for base content
+        main_branch = article.branches.filter(is_main=True).first() or article.branches.first()
+        base_content = main_branch.content if main_branch else ""
+        base_excerpt = (main_branch.branch_description if main_branch else "") or (base_content[:160] if base_content else "")
+
+        if target_lang == 'en':
+            return Response({
+                "translation_id": f"en-{article.article_id}",
+                "article": article.article_id,
+                "language_code": "en",
+                "title": article.title,
+                "content": base_content,
+                "excerpt": base_excerpt,
+                "cached": True,
+            }, status=status.HTTP_200_OK)
+
+        # Check if translation already exists in PostgreSQL database
+        translation = ArticleTranslation.objects.filter(
+            article=article,
+            language_code=target_lang
+        ).first()
+
+        if translation:
+            return Response({
+                "translation_id": translation.translation_id,
+                "article": article.article_id,
+                "language_code": translation.language_code,
+                "title": translation.title,
+                "content": translation.content,
+                "excerpt": translation.excerpt,
+                "cached": True,
+                "created_at": translation.created_at,
+                "updated_at": translation.updated_at,
+            }, status=status.HTTP_200_OK)
+
+        # If not cached, translate using Saiph AI translation service (Groq Llama-3.3-70b)
+        translated_title = translate_text(article.title, target_language=target_lang, source_language='en')
+        translated_content = translate_text(base_content, target_language=target_lang, source_language='en') if base_content else ""
+        translated_excerpt = translate_text(base_excerpt, target_language=target_lang, source_language='en') if base_excerpt else ""
+
+        # Store in database so subsequent reads are cached instantly (<15ms)
+        translation, _ = ArticleTranslation.objects.update_or_create(
+            article=article,
+            language_code=target_lang,
+            defaults={
+                'title': translated_title or article.title,
+                'content': translated_content or base_content,
+                'excerpt': translated_excerpt or base_excerpt,
+            }
+        )
+
+        return Response({
+            "translation_id": translation.translation_id,
+            "article": article.article_id,
+            "language_code": translation.language_code,
+            "title": translation.title,
+            "content": translation.content,
+            "excerpt": translation.excerpt,
+            "cached": False,
+            "created_at": translation.created_at,
+            "updated_at": translation.updated_at,
+        }, status=status.HTTP_200_OK)
+
+    def post(self, request, article_id):
+        # Update or manual edit of translation
+        if not request.user.is_authenticated:
+            return Response({"detail": "Authentication required to update translations."}, status=status.HTTP_401_UNAUTHORIZED)
+
+        article = get_object_or_404(Article.objects.select_related('group'), pk=article_id)
+        is_author = article.author_id == request.user.pk
+        is_member = bool(article.group and check_group_membership(request.user, article.group))
+        if not (is_author or is_member):
+            return Response({"detail": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+
+        target_lang = self._normalize_lang(request.data.get('language_code', 'sn'))
+        title = request.data.get('title')
+        content = request.data.get('content', '')
+        excerpt = request.data.get('excerpt', '')
+
+        if not title:
+            return Response({"detail": "Title is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        translation, _ = ArticleTranslation.objects.update_or_create(
+            article=article,
+            language_code=target_lang,
+            defaults={
+                'title': title,
+                'content': content,
+                'excerpt': excerpt or (content[:160] if content else ""),
+            }
+        )
+
+        return Response(ArticleTranslationSerializer(translation).data, status=status.HTTP_200_OK)
+

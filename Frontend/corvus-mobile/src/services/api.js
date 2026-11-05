@@ -201,7 +201,7 @@ export async function refreshToken() {
   return false;
 }
 
-// ─── User ──────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ User â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function searchUsers(query = '') {
   return await apiRequest(`/api/auth/users/?search=${encodeURIComponent(query)}`, {
@@ -209,7 +209,7 @@ export async function searchUsers(query = '') {
   });
 }
 
-// ─── Newsrooms ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Newsrooms â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function fetchNewsrooms() {
   return await apiRequest('/api/newsroom/groups/', { requireAuth: true });
@@ -223,7 +223,7 @@ export async function createNewsroom({ name, description = '', member_ids = [] }
   });
 }
 
-// ─── Articles ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Articles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function fetchArticles() {
   return await apiRequest('/api/project/articles/', { requireAuth: true });
@@ -285,12 +285,21 @@ export async function updateBranchContent(branchId, { content, summary }) {
   });
 }
 
-// Push a branch – makes it public and notifies newsroom members
+// Push a branch â€“ makes it public and notifies newsroom members
 export async function pushBranch(branchId) {
   // The backend endpoint will set is_public=true and broadcast a notification
   return await apiRequest(`/api/project/branches/${branchId}/push/`, {
     method: 'POST',
     requireAuth: true,
+  });
+}
+
+// Publish an article to the public user site portal
+export async function publishArticle(articleId, action = 'publish') {
+  return await apiRequest(`/api/project/articles/${articleId}/publish/`, {
+    method: 'POST',
+    requireAuth: true,
+    body: { action },
   });
 }
 
@@ -316,7 +325,7 @@ export async function createBranch(articleId, { name, description = '', content 
   });
 }
 
-// ─── Chats ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Chats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function fetchInbox() {
   return await apiRequest('/api/chats/inbox/', { requireAuth: true });
@@ -349,7 +358,7 @@ export async function fetchActiveVoiceSessions() {
   return await apiRequest('/api/newsroom/voice/active/', { requireAuth: true });
 }
 
-// ─── Saiph AI Article Agent & Workspace ────────────────────────────────────────
+// â”€â”€â”€ Saiph AI Article Agent & Workspace â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function generateArticleDraft({ title = '', brief = '', category = 'Investigative Report' } = {}) {
   return await apiRequest('/api/ai/generate-draft/', {
@@ -446,3 +455,46 @@ export async function deleteAgentMemory(memoryId) {
   });
 }
 
+
+
+// â”€â”€â”€ Public Portal & Lead Submissions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+export async function fetchPublicArticles(lang = 'EN') {
+  try {
+    const langParam = lang && lang.toUpperCase() !== 'EN' ? `?lang=${encodeURIComponent(lang.toLowerCase())}` : '';
+    return await apiRequest(`/api/project/public/${langParam}`, { method: 'GET', requireAuth: false });
+  } catch (err) {
+    return [];
+  }
+}
+
+export async function fetchArticleTranslation(articleId, targetLang = 'sn') {
+  return await apiRequest(
+    `/api/project/articles/${encodeURIComponent(articleId)}/translate/?lang=${encodeURIComponent(targetLang.toLowerCase())}`,
+    { method: 'GET', requireAuth: false }
+  );
+}
+
+export async function submitLead({ headline, details, desk = 'General News', urgency = 'Lead Tip', contact_info = 'Anonymous', is_anonymous = false, location = '' }) {
+  return await apiRequest('/api/project/leads/', {
+    method: 'POST',
+    requireAuth: false,
+    body: {
+      headline,
+      details,
+      desk,
+      urgency,
+      contact_info,
+      is_anonymous,
+      location,
+    },
+  });
+}
+
+export async function fetchUserPosts() {
+  try {
+    return await apiRequest('/api/project/articles/', { method: 'GET', requireAuth: true });
+  } catch (err) {
+    return [];
+  }
+}

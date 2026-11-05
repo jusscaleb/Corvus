@@ -54,11 +54,12 @@ import {
   fetchBranches,
   createBranch,
   pushBranch,
+  publishArticle,
   fetchActiveVoiceSessions,
   fetchArticleAIWorkspace,
 } from '../services/api';
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function SymbolIcon({ symbol, color, size = 18 }) {
   return (
@@ -104,7 +105,7 @@ function SectionHeading({
             onPress={onToggle}
             style={styles.panelToggle}
           >
-            <Text style={styles.panelToggleText}>{expanded ? '−' : '+'}</Text>
+            <Text style={styles.panelToggleText}>{expanded ? 'âˆ’' : '+'}</Text>
           </Pressable>
         )}
       </View>
@@ -114,7 +115,7 @@ function SectionHeading({
 
 function SelectableRow({ item, selected, onPress, onDelete, compact = false, styles, colors }) {
   const latestMessage = item.type === 'chat' ? item.lastMessage : item.timestamp;
-  const symbol = item.symbol || item.avatar?.slice(0, 2) || '•';
+  const symbol = item.symbol || item.avatar?.slice(0, 2) || 'â€¢';
 
   return (
     <View
@@ -144,7 +145,7 @@ function SelectableRow({ item, selected, onPress, onDelete, compact = false, sty
             {item.title}
           </Text>
           <Text numberOfLines={1} style={[styles.rowMeta, selected && styles.rowMetaSelected]}>
-            {latestMessage || '—'}
+            {latestMessage || 'â€”'}
           </Text>
         </View>
         {item.unread > 0 && !selected && (
@@ -172,7 +173,7 @@ function SelectableRow({ item, selected, onPress, onDelete, compact = false, sty
   );
 }
 
-// ─── Empty state ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ Empty state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function EmptyState({ icon, title, subtitle, actionLabel, onAction, styles }) {
   return (
@@ -189,7 +190,7 @@ function EmptyState({ icon, title, subtitle, actionLabel, onAction, styles }) {
   );
 }
 
-// ─── Rich Markdown / Word Tools Renderer ─────────────────────────────────────
+// â”€â”€â”€ Rich Markdown / Word Tools Renderer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function renderInlineFormatted(text, colors) {
   if (!text) return null;
@@ -345,11 +346,11 @@ function FormattedArticleBody({ content, colors, styles }) {
           );
         }
         const isWholeLineItalic = /^\*[^*\s][^*]*\*$/.test(trimmed);
-        if (!isWholeLineItalic && /^(?:•|-|\*)\s+/.test(trimmed)) {
-          const itemText = trimmed.replace(/^(?:•|-|\*)\s+/, '');
+        if (!isWholeLineItalic && /^(?:â€¢|-|\*)\s+/.test(trimmed)) {
+          const itemText = trimmed.replace(/^(?:â€¢|-|\*)\s+/, '');
           return (
             <View key={idx} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingLeft: 6 }}>
-              <Text style={{ color: colors.forest, fontSize: 16, fontWeight: '800', lineHeight: 24 }}>•</Text>
+              <Text style={{ color: colors.forest, fontSize: 16, fontWeight: '800', lineHeight: 24 }}>â€¢</Text>
               <Text style={[styles.articleBody, { flex: 1 }]}>
                 {renderInlineFormatted(itemText, colors)}
               </Text>
@@ -366,7 +367,7 @@ function FormattedArticleBody({ content, colors, styles }) {
   );
 }
 
-// ─── Main screen ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ Main screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function MainScreen() {
   return (
@@ -426,6 +427,7 @@ function MainScreenContent() {
   const [activeFormats, setActiveFormats] = useState(DEFAULT_ACTIVE_FORMATS);
   const richEditorRef = useRef(null);
 
+  // Dedicated active voice room state { id, title } â€“ persists across view navigation
   // Prompt the user to provide a phone number for offline SMS dispatches if they haven't yet
   useEffect(() => {
     if (!loadingInitial && shouldPromptForPhoneNumber(user, phonePromptDismissed)) {
@@ -437,11 +439,11 @@ function MainScreenContent() {
   // (allows users to browse/edit articles, switch channels, and multitask while remaining on voice)
   const [activeVoiceRoom, setActiveVoiceRoom] = useState(null);
 
-  // Voice session room ID – stays anchored to activeVoiceRoom during an ongoing call
+  // Voice session room ID â€“ stays anchored to activeVoiceRoom during an ongoing call
   const currentVoiceRoomId = activeVoiceRoom?.id || selectedItem?.id || 'newsroom-general';
   const voiceChat = useVoiceChat(currentVoiceRoomId, user, { autoJoin: false });
 
-  // Derived from selectedItem — used for chat polling & chat WebSocket
+  // Derived from selectedItem â€” used for chat polling & chat WebSocket
   const activeConversationId = selectedItem?.type === 'chat' ? selectedItem.id : null;
 
   // Tracks if THIS client initiated the voice session to prevent showing self-invite banners
@@ -454,7 +456,7 @@ function MainScreenContent() {
     }
   }, [voiceChat.isConnected]);
 
-  // Real-time chat WebSocket – delivers voice_call_status events sent by
+  // Real-time chat WebSocket â€“ delivers voice_call_status events sent by
   // the backend VoiceSignalingConsumer through ChatConsumer to all channel members
   useChatSocket(activeConversationId, {
     onVoiceStatus: (msg) => {
@@ -462,7 +464,7 @@ function MainScreenContent() {
       const isInitiator = String(msg.initiator_id) === String(myUserId) || initiatedVoiceCallRef.current;
 
       if (msg.status === 'started') {
-        // Only show invite banner to the OPPOSING user — NEVER to the initiator
+        // Only show invite banner to the OPPOSING user â€” NEVER to the initiator
         if (!isInitiator && !voiceChat.isConnected && !voiceChat.isConnecting) {
           const matched = newsrooms.find((n) => String(n.id) === String(msg.room_id)) ||
                           directMessages.find((d) => String(d.id) === String(msg.room_id));
@@ -485,7 +487,7 @@ function MainScreenContent() {
     },
   });
 
-  // ── Global Voice Session Monitor ──────────────────────────────────────────
+  // â”€â”€ Global Voice Session Monitor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Polls active voice calls across all of the user's newsrooms & DMs so invitations
   // appear globally from anywhere, allowing the user to browse articles or perform
   // other tasks while receiving incoming voice session alerts.
@@ -561,7 +563,7 @@ function MainScreenContent() {
     showToast({ message: `Joining ${targetRoom.title} voice...`, type: 'info' });
   }, [activeVoiceCallInvite, voiceChat, showToast]);
 
-  // ── Branches of the open story ─────────────────────────────────────────
+  // â”€â”€ Branches of the open story â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const selectedArticleId = selectedItem?.type === 'article' ? selectedItem.id : null;
 
   useEffect(() => {
@@ -603,7 +605,7 @@ function MainScreenContent() {
     };
   }, [selectedArticleId]);
 
-  // Main first, then oldest → newest, shaped for the ArticleHeader dropdown
+  // Main first, then oldest â†’ newest, shaped for the ArticleHeader dropdown
   const branchMenuItems = articleBranches.length
     ? [...articleBranches]
         .sort((a, b) => (b.is_main - a.is_main) || String(a.created_at).localeCompare(String(b.created_at)))
@@ -658,10 +660,36 @@ function MainScreenContent() {
   const handleExecuteCommand = useCallback(async (cmdId) => {
     const current = articleBranches.find((b) => b.branch_name === activeBranch);
 
+    if (cmdId === 'publish' || cmdId === 'unpublish') {
+      if (!selectedItem?.id) return;
+      if (isEditingArticle) {
+        showToast({ message: 'Save your edits before publishing.', type: 'error' });
+        return;
+      }
+      try {
+        const action = cmdId === 'unpublish' || selectedItem.is_published ? 'unpublish' : 'publish';
+        const res = await publishArticle(selectedItem.id, action);
+        const isNowPublished = res.is_published;
+        setSelectedItem((prev) => ({ ...prev, is_published: isNowPublished }));
+        setArticles((prev) =>
+          prev.map((a) => (a.article_id === selectedItem.id ? { ...a, is_published: isNowPublished } : a))
+        );
+        showToast({
+          message: isNowPublished
+            ? 'Article published! It is now live on the public user site.'
+            : 'Article unpublished from public user site.',
+          type: 'success',
+        });
+      } catch (err) {
+        showToast({ message: err?.message || 'Failed to update publishing status.', type: 'error' });
+      }
+      return;
+    }
+
     if (cmdId === 'push') {
       if (!current) return;
       if (!selectedItem?.groupId) {
-        showToast({ message: 'This is a personal story – there is no newsroom to share it with.', type: 'info' });
+        showToast({ message: 'This is a personal story â€“ there is no newsroom to share it with.', type: 'info' });
         return;
       }
       if (current.is_main || current.is_public) {
@@ -675,6 +703,7 @@ function MainScreenContent() {
       try {
         const updated = await pushBranch(current.branch_id);
         setArticleBranches((prev) => prev.map((b) => (b.branch_id === updated.branch_id ? updated : b)));
+        showToast({ message: `Pushed ${activeBranch} â€“ your newsroom can now see it.`, type: 'info' });
         const smsCount = updated?.sms_notification?.recipient_count || 0;
         const smsSuffix =
           smsCount > 0
@@ -692,7 +721,7 @@ function MainScreenContent() {
         ? 'main line, shared'
         : current.is_public
           ? 'shared with newsroom'
-          : 'private – only you can see it';
+          : 'private â€“ only you can see it';
       const unsaved = isEditingArticle &&
         (editContent !== (selectedItem?.content || '') || editSummary !== (selectedItem?.summary || ''));
       showToast({
@@ -765,7 +794,7 @@ function MainScreenContent() {
       setEditSummary(newArt.summary || '');
       setArticleSection('article');
       showToast({
-        message: `✦ Saiph AI created and drafted "${newArt.title}"!`,
+        message: `âœ¦ Saiph AI created and drafted "${newArt.title}"!`,
         type: 'info',
       });
     }
@@ -778,7 +807,7 @@ function MainScreenContent() {
         prev.map((a) => (a.id === selectedArticleId ? { ...a, title: res.updated_title } : a))
       );
       showToast({
-        message: `✦ Saiph AI updated headline to "${res.updated_title}".`,
+        message: `âœ¦ Saiph AI updated headline to "${res.updated_title}".`,
         type: 'info',
       });
     }
@@ -798,8 +827,8 @@ function MainScreenContent() {
       richEditorRef.current?.resetContent?.(targetSwitchedBranch.content || '');
       showToast({
         message: res.created_branch
-          ? `✦ Saiph AI created & switched to branch "${targetSwitchedBranch.branch_name}".`
-          : `✦ Saiph AI switched to branch "${targetSwitchedBranch.branch_name}".`,
+          ? `âœ¦ Saiph AI created & switched to branch "${targetSwitchedBranch.branch_name}".`
+          : `âœ¦ Saiph AI switched to branch "${targetSwitchedBranch.branch_name}".`,
         type: 'info',
       });
     }
@@ -808,7 +837,7 @@ function MainScreenContent() {
         prev.map((b) => (b.branch_id === res.pushed_branch.branch_id ? res.pushed_branch : b))
       );
       showToast({
-        message: `✦ Saiph AI pushed branch "${res.pushed_branch.branch_name}" to newsroom.`,
+        message: `âœ¦ Saiph AI pushed branch "${res.pushed_branch.branch_name}" to newsroom.`,
         type: 'info',
       });
     }
@@ -841,7 +870,7 @@ function MainScreenContent() {
     }
   }, [activeBranch, selectedArticleId, showBranchInEditor, showToast]);
 
-  // ── Animated values for expanding & retracting panels ───────────
+  // â”€â”€ Animated values for expanding & retracting panels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const leftAnim = useRef(new Animated.Value(1)).current;
   const rightAnim = useRef(new Animated.Value(1)).current;
   const restoreAnim = useRef(new Animated.Value(0)).current;
@@ -849,7 +878,7 @@ function MainScreenContent() {
   const drawerSlideAnim = useRef(new Animated.Value(300)).current;
   const drawerBackdropAnim = useRef(new Animated.Value(0)).current;
 
-  // ── Initial Live Data Loading ──────────────────────────────────
+  // â”€â”€ Initial Live Data Loading â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const loadWorkspaceData = useCallback(async () => {
     try {
       const [groupsRes, inboxRes, articlesRes] = await Promise.allSettled([
@@ -867,7 +896,7 @@ function MainScreenContent() {
             title: g.group_name,
             tagline: g.group_description || 'Newsroom desk channel',
             subscribers: `${g.member_number || 1} members`,
-            symbol: '▤',
+            symbol: 'â–¤',
             avatar: g.group_name.slice(0, 2).toUpperCase(),
           }))
         );
@@ -927,7 +956,7 @@ function MainScreenContent() {
         author: a.author_name || a.author?.full_name || a.author?.username || 'Reporter',
         authorId: a.author?.user_id,
         readTime: `${a.branch_count || 1} branch${a.branch_count !== 1 ? 'es' : ''}`,
-        symbol: '◎',
+        symbol: 'â—Ž',
         summary: mainBranch?.branch_description || mainBranch?.content?.slice(0, 160) || 'Editorial draft in progress...',
         content: mainBranch?.content || 'Draft content in progress...',
       };
@@ -938,7 +967,7 @@ function MainScreenContent() {
     loadWorkspaceData();
   }, [loadWorkspaceData]);
 
-  // ── Live Newsroom Article & Group Sync ─────────────────────────
+  // â”€â”€ Live Newsroom Article & Group Sync â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Periodically refreshes articles and newsrooms so stories filed by any
   // colleague in a newsroom appear automatically for all members in that newsroom.
   useEffect(() => {
@@ -984,6 +1013,18 @@ function MainScreenContent() {
           }
         }
         if (Array.isArray(groupsData)) {
+          setNewsrooms(
+            groupsData.map((g) => ({
+              id: g.group_id,
+              type: 'chat',
+              chatType: 'group',
+              title: g.group_name,
+              tagline: g.group_description || 'Newsroom desk channel',
+              subscribers: `${g.member_number || 1} members`,
+              symbol: 'â–¤',
+              avatar: g.group_name.slice(0, 2).toUpperCase(),
+            }))
+          );
           const nextGroups = groupsData.map((g) => ({
             id: g.group_id,
             type: 'chat',
@@ -1019,7 +1060,7 @@ function MainScreenContent() {
     };
   }, [formatArticlesList, isEditingArticle, isEditingTitle]);
 
-  // ── Poll messages & active voice call status for active chat conversation ──
+  // â”€â”€ Poll messages & active voice call status for active chat conversation â”€â”€
   useEffect(() => {
     if (!activeConversationId) return;
 
@@ -1282,7 +1323,7 @@ function MainScreenContent() {
     }
   }
 
-  // ── Modal Creation Callbacks ────────────────────────────────────
+  // â”€â”€ Modal Creation Callbacks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function handleArticleCreated(newArticle) {
     setArticles((prev) => [newArticle, ...prev]);
     selectItem(newArticle);
@@ -1297,7 +1338,7 @@ function MainScreenContent() {
       title: newGroup.group_name,
       tagline: newGroup.group_description || 'Newsroom desk channel',
       subscribers: `${newGroup.member_number || 3} members`,
-      symbol: '▤',
+      symbol: 'â–¤',
       avatar: newGroup.group_name.slice(0, 2).toUpperCase(),
     };
     setNewsrooms((prev) => [item, ...prev]);
@@ -1366,7 +1407,7 @@ function MainScreenContent() {
     if (articles.length === 0) {
       return (
         <EmptyState
-          icon="◎"
+          icon="â—Ž"
           title="No articles yet"
           subtitle="Newsroom investigative pieces and stories will appear here."
           styles={styles}
@@ -1393,7 +1434,7 @@ function MainScreenContent() {
     if (items.length === 0) {
       return (
         <EmptyState
-          icon="◇"
+          icon="â—‡"
           title={emptyTitle}
           subtitle={emptySubtitle}
           actionLabel={actionLabel}
@@ -1488,7 +1529,7 @@ function MainScreenContent() {
     if (!selectedItem) {
       return (
         <Animated.View style={[styles.welcomePane, { opacity: contentFadeAnim }]}>
-          <Text style={styles.welcomeIcon}>◎</Text>
+          <Text style={styles.welcomeIcon}>â—Ž</Text>
           <Text style={styles.welcomeTitle}>The Newsroom Workspace</Text>
           <Text style={styles.welcomeSubtitle}>
             Select an article, join a collaborative newsroom desk, or start an end-to-end direct correspondence.
@@ -1516,7 +1557,7 @@ function MainScreenContent() {
               onPress={() => setAiModalOpen(true)}
               style={styles.welcomeSecondaryBtn}
             >
-              <Text style={styles.welcomeSecondaryBtnText}>✦ Ask Saiph AI Agent</Text>
+              <Text style={styles.welcomeSecondaryBtnText}>âœ¦ Ask Saiph AI Agent</Text>
             </Pressable>
           </View>
         </Animated.View>
@@ -1542,6 +1583,7 @@ function MainScreenContent() {
           <ArticleHeader
             activeBranch={activeBranch}
             branches={branchMenuItems}
+            isPublished={!!selectedItem?.is_published}
             onSelectBranch={handleSelectBranch}
             onCreateBranch={handleCreateBranch}
             onExecuteCommand={handleExecuteCommand}
@@ -1708,7 +1750,7 @@ function MainScreenContent() {
                   }}
                   style={styles.titleCancelBtn}
                 >
-                  <Text style={styles.titleCancelBtnText}>✕</Text>
+                  <Text style={styles.titleCancelBtnText}>âœ•</Text>
                 </Pressable>
               </View>
             ) : (
@@ -1738,12 +1780,12 @@ function MainScreenContent() {
                 <Text style={styles.authorName}>
                   {isPersonal
                     ? `${user?.full_name || user?.username || 'You'} (Personal Draft)`
-                    : `Reported by ${selectedItem.author || 'Reporter'} • ${targetNewsroom?.title || 'Newsroom'} Desk`}
+                    : `Reported by ${selectedItem.author || 'Reporter'} â€¢ ${targetNewsroom?.title || 'Newsroom'} Desk`}
                 </Text>
                 <Text style={styles.authorRole}>
                   {isPersonal
-                    ? 'Private Workspace • Only visible to you'
-                    : `Collaborative Investigation • ${targetNewsroom?.subscribers || 'Desk Members'}`}
+                    ? 'Private Workspace â€¢ Only visible to you'
+                    : `Collaborative Investigation â€¢ ${targetNewsroom?.subscribers || 'Desk Members'}`}
                 </Text>
               </View>
             </View>
@@ -1757,7 +1799,7 @@ function MainScreenContent() {
                 <View style={{ flex: 1, gap: 4 }}>
                   <Text style={styles.pdfBannerTitle}>{pdfData.fileName}</Text>
                   <Text style={styles.pdfBannerMeta}>
-                    Document Size: {pdfData.fileSize} • Secured in newsroom archive
+                    Document Size: {pdfData.fileSize} â€¢ Secured in newsroom archive
                   </Text>
                 </View>
                 <Pressable
@@ -1790,13 +1832,13 @@ function MainScreenContent() {
               ) : null
             )}
 
-            {/* Article Body (True WYSIWYG Rich Text Editor — no raw markdown symbols) */}
+            {/* Article Body (True WYSIWYG Rich Text Editor â€” no raw markdown symbols) */}
             {!pdfData && (
               <View style={styles.editBodyBlock}>
                 <View style={styles.editBodyLabelRow}>
                   <Text style={styles.editSectionLabel}>ARTICLE COPY / REPORT</Text>
                   <Text style={styles.editBodyCount}>
-                    {stripRichFormatting(isEditingArticle ? editContent : selectedItem.content).length} chars •{' '}
+                    {stripRichFormatting(isEditingArticle ? editContent : selectedItem.content).length} chars â€¢{' '}
                     {stripRichFormatting(isEditingArticle ? editContent : selectedItem.content)
                       ? stripRichFormatting(isEditingArticle ? editContent : selectedItem.content).split(/\s+/).length
                       : 0}{' '}
@@ -1920,7 +1962,7 @@ function MainScreenContent() {
             {sendingMessage ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <SymbolIcon symbol="↑" color={colors.white} size={20} />
+              <SymbolIcon symbol="â†‘" color={colors.white} size={20} />
             )}
           </Pressable>
         </View>
@@ -1928,7 +1970,7 @@ function MainScreenContent() {
     );
   }
 
-  // ── Left Sidebar with Animated Expand/Retract ────────────────────
+  // â”€â”€ Left Sidebar with Animated Expand/Retract â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const leftSidebarWidth = leftAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [0, 260],
@@ -1971,7 +2013,7 @@ function MainScreenContent() {
     </Animated.View>
   );
 
-  // ── Right Sidebar with Animated Expand/Retract ───────────────────
+  // â”€â”€ Right Sidebar with Animated Expand/Retract â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const rightSidebarWidth = rightAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [0, 290],
@@ -2043,7 +2085,7 @@ function MainScreenContent() {
     </Animated.View>
   );
 
-  // ── Restore Bar with Animated Height & Opacity ──────────────────
+  // â”€â”€ Restore Bar with Animated Height & Opacity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const restoreBarHeight = restoreAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [0, 48],
@@ -2065,7 +2107,7 @@ function MainScreenContent() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.page}>
-          {/* ── Global Voice Call Invite Banner (appears anywhere in the app) ── */}
+          {/* â”€â”€ Global Voice Call Invite Banner (appears anywhere in the app) â”€â”€ */}
           <VoiceCallInviteBanner
             invite={activeVoiceCallInvite}
             onJoin={handleJoinVoiceCall}
@@ -2290,7 +2332,7 @@ function MainScreenContent() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: '#dc2626', fontSize: 10, fontWeight: '800', letterSpacing: 1 }}>
-                  EDITORIAL ARCHIVE • PERMANENT ACTION
+                  EDITORIAL ARCHIVE â€¢ PERMANENT ACTION
                 </Text>
                 <Text style={{ color: colors.ink, fontSize: 18, fontWeight: '800', fontFamily: 'serif' }}>
                   Delete Story?
