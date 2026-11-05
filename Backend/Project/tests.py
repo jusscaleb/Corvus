@@ -414,6 +414,7 @@ class ProjectTests(APITestCase):
         self.client.credentials()
         res_unpub = self.client.get(public_url)
         self.assertFalse(any(a['article_id'] == article.article_id for a in res_unpub.data))
+<<<<<<< HEAD
 
     @patch('Project.views.translate_text')
     def test_article_translation_and_caching_workflow(self, mock_translate):
@@ -480,4 +481,39 @@ class ProjectTests(APITestCase):
         self.assertEqual(res_en.status_code, status.HTTP_200_OK)
         self.assertEqual(res_en.data['title'], "Clean Water for Bulawayo Suburbs")
         self.assertTrue(res_en.data['cached'])
+=======
+    # ─── Offline SMS Dispatch (AI Summary + Twilio) ───────────────────────
+
+    def test_profile_phone_number_update_and_validation(self):
+        profile_url = reverse('user_profile')
+        # Valid phone number with spaces is normalized to compact E.164
+        res = self.client.patch(profile_url, {"phone_number": "+263 77 123 4567"})
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['phone_number'], '+263771234567')
+        self.user1.refresh_from_db()
+        self.assertEqual(self.user1.phone_number, '+263771234567')
+
+        # Invalid phone number is rejected with 400
+        bad_res = self.client.patch(profile_url, {"phone_number": "not-a-phone"})
+        self.assertEqual(bad_res.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+    def test_sms_short_circuits_when_no_members_have_phone_numbers(self):
+        from unittest.mock import patch
+        from Project.sms_service import notify_newsroom_branch_published
+
+        _, private_branch = self._article_with_private_branch()
+        with patch('Project.sms_service.chat_with_groq') as mock_ai, patch(
+            'Project.sms_service.send_twilio_sms'
+        ) as mock_twilio:
+            result = notify_newsroom_branch_published(
+                private_branch,
+                pushed_by=self.user1,
+                async_dispatch=False,
+            )
+            self.assertFalse(result['queued'])
+            self.assertEqual(result['recipient_count'], 0)
+            mock_ai.assert_not_called()
+            mock_twilio.assert_not_called()
+>>>>>>> ffa6f01b52e635fe842da4acf996eda25b66790d
 

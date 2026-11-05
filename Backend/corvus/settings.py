@@ -30,13 +30,30 @@ GROQ_API_KEY = os.getenv('GROQ_API_KEY')
 GROQ_GUARD_MODEL = os.getenv('GROQ_GUARD_MODEL', 'meta-llama/llama-prompt-guard-2-22m')
 GROQ_CHAT_MODEL = os.getenv('GROQ_CHAT_MODEL', 'openai/gpt-oss-120b')
 
+# Twilio SMS Configuration (recipient numbers come dynamically from newsroom members in DB)
+TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID', '')
+TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN', '')
+TWILIO_SENDER_ID = os.getenv('TWILIO_SENDER_ID', 'Corvus')
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 't')
 
 # MongoDB Settings
-MONGODB_URI = os.getenv('MONGODB_URI') or 'mongodb://127.0.0.1:27017'
-MONGODB_DATABASE = os.getenv('MONGODB_DATABASE', 'corvus_chats')
-MONGODB_SERVER_SELECTION_TIMEOUT_MS = int(os.getenv('MONGODB_SERVER_SELECTION_TIMEOUT_MS', '3000'))
+# Supports Railway MongoDB (MONGO_URL / MONGODB_URL / MONGODB_URI) or local fallback
+MONGODB_URI = (
+   os.getenv('MONGO_URL') or 'mongodb://127.0.0.1:27017'
+)
+
+# Parse database name safely and guard against unresolved Railway reference variables (${{...}})
+raw_mongodb_database = (
+    'corvus_chats'
+).strip()
+
+if not raw_mongodb_database or '${{' in raw_mongodb_database or '.' in raw_mongodb_database or '$' in raw_mongodb_database:
+    raw_mongodb_database = 'corvus_chats'
+
+MONGODB_DATABASE = raw_mongodb_database
+MONGODB_SERVER_SELECTION_TIMEOUT_MS = int(os.getenv('MONGODB_SERVER_SELECTION_TIMEOUT_MS', '5000'))
 
 
 
@@ -100,15 +117,37 @@ CHANNEL_LAYERS = {
     },
 }
 
-# Database
-# https://docs.djangoproject.com/en/6.0/ref/settings/#databases
+import urllib.parse
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# Database
+# Supports PostgreSQL via DATABASE_URL (Railway, Supabase, Neon) or local SQLite fallback
+DATABASE_URL = os.getenv('DATABASE_URL')
+
+if DATABASE_URL:
+    url = urllib.parse.urlparse(DATABASE_URL)
+    db_config = {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': url.path.lstrip('/') or 'railway',
+        'USER': urllib.parse.unquote(url.username or ''),
+        'PASSWORD': urllib.parse.unquote(url.password or ''),
+        'HOST': url.hostname,
+        'PORT': url.port or 5432,
+        'DISABLE_SERVER_SIDE_CURSORS': True,
     }
-}
+    if 'sslmode' in url.query:
+        query_params = urllib.parse.parse_qs(url.query)
+        db_config['OPTIONS'] = {'sslmode': query_params['sslmode'][0]}
+
+    DATABASES = {
+        'default': db_config
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # Password validation

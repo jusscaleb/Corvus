@@ -45,12 +45,15 @@ export default function CreateArticleModal({
   const scale = useRef(new Animated.Value(0.92)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const fileInputRef = useRef(null);
+  const richEditorRef = useRef(null);
+  const useNativeDriver = Platform.OS !== 'web';
 
   useEffect(() => {
     if (visible) {
       setTitle('');
       setSummary('');
       setContent('');
+      richEditorRef.current?.resetContent?.('');
       setPdfFile(null);
       setMode('write');
       setSubmitting(false);
@@ -65,16 +68,18 @@ export default function CreateArticleModal({
       setSelectedGroupId(preferred);
 
       Animated.parallel([
-        Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
-        Animated.spring(scale, { toValue: 1, tension: 85, friction: 9, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver }),
+        Animated.spring(scale, { toValue: 1, tension: 85, friction: 9, useNativeDriver }),
       ]).start();
     } else {
       Animated.parallel([
-        Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver: true }),
-        Animated.timing(scale, { toValue: 0.92, duration: 150, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver }),
+        Animated.timing(scale, { toValue: 0.92, duration: 150, useNativeDriver }),
       ]).start();
     }
-  }, [visible, newsrooms]);
+    // Only reset form state when `visible` transitions, NEVER when background polls refresh `newsrooms`
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
 
   function handleFileSelect(e) {
     const file = e.target?.files?.[0];
@@ -161,6 +166,7 @@ export default function CreateArticleModal({
       }
       if (draft?.content) {
         setContent(draft.content);
+        richEditorRef.current?.resetContent?.(draft.content);
       }
       showToast({
         message: '✦ Saiph AI generated a full structured draft from your brief!',
@@ -375,6 +381,7 @@ export default function CreateArticleModal({
                     </Text>
                   </View>
                   <RichTextEditor
+                    ref={richEditorRef}
                     placeholder="Compose your article, investigative evidence, and sources here..."
                     value={content}
                     onChangeText={setContent}

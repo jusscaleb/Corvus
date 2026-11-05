@@ -52,6 +52,14 @@ function loadApiServiceWithMockFetch() {
         /import\s+\{\s*Platform\s*\}\s+from\s+['"]react-native['"];?/g,
         'const Platform = { OS: "web", select: (obj) => obj.web || obj.default };'
       )
+      .replace(
+        /import\s+Constants\s+from\s+['"]expo-constants['"];?/g,
+        'const Constants = { manifest: { extra: {} } };'
+      )
+      .replace(
+        /import\s+AsyncStorage\s+from\s+['"]@react-native-async-storage\/async-storage['"];?/g,
+        'const AsyncStorage = {};'
+      )
       .replace(/export\s+async\s+function\s+(\w+)/g, (_, name) => {
         exportedFuncs.push(name);
         return `async function ${name}`;
@@ -331,6 +339,9 @@ test('Feature 5: AI Draft Generation from Brief Summary in CreateArticleModal', 
   assert.match(createModal, /handleGenerateAIDraft/);
   assert.match(createModal, /✦ Saiph AI Draft Assistant/);
   assert.match(createModal, /✦ Generate AI Draft/);
+  // Ensure background newsroom polling never resets form inputs while the modal is open
+  assert.doesNotMatch(createModal, /\},\s*\[visible,\s*newsrooms\]\)/);
+  assert.match(createModal, /\},\s*\[visible\]\)/);
 
   const { api, calls, setMockResponse } = loadApiServiceWithMockFetch();
   api.authStorage.setTokens({ access: 'jwt-draft-test' });
@@ -799,6 +810,7 @@ test('Feature 13: Saiph AI Branch Switching (single-turn, multi-turn, checkout) 
   assert.deepEqual(replyFallback, { action: 'create', branchName: 'draft-v2' });
 });
 
+<<<<<<< HEAD
 test('Feature 14: Article Translation System (Saiph AI Groq translation, multilingual fetch & caching)', async () => {
   const { api, calls } = loadApiServiceWithMockFetch();
 
@@ -829,6 +841,60 @@ test('Feature 14: Article Translation System (Saiph AI Groq translation, multili
   // 5. Verify UserSite.jsx passes selectedLang
   const userSiteCode = readSrc('components/UserSite.jsx');
   assert.match(userSiteCode, /selectedLang=\{selectedLang\}/);
+=======
+// ─── 14. Offline SMS Phone Number Check & Prompt Modal ────────────────────────
+
+test('Feature 14: Offline SMS Phone Number Check, PhonePromptModal & updateUserProfile API', async () => {
+  const phoneModal = readSrc('components/PhonePromptModal.jsx');
+  const mainScreen = readSrc('components/MainScreen.jsx');
+  const newsroomHeader = readSrc('components/NewsroomHeader.jsx');
+
+  assert.doesNotThrow(() => parseModule(phoneModal, 'PhonePromptModal.jsx'));
+  assert.match(mainScreen, /shouldPromptForPhoneNumber/);
+  assert.match(mainScreen, /<PhonePromptModal/);
+  assert.match(newsroomHeader, /onOpenPhonePrompt/);
+  assert.match(newsroomHeader, /Add SMS #/);
+
+  // Extract pure phone helpers from PhonePromptModal.jsx
+  const startIdx = phoneModal.indexOf('export function hasValidPhoneNumber');
+  const endIdx = phoneModal.indexOf('function PhoneWireIcon');
+  assert.ok(startIdx !== -1 && endIdx > startIdx, 'Phone helpers must exist in PhonePromptModal.jsx');
+
+  const snippet = phoneModal
+    .slice(startIdx, endIdx)
+    .replace(/export\s+function\s+/g, 'function ');
+  const { hasValidPhoneNumber, formatPhoneForApi, shouldPromptForPhoneNumber } = new Function(
+    `${snippet}\nreturn { hasValidPhoneNumber, formatPhoneForApi, shouldPromptForPhoneNumber };`
+  )();
+
+  // 1. User without a phone number triggers the modal prompt
+  assert.equal(shouldPromptForPhoneNumber({ user_id: 'u1', username: 'reporter' }, false), true);
+  assert.equal(shouldPromptForPhoneNumber({ user_id: 'u1', phone_number: '' }, false), true);
+
+  // 2. User with a valid phone number does NOT trigger the modal prompt
+  assert.equal(shouldPromptForPhoneNumber({ user_id: 'u1', phone_number: '+263771234567' }, false), false);
+  assert.equal(shouldPromptForPhoneNumber({ user_id: 'u1', phone_number: '' }, true), false);
+
+  // 3. Phone validation & formatting
+  assert.equal(hasValidPhoneNumber('+263 77 123 4567'), true);
+  assert.equal(formatPhoneForApi('+263 (77) 123-4567'), '+263771234567');
+  assert.equal(hasValidPhoneNumber('abc'), false);
+
+  // 4. Verify updateUserProfile PATCH /api/auth/profile/ in api.js
+  const { api, calls, setMockResponse } = loadApiServiceWithMockFetch();
+  api.authStorage.setTokens({ access: 'jwt-phone-test' });
+  setMockResponse({
+    user_id: 'u1',
+    username: 'reporter',
+    phone_number: '+263771234567',
+  });
+  const updated = await api.updateUserProfile({ phone_number: '+263771234567' });
+  assert.equal(calls.at(-1).url, 'http://localhost:8000/api/auth/profile/');
+  assert.equal(calls.at(-1).method, 'PATCH');
+  assert.deepEqual(calls.at(-1).body, { phone_number: '+263771234567' });
+  assert.equal(updated.phone_number, '+263771234567');
+  assert.equal(api.authStorage.getUser().phone_number, '+263771234567');
+>>>>>>> ffa6f01b52e635fe842da4acf996eda25b66790d
 });
 
 

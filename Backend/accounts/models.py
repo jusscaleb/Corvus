@@ -43,6 +43,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         ("ndebele", "Ndebele"),
     ]
     preffered_language = models.CharField(blank=True, max_length=16, choices=LANGUAGE_CHOICES, default="english")
+    phone_number = models.CharField(blank=True, max_length=24, default="")
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
 
