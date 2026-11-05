@@ -20,7 +20,7 @@ import CreateNewsroomModal from './CreateNewsroomModal';
 import NewDMModal from './NewDMModal';
 import CreateArticleModal from './CreateArticleModal';
 import PhonePromptModal, { shouldPromptForPhoneNumber } from './PhonePromptModal';
-import { LockIcon, UsersIcon, EditIcon, FilePdfIcon, PrinterIcon, EyeIcon, SaveIcon, TrashIcon } from './AppIcons';
+import { LockIcon, UsersIcon, EditIcon, FilePdfIcon, PrinterIcon, EyeIcon, SaveIcon, TrashIcon, FileTextIcon } from './AppIcons';
 import { exportArticleToPdf, openPdfDocument } from '../utils/pdfExporter';
 import { useTheme } from '../context/ThemeContext';
 import { VoiceChatProvider, ChatScreenHeader } from './VoiceChat';
@@ -59,7 +59,7 @@ import {
   fetchArticleAIWorkspace,
 } from '../services/api';
 
-// â”€â”€â”€ Sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Sub-components -----------------------------------------------------------
 
 function SymbolIcon({ symbol, color, size = 18 }) {
   return (
@@ -105,7 +105,7 @@ function SectionHeading({
             onPress={onToggle}
             style={styles.panelToggle}
           >
-            <Text style={styles.panelToggleText}>{expanded ? 'âˆ’' : '+'}</Text>
+            <Text style={styles.panelToggleText}>{expanded ? '−' : '+'}</Text>
           </Pressable>
         )}
       </View>
@@ -115,7 +115,8 @@ function SectionHeading({
 
 function SelectableRow({ item, selected, onPress, onDelete, compact = false, styles, colors }) {
   const latestMessage = item.type === 'chat' ? item.lastMessage : item.timestamp;
-  const symbol = item.symbol || item.avatar?.slice(0, 2) || 'â€¢';
+  const isArticle = item.type === 'article';
+  const initials = item.avatar || (item.title ? item.title.slice(0, 2).toUpperCase() : '•');
 
   return (
     <View
@@ -138,14 +139,18 @@ function SelectableRow({ item, selected, onPress, onDelete, compact = false, sty
         }}
       >
         <View style={[styles.rowSymbol, selected && styles.rowSymbolSelected]}>
-          <Text style={[styles.rowSymbolText, selected && styles.rowSymbolTextSelected]}>{symbol}</Text>
+          {isArticle ? (
+            <FileTextIcon size={14} color={selected ? (colors?.selectedText || '#ffffff') : (colors?.forest || '#315E4A')} />
+          ) : (
+            <Text style={[styles.rowSymbolText, selected && styles.rowSymbolTextSelected]}>{initials}</Text>
+          )}
         </View>
         <View style={styles.rowCopy}>
           <Text numberOfLines={compact ? 1 : 2} style={[styles.rowTitle, selected && styles.rowTitleSelected]}>
             {item.title}
           </Text>
           <Text numberOfLines={1} style={[styles.rowMeta, selected && styles.rowMetaSelected]}>
-            {latestMessage || 'â€”'}
+            {latestMessage || '—'}
           </Text>
         </View>
         {item.unread > 0 && !selected && (
@@ -173,7 +178,7 @@ function SelectableRow({ item, selected, onPress, onDelete, compact = false, sty
   );
 }
 
-// â”€â”€â”€ Empty state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Empty state --------------------------------------------------------------
 
 function EmptyState({ icon, title, subtitle, actionLabel, onAction, styles }) {
   return (
@@ -190,7 +195,7 @@ function EmptyState({ icon, title, subtitle, actionLabel, onAction, styles }) {
   );
 }
 
-// â”€â”€â”€ Rich Markdown / Word Tools Renderer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Rich Markdown / Word Tools Renderer -------------------------------------
 
 function renderInlineFormatted(text, colors) {
   if (!text) return null;
@@ -346,11 +351,11 @@ function FormattedArticleBody({ content, colors, styles }) {
           );
         }
         const isWholeLineItalic = /^\*[^*\s][^*]*\*$/.test(trimmed);
-        if (!isWholeLineItalic && /^(?:â€¢|-|\*)\s+/.test(trimmed)) {
-          const itemText = trimmed.replace(/^(?:â€¢|-|\*)\s+/, '');
+        if (!isWholeLineItalic && /^(?:•|-|\*)\s+/.test(trimmed)) {
+          const itemText = trimmed.replace(/^(?:•|-|\*)\s+/, '');
           return (
             <View key={idx} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingLeft: 6 }}>
-              <Text style={{ color: colors.forest, fontSize: 16, fontWeight: '800', lineHeight: 24 }}>â€¢</Text>
+              <Text style={{ color: colors.forest, fontSize: 16, fontWeight: '800', lineHeight: 24 }}>•</Text>
               <Text style={[styles.articleBody, { flex: 1 }]}>
                 {renderInlineFormatted(itemText, colors)}
               </Text>
@@ -367,7 +372,7 @@ function FormattedArticleBody({ content, colors, styles }) {
   );
 }
 
-// â”€â”€â”€ Main screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Main screen --------------------------------------------------------------
 
 export default function MainScreen() {
   return (
@@ -443,7 +448,7 @@ function MainScreenContent() {
   const currentVoiceRoomId = activeVoiceRoom?.id || selectedItem?.id || 'newsroom-general';
   const voiceChat = useVoiceChat(currentVoiceRoomId, user, { autoJoin: false });
 
-  // Derived from selectedItem â€” used for chat polling & chat WebSocket
+  // Derived from selectedItem — used for chat polling & chat WebSocket
   const activeConversationId = selectedItem?.type === 'chat' ? selectedItem.id : null;
 
   // Tracks if THIS client initiated the voice session to prevent showing self-invite banners
@@ -464,7 +469,7 @@ function MainScreenContent() {
       const isInitiator = String(msg.initiator_id) === String(myUserId) || initiatedVoiceCallRef.current;
 
       if (msg.status === 'started') {
-        // Only show invite banner to the OPPOSING user â€” NEVER to the initiator
+        // Only show invite banner to the OPPOSING user — NEVER to the initiator
         if (!isInitiator && !voiceChat.isConnected && !voiceChat.isConnecting) {
           const matched = newsrooms.find((n) => String(n.id) === String(msg.room_id)) ||
                           directMessages.find((d) => String(d.id) === String(msg.room_id));
@@ -487,7 +492,7 @@ function MainScreenContent() {
     },
   });
 
-  // â”€â”€ Global Voice Session Monitor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Global Voice Session Monitor ------------------------------------------
   // Polls active voice calls across all of the user's newsrooms & DMs so invitations
   // appear globally from anywhere, allowing the user to browse articles or perform
   // other tasks while receiving incoming voice session alerts.
@@ -563,7 +568,7 @@ function MainScreenContent() {
     showToast({ message: `Joining ${targetRoom.title} voice...`, type: 'info' });
   }, [activeVoiceCallInvite, voiceChat, showToast]);
 
-  // â”€â”€ Branches of the open story â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Branches of the open story -----------------------------------------
   const selectedArticleId = selectedItem?.type === 'article' ? selectedItem.id : null;
 
   useEffect(() => {
@@ -870,7 +875,7 @@ function MainScreenContent() {
     }
   }, [activeBranch, selectedArticleId, showBranchInEditor, showToast]);
 
-  // â”€â”€ Animated values for expanding & retracting panels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Animated values for expanding & retracting panels -----------
   const leftAnim = useRef(new Animated.Value(1)).current;
   const rightAnim = useRef(new Animated.Value(1)).current;
   const restoreAnim = useRef(new Animated.Value(0)).current;
@@ -878,7 +883,7 @@ function MainScreenContent() {
   const drawerSlideAnim = useRef(new Animated.Value(300)).current;
   const drawerBackdropAnim = useRef(new Animated.Value(0)).current;
 
-  // â”€â”€ Initial Live Data Loading â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Initial Live Data Loading ----------------------------------
   const loadWorkspaceData = useCallback(async () => {
     try {
       const [groupsRes, inboxRes, articlesRes] = await Promise.allSettled([
@@ -896,7 +901,7 @@ function MainScreenContent() {
             title: g.group_name,
             tagline: g.group_description || 'Newsroom desk channel',
             subscribers: `${g.member_number || 1} members`,
-            symbol: 'â–¤',
+            avatar: g.group_name.slice(0, 2).toUpperCase(),
             avatar: g.group_name.slice(0, 2).toUpperCase(),
           }))
         );
@@ -956,7 +961,7 @@ function MainScreenContent() {
         author: a.author_name || a.author?.full_name || a.author?.username || 'Reporter',
         authorId: a.author?.user_id,
         readTime: `${a.branch_count || 1} branch${a.branch_count !== 1 ? 'es' : ''}`,
-        symbol: 'â—Ž',
+        avatar: a.title ? a.title.slice(0, 2).toUpperCase() : 'AR',
         summary: mainBranch?.branch_description || mainBranch?.content?.slice(0, 160) || 'Editorial draft in progress...',
         content: mainBranch?.content || 'Draft content in progress...',
       };
@@ -967,7 +972,7 @@ function MainScreenContent() {
     loadWorkspaceData();
   }, [loadWorkspaceData]);
 
-  // â”€â”€ Live Newsroom Article & Group Sync â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Live Newsroom Article & Group Sync -------------------------
   // Periodically refreshes articles and newsrooms so stories filed by any
   // colleague in a newsroom appear automatically for all members in that newsroom.
   useEffect(() => {
@@ -1021,7 +1026,7 @@ function MainScreenContent() {
               title: g.group_name,
               tagline: g.group_description || 'Newsroom desk channel',
               subscribers: `${g.member_number || 1} members`,
-              symbol: 'â–¤',
+              avatar: g.group_name.slice(0, 2).toUpperCase(),
               avatar: g.group_name.slice(0, 2).toUpperCase(),
             }))
           );
@@ -1060,7 +1065,7 @@ function MainScreenContent() {
     };
   }, [formatArticlesList, isEditingArticle, isEditingTitle]);
 
-  // â”€â”€ Poll messages & active voice call status for active chat conversation â”€â”€
+  // -- Poll messages & active voice call status for active chat conversation --
   useEffect(() => {
     if (!activeConversationId) return;
 
@@ -1323,7 +1328,7 @@ function MainScreenContent() {
     }
   }
 
-  // â”€â”€ Modal Creation Callbacks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Modal Creation Callbacks ------------------------------------
   function handleArticleCreated(newArticle) {
     setArticles((prev) => [newArticle, ...prev]);
     selectItem(newArticle);
@@ -1338,7 +1343,7 @@ function MainScreenContent() {
       title: newGroup.group_name,
       tagline: newGroup.group_description || 'Newsroom desk channel',
       subscribers: `${newGroup.member_number || 3} members`,
-      symbol: 'â–¤',
+      avatar: g.group_name.slice(0, 2).toUpperCase(),
       avatar: newGroup.group_name.slice(0, 2).toUpperCase(),
     };
     setNewsrooms((prev) => [item, ...prev]);
@@ -1407,7 +1412,7 @@ function MainScreenContent() {
     if (articles.length === 0) {
       return (
         <EmptyState
-          icon="â—Ž"
+          icon="◎"
           title="No articles yet"
           subtitle="Newsroom investigative pieces and stories will appear here."
           styles={styles}
@@ -1434,7 +1439,7 @@ function MainScreenContent() {
     if (items.length === 0) {
       return (
         <EmptyState
-          icon="â—‡"
+          icon="◇"
           title={emptyTitle}
           subtitle={emptySubtitle}
           actionLabel={actionLabel}
@@ -1529,7 +1534,7 @@ function MainScreenContent() {
     if (!selectedItem) {
       return (
         <Animated.View style={[styles.welcomePane, { opacity: contentFadeAnim }]}>
-          <Text style={styles.welcomeIcon}>â—Ž</Text>
+          <View style={{ marginBottom: 16 }}><FileTextIcon size={46} color={colors?.forest || '#315E4A'} /></View>
           <Text style={styles.welcomeTitle}>The Newsroom Workspace</Text>
           <Text style={styles.welcomeSubtitle}>
             Select an article, join a collaborative newsroom desk, or start an end-to-end direct correspondence.
@@ -1780,12 +1785,12 @@ function MainScreenContent() {
                 <Text style={styles.authorName}>
                   {isPersonal
                     ? `${user?.full_name || user?.username || 'You'} (Personal Draft)`
-                    : `Reported by ${selectedItem.author || 'Reporter'} â€¢ ${targetNewsroom?.title || 'Newsroom'} Desk`}
+                    : `Reported by ${selectedItem.author || 'Reporter'} • ${targetNewsroom?.title || 'Newsroom'} Desk`}
                 </Text>
                 <Text style={styles.authorRole}>
                   {isPersonal
-                    ? 'Private Workspace â€¢ Only visible to you'
-                    : `Collaborative Investigation â€¢ ${targetNewsroom?.subscribers || 'Desk Members'}`}
+                    ? 'Private Workspace • Only visible to you'
+                    : `Collaborative Investigation • ${targetNewsroom?.subscribers || 'Desk Members'}`}
                 </Text>
               </View>
             </View>
@@ -1799,7 +1804,7 @@ function MainScreenContent() {
                 <View style={{ flex: 1, gap: 4 }}>
                   <Text style={styles.pdfBannerTitle}>{pdfData.fileName}</Text>
                   <Text style={styles.pdfBannerMeta}>
-                    Document Size: {pdfData.fileSize} â€¢ Secured in newsroom archive
+                    Document Size: {pdfData.fileSize} • Secured in newsroom archive
                   </Text>
                 </View>
                 <Pressable
@@ -1832,13 +1837,13 @@ function MainScreenContent() {
               ) : null
             )}
 
-            {/* Article Body (True WYSIWYG Rich Text Editor â€” no raw markdown symbols) */}
+            {/* Article Body (True WYSIWYG Rich Text Editor — no raw markdown symbols) */}
             {!pdfData && (
               <View style={styles.editBodyBlock}>
                 <View style={styles.editBodyLabelRow}>
                   <Text style={styles.editSectionLabel}>ARTICLE COPY / REPORT</Text>
                   <Text style={styles.editBodyCount}>
-                    {stripRichFormatting(isEditingArticle ? editContent : selectedItem.content).length} chars â€¢{' '}
+                    {stripRichFormatting(isEditingArticle ? editContent : selectedItem.content).length} chars •{' '}
                     {stripRichFormatting(isEditingArticle ? editContent : selectedItem.content)
                       ? stripRichFormatting(isEditingArticle ? editContent : selectedItem.content).split(/\s+/).length
                       : 0}{' '}
@@ -1962,7 +1967,7 @@ function MainScreenContent() {
             {sendingMessage ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <SymbolIcon symbol="â†‘" color={colors.white} size={20} />
+              <SymbolIcon symbol="↑" color={colors.white} size={20} />
             )}
           </Pressable>
         </View>
@@ -1970,7 +1975,7 @@ function MainScreenContent() {
     );
   }
 
-  // â”€â”€ Left Sidebar with Animated Expand/Retract â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Left Sidebar with Animated Expand/Retract --------------------
   const leftSidebarWidth = leftAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [0, 260],
@@ -2013,7 +2018,7 @@ function MainScreenContent() {
     </Animated.View>
   );
 
-  // â”€â”€ Right Sidebar with Animated Expand/Retract â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Right Sidebar with Animated Expand/Retract -------------------
   const rightSidebarWidth = rightAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [0, 290],
@@ -2085,7 +2090,7 @@ function MainScreenContent() {
     </Animated.View>
   );
 
-  // â”€â”€ Restore Bar with Animated Height & Opacity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Restore Bar with Animated Height & Opacity ------------------
   const restoreBarHeight = restoreAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [0, 48],
@@ -2107,7 +2112,7 @@ function MainScreenContent() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.page}>
-          {/* â”€â”€ Global Voice Call Invite Banner (appears anywhere in the app) â”€â”€ */}
+          {/* -- Global Voice Call Invite Banner (appears anywhere in the app) -- */}
           <VoiceCallInviteBanner
             invite={activeVoiceCallInvite}
             onJoin={handleJoinVoiceCall}
@@ -2332,7 +2337,7 @@ function MainScreenContent() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: '#dc2626', fontSize: 10, fontWeight: '800', letterSpacing: 1 }}>
-                  EDITORIAL ARCHIVE â€¢ PERMANENT ACTION
+                  EDITORIAL ARCHIVE • PERMANENT ACTION
                 </Text>
                 <Text style={{ color: colors.ink, fontSize: 18, fontWeight: '800', fontFamily: 'serif' }}>
                   Delete Story?

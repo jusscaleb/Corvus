@@ -56,9 +56,9 @@ export default function UserSite() {
         backgroundColor={colors.headerBg || colors.paper}
       />
 
-      {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ------------------------------------------------------------------- */}
       {/* PUBLIC-FACING EDITORIAL HEADER                                      */}
-      {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ------------------------------------------------------------------- */}
       <View style={styles.header}>
         <View style={styles.headerInner}>
           {/* Left: Brand Wordmark + Language Selector */}
@@ -86,7 +86,7 @@ export default function UserSite() {
                   <Path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
                 </Svg>
                 <Text style={styles.langSelectorText}>{selectedLang}</Text>
-                <Text style={styles.dropdownCaret}>{showLangMenu ? 'â–²' : 'â–¼'}</Text>
+                <Text style={styles.dropdownCaret}>{showLangMenu ? '▲' : '▼'}</Text>
               </TouchableOpacity>
 
               {showLangMenu && (
@@ -172,7 +172,7 @@ export default function UserSite() {
               accessibilityRole="button"
               accessibilityLabel="Toggle navigation menu"
             >
-              <Text style={styles.hamburgerIcon}>{mobileMenuOpen ? 'âœ•' : 'â˜°'}</Text>
+              <Text style={styles.hamburgerIcon}>{mobileMenuOpen ? '✕' : '☰'}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -256,9 +256,9 @@ export default function UserSite() {
         )}
       </View>
 
-      {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ------------------------------------------------------------------- */}
       {/* ACTIVE PAGE CONTENT RENDERER                                        */}
-      {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ------------------------------------------------------------------- */}
       <View style={styles.body}>
         {activeTab === 'news' && (
           <NewsArticles
