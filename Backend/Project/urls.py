@@ -7,10 +7,12 @@ from .views import (
     ArticleDetailView,
     PublishArticleView,
     ArticleTranslationView,
+    ArticleApproveView,
     ArticleBranchListCreateView,
     BranchDetailView,
     BranchPushView,
     BranchDiffView,
+    BranchMergeView,
 )
 
 urlpatterns = [
@@ -25,12 +27,13 @@ urlpatterns = [
     path('groups/<str:group_id>/articles/', GroupArticleListCreateView.as_view(), name='group_article_list_create'),
     path('articles/<str:article_id>/', ArticleDetailView.as_view(), name='article_detail'),
     path('articles/<str:article_id>/publish/', PublishArticleView.as_view(), name='article_publish'),
+    path('articles/<str:article_id>/approve/', ArticleApproveView.as_view(), name='article_approve'),
     path('articles/<str:article_id>/translate/', ArticleTranslationView.as_view(), name='article_translate'),
 
-    # Push a branch to make it public
+    # Branch operations
     path('branches/<str:branch_id>/push/', BranchPushView.as_view(), name='branch_push'),
-    # Diff a branch
     path('branches/<str:branch_id>/diff/', BranchDiffView.as_view(), name='branch_diff'),
+    path('branches/<str:branch_id>/merge/', BranchMergeView.as_view(), name='branch_merge'),
 
     path('articles/<str:article_id>/branches/', ArticleBranchListCreateView.as_view(), name='article_branch_list_create'),
     path('branches/<str:branch_id>/', BranchDetailView.as_view(), name='branch_detail'),

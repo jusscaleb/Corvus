@@ -218,16 +218,6 @@ export function ArticleMindmapSection({
                           <Text style={[s.childLeafNote, { color: colors.muted }]}>{child.note}</Text>
                         )}
                       </View>
-                      {insertCallback && (
-                        <Pressable
-                          onPress={() => insertCallback(`• ${child.note || child.label}`)}
-                          style={[s.leafInsertBtn, { borderColor: colors.line }]}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Add ${child.label} to draft`}
-                        >
-                          <Text style={[s.leafInsertBtnText, { color: colors.forest }]}>+ Draft</Text>
-                        </Pressable>
-                      )}
                     </View>
                   ))}
                 </View>

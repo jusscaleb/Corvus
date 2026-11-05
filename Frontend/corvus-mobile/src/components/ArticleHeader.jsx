@@ -252,6 +252,7 @@ export default function ArticleHeader({
 
   const branchBtnRef = useRef(null);
   const commandsBtnRef = useRef(null);
+  const langBtnRef = useRef(null);
 
   let themeColors = lightColors;
   try {
@@ -448,6 +449,34 @@ export default function ArticleHeader({
           </Text>
         </TouchableOpacity>
 
+        <View style={[styles.divider, { backgroundColor: themeColors.line || '#d1d5db' }]} />
+
+        {/* 2b. Language Tab Dropdown Trigger */}
+        <TouchableOpacity
+          ref={langBtnRef}
+          style={[
+            styles.tabButton,
+            activeModal === 'language' && [
+              styles.tabButtonActive,
+              { backgroundColor: themeColors.cardBg || '#ffffff', borderColor: themeColors.forest || '#0066cc' },
+            ],
+          ]}
+          onPress={() => openMenu('language', langBtnRef)}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`Language: ${selectedLanguage || 'ENG'}. Click to translate`}
+        >
+          <View style={styles.tabIconWrapper}>
+            <GlobeIcon size={13} color={themeColors.muted || '#666666'} />
+          </View>
+          <Text style={[styles.tabText, { color: themeColors.ink || '#333333' }]} numberOfLines={1}>
+            Lang: <Text style={[styles.tabHighlight, { color: themeColors.forest || '#0066cc' }]}>{selectedLanguage || 'ENG'}</Text>
+          </Text>
+          <Text style={[styles.caret, { color: themeColors.muted || '#666666' }]}>
+            {activeModal === 'language' ? '▲' : '▼'}
+          </Text>
+        </TouchableOpacity>
+
         {/* 3. Article Sections: Draft | Mindmap | Board | AI Review */}
         {onSelectSection && (
           <>
@@ -487,6 +516,52 @@ export default function ArticleHeader({
               })}
             </ScrollView>
           </>
+        )}
+
+        {/* Peer Approvals Indicator & Approve Button */}
+        {Array.isArray(peerApprovals) && peerApprovals.length >= 0 && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginHorizontal: 4 }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                borderRadius: 5,
+                backgroundColor: peerApprovals.length >= 2 ? '#dcfce7' : '#fef3c7',
+                borderWidth: 1,
+                borderColor: peerApprovals.length >= 2 ? '#86efac' : '#fcd34d',
+                gap: 4,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: '700',
+                  color: peerApprovals.length >= 2 ? '#166534' : '#92400e',
+                }}
+              >
+                {peerApprovals.length >= 2
+                  ? `✓ ${peerApprovals.length}/2 Peer Approvals`
+                  : `Approvals: ${peerApprovals.length}/2`}
+              </Text>
+            </View>
+            {canApprove && onGrantApproval && (
+              <TouchableOpacity
+                onPress={onGrantApproval}
+                style={{
+                  backgroundColor: themeColors.forest || '#059669',
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 5,
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Approve article for publication"
+              >
+                <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '700' }}>+ Approve</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         )}
 
         <View style={{ flex: 1 }} />
@@ -769,6 +844,10 @@ export default function ArticleHeader({
                         key={cmd.id}
                         style={[styles.cmdMenuItem, { borderBottomColor: themeColors.line || '#f8fafc' }]}
                         onPress={() => {
+                          if (cmd.id === 'diff') {
+                            setActiveModal('diffPicker');
+                            return;
+                          }
                           onExecuteCommand(cmd.id);
                           closeModal();
                         }}
@@ -783,6 +862,96 @@ export default function ArticleHeader({
                       </TouchableOpacity>
                     );
                   })}
+                </ScrollView>
+              </View>
+            )}
+
+            {/* --- DIFF PICKER DROPDOWN --------------------------------- */}
+            {activeModal === 'diffPicker' && (
+              <View>
+                <View style={[styles.menuHeaderBar, { borderBottomColor: themeColors.line || '#f1f5f9' }]}>
+                  <View style={styles.menuHeaderTitleRow}>
+                    <GitDiffIcon size={14} color={themeColors.forest || '#0066cc'} />
+                    <Text style={[styles.menuHeader, { color: themeColors.ink || '#0f172a' }]}>Compare Branches</Text>
+                  </View>
+                </View>
+                <Text style={{ fontSize: 11.5, color: themeColors.muted || '#64748b', paddingHorizontal: 14, paddingTop: 8, paddingBottom: 6 }}>
+                  Compare active branch <Text style={{ fontWeight: '700', color: themeColors.forest || '#0066cc' }}>"{activeBranch}"</Text> with:
+                </Text>
+                <ScrollView style={{ maxHeight: 260 }} keyboardShouldPersistTaps="handled">
+                  {branchItems.filter(b => b.name !== activeBranch).length === 0 ? (
+                    <View style={{ padding: 16 }}>
+                      <Text style={{ fontSize: 12.5, color: themeColors.muted || '#64748b', textAlign: 'center' }}>
+                        Only 1 branch exists on this story. Create a new branch to compare differences.
+                      </Text>
+                    </View>
+                  ) : (
+                    branchItems.filter(b => b.name !== activeBranch).map((branch) => (
+                      <TouchableOpacity
+                        key={branch.id || branch.name}
+                        style={[styles.branchMenuItem, { borderBottomColor: themeColors.line || '#f8fafc' }]}
+                        onPress={() => {
+                          if (onCompareBranch) {
+                            onCompareBranch(branch.name);
+                          } else {
+                            onExecuteCommand('diff');
+                          }
+                          closeModal();
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 13, fontWeight: '600', color: themeColors.ink || '#0f172a' }}>
+                            {branch.name}
+                          </Text>
+                        </View>
+                        <Text style={{ fontSize: 11.5, color: themeColors.forest || '#0066cc', fontWeight: '700' }}>
+                          View Diff →
+                        </Text>
+                      </TouchableOpacity>
+                    ))
+                  )}
+                </ScrollView>
+              </View>
+            )}
+
+            {/* --- LANGUAGE PICKER DROPDOWN ----------------------------- */}
+            {activeModal === 'language' && (
+              <View>
+                <View style={[styles.menuHeaderBar, { borderBottomColor: themeColors.line || '#f1f5f9' }]}>
+                  <View style={styles.menuHeaderTitleRow}>
+                    <GlobeIcon size={14} color={themeColors.forest || '#0066cc'} />
+                    <Text style={[styles.menuHeader, { color: themeColors.ink || '#0f172a' }]}>Translate Article</Text>
+                  </View>
+                </View>
+                <ScrollView style={{ maxHeight: 220 }}>
+                  {[
+                    { code: 'ENG', label: 'English (Original)', native: 'English' },
+                    { code: 'SNA', label: 'ChiShona', native: 'ChiShona' },
+                    { code: 'NDE', label: 'isiNdebele', native: 'isiNdebele' },
+                  ].map((lang) => (
+                    <TouchableOpacity
+                      key={lang.code}
+                      style={[
+                        styles.branchMenuItem,
+                        selectedLanguage === lang.code && { backgroundColor: themeColors.sidebarBg || '#f8fafc' },
+                      ]}
+                      onPress={() => {
+                        if (onSelectLanguage) onSelectLanguage(lang.code);
+                        closeModal();
+                      }}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 13, fontWeight: selectedLanguage === lang.code ? '700' : '500', color: themeColors.ink || '#0f172a' }}>
+                          {lang.label}
+                        </Text>
+                        <Text style={{ fontSize: 11, color: themeColors.muted || '#64748b' }}>{lang.native}</Text>
+                      </View>
+                      {selectedLanguage === lang.code && (
+                        <CheckIcon size={14} color={themeColors.forest || '#10b981'} />
+                      )}
+                    </TouchableOpacity>
+                  ))}
                 </ScrollView>
               </View>
             )}

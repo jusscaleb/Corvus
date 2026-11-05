@@ -375,7 +375,7 @@ test('Feature 6: AI Mindmap Section (generation, node categories, and + Draft le
   assert.match(articleHeader, /id:\s*'mindmap'/);
   assert.match(aiWorkspace, /export function ArticleMindmapSection/);
   assert.match(aiWorkspace, /CENTRAL THESIS \/ STORY ROOT/);
-  assert.match(aiWorkspace, /\+ Draft/);
+  assert.match(aiWorkspace, /childLeafLabel/);
   assert.match(mainScreen, /<ArticleMindmapSection/);
 
   const { api, calls, setMockResponse } = loadApiServiceWithMockFetch();
@@ -940,3 +940,172 @@ test('Feature 16: Universal MarkdownRenderer & Table Support for AI Messages & A
   assert.equal(bulletMatch[1], '**History & Growth:** Gained full university status');
 });
 
+
+// ─── 17. Interactive Branch Comparison UI ──────────────────────────────────────
+
+test('Feature 17: Interactive Branch Comparison UI (dropdown selector & structured diff)', async () => {
+  const articleHeader = readSrc('components/ArticleHeader.jsx');
+  const mainScreen = readSrc('components/MainScreen.jsx');
+  const branchDiffModal = readSrc('components/BranchDiffModal.jsx');
+
+  // Verify UI elements exist
+  assert.match(articleHeader, /activeModal === 'diffPicker'/);
+  assert.match(articleHeader, /Compare Branches/);
+  assert.match(articleHeader, /onCompareBranch/);
+  assert.match(mainScreen, /handleCompareBranches/);
+  assert.match(branchDiffModal, /BRANCH REVISION COMPARISON/);
+
+  // Test computeBranchDiff pure function
+  const { computeBranchDiff } = await import('./src/services/branchDiffUtil.js');
+  const baseBranch = { branch_name: 'main', content: 'Lead paragraph on Harare budget allocations.\nLine 2 context.' };
+  const compareBranch = { branch_name: 'investigative-lead', content: 'Lead paragraph on Harare budget allocations.\nNew evidence from audit report.\nLine 2 context.' };
+
+  const diff = computeBranchDiff(baseBranch, compareBranch);
+  assert.equal(diff.base_branch.branch_name, 'main');
+  assert.equal(diff.compare_branch.branch_name, 'investigative-lead');
+  assert.ok(diff.stats.added_lines >= 1);
+  assert.ok(diff.chunks.some((c) => c.type === 'added' && c.text.includes('New evidence')));
+});
+
+// ─── 18. Branch Merging with Creator Permission Gate ─────────────────────────
+
+test('Feature 18: Branch Merging with Creator Permission Gate', async () => {
+  const branchDiffModal = readSrc('components/BranchDiffModal.jsx');
+  assert.match(branchDiffModal, /canMergeBranch/);
+  assert.match(branchDiffModal, /Merge "/);
+  assert.match(branchDiffModal, /Creator Permission Required/);
+
+  const { canMergeBranch } = await import('./src/services/branchDiffUtil.js');
+
+  const creatorUser = { id: 101, username: 'tendai_reporter' };
+  const colleagueUser = { id: 202, username: 'munashe_editor' };
+
+  const tendaiBranch = {
+    branch_name: 'water-crisis-lead',
+    created_by: { id: 101, username: 'tendai_reporter' },
+  };
+
+  // Creator can merge their own branch
+  const creatorAttempt = canMergeBranch(creatorUser, tendaiBranch);
+  assert.equal(creatorAttempt.allowed, true);
+
+  // Colleague without permission is blocked
+  const colleagueAttempt = canMergeBranch(colleagueUser, tendaiBranch);
+  assert.equal(colleagueAttempt.allowed, false);
+  assert.match(colleagueAttempt.reason, /Only the journalist who created this branch/);
+
+  // Colleague with explicit permission granted is allowed
+  const permissionGrantedAttempt = canMergeBranch(colleagueUser, tendaiBranch, true);
+  assert.equal(permissionGrantedAttempt.allowed, true);
+});
+
+// ─── 19. Publishing Quality Gates & 2 Peer Approvals ─────────────────────────
+
+test('Feature 19: Publishing Quality Gates (AI Review Pass + 2 Peer Approvals)', async () => {
+  const mainScreen = readSrc('components/MainScreen.jsx');
+  const articleHeader = readSrc('components/ArticleHeader.jsx');
+
+  // Verify Quality Gates logic in publish handler
+  assert.match(mainScreen, /Gate 1: AI Review Passed Check/);
+  assert.match(mainScreen, /Gate 2: 2 Newsroom Peer Approvals Check/);
+  assert.match(articleHeader, /Peer Approvals/);
+
+  // Test peer approvals storage module
+  const { getArticlePeerApprovals, addArticlePeerApproval } = await import('./src/services/offlineSync.js');
+  const artId = 'art-test-' + Date.now();
+
+  const user1 = { id: 'u1', username: 'journalist_one', first_name: 'Tendai', last_name: 'Moyo' };
+  const user2 = { id: 'u2', username: 'journalist_two', first_name: 'Farai', last_name: 'Mutasa' };
+
+  let approvals = await getArticlePeerApprovals(artId);
+  assert.equal(approvals.length, 0);
+
+  approvals = await addArticlePeerApproval(artId, user1);
+  assert.equal(approvals.length, 1);
+  assert.equal(approvals[0].username, 'journalist_one');
+
+  approvals = await addArticlePeerApproval(artId, user2);
+  assert.equal(approvals.length, 2);
+
+  // Prevent duplicate approval by same user
+  approvals = await addArticlePeerApproval(artId, user1);
+  assert.equal(approvals.length, 2);
+});
+
+// ─── 20. Reporter Article Translation with DB Caching ────────────────────────
+
+test('Feature 20: Reporter Article Translation with DB Caching', async () => {
+  const articleHeader = readSrc('components/ArticleHeader.jsx');
+  const mainScreen = readSrc('components/MainScreen.jsx');
+
+  assert.match(articleHeader, /Translate Article/);
+  assert.match(articleHeader, /ChiShona/);
+  assert.match(articleHeader, /isiNdebele/);
+  assert.match(mainScreen, /handleSelectArticleLanguage/);
+  assert.match(mainScreen, /cachedTranslations/);
+
+  const { api, calls, setMockResponse } = loadApiServiceWithMockFetch();
+  api.authStorage.setTokens({ access: 'jwt-translate-token' });
+
+  setMockResponse({
+    article_id: 'art-44',
+    language: 'sn',
+    translated_title: 'Chirevo pamusoro pemvura muHarare',
+    translated_content: 'Guta reHarare riri kusangana nematambudziko emvura.',
+  });
+
+  const res = await api.fetchArticleTranslation('art-44', 'sn');
+  assert.equal(res.translated_title, 'Chirevo pamusoro pemvura muHarare');
+  assert.match(res.translated_content, /Guta reHarare/);
+});
+
+// ─── 21. Offline Local Storage & Reconnection Auto-Sync ───────────────────────
+
+test('Feature 21: Offline Local Storage & Reconnection Auto-Sync', async () => {
+  const mainScreen = readSrc('components/MainScreen.jsx');
+  assert.match(mainScreen, /Offline Mode/);
+  assert.match(mainScreen, /flushOfflineQueue/);
+
+  const {
+    saveOfflineDraft,
+    getOfflineDraft,
+    clearOfflineDraft,
+    queueOfflineAction,
+    getQueuedOfflineActions,
+    clearQueuedOfflineActions,
+    flushOfflineQueue,
+  } = await import('./src/services/offlineSync.js');
+
+  const artId = 'art-offline-' + Date.now();
+  await saveOfflineDraft(artId, 'main', {
+    title: 'Offline Investigation',
+    content: 'Draft written while reporting offline in Mutare.',
+  });
+
+  const saved = await getOfflineDraft(artId, 'main');
+  assert.equal(saved.title, 'Offline Investigation');
+  assert.match(saved.content, /Mutare/);
+
+  await clearOfflineDraft(artId, 'main');
+  const cleared = await getOfflineDraft(artId, 'main');
+  assert.equal(cleared, null);
+
+  // Test action queue & flush
+  await clearQueuedOfflineActions();
+  await queueOfflineAction('save_article', { branchId: 'b-99', content: 'Pushed content' });
+  const queued = await getQueuedOfflineActions();
+  assert.equal(queued.length, 1);
+  assert.equal(queued[0].type, 'save_article');
+
+  let uploadedBranch = null;
+  const flushRes = await flushOfflineQueue({
+    saveArticle: async ({ branchId, content }) => {
+      uploadedBranch = branchId;
+    },
+  });
+
+  assert.equal(flushRes.synced, 1);
+  assert.equal(uploadedBranch, 'b-99');
+  const emptyQueue = await getQueuedOfflineActions();
+  assert.equal(emptyQueue.length, 0);
+});

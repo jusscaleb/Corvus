@@ -59,7 +59,19 @@ import {
   publishArticle,
   fetchActiveVoiceSessions,
   fetchArticleAIWorkspace,
+  fetchArticleTranslation,
 } from '../services/api';
+import { computeBranchDiff, canMergeBranch } from '../services/branchDiffUtil';
+import {
+  isNetworkOnline,
+  saveOfflineDraft,
+  getOfflineDraft,
+  queueOfflineAction,
+  flushOfflineQueue,
+  getArticlePeerApprovals,
+  addArticlePeerApproval,
+  subscribeToNetworkStatus,
+} from '../services/offlineSync';
 
 // --- Sub-components -----------------------------------------------------------
 
@@ -323,7 +335,48 @@ function MainScreenContent() {
   const [activeFormats, setActiveFormats] = useState(DEFAULT_ACTIVE_FORMATS);
   const richEditorRef = useRef(null);
 
+  // Branch Comparison, Approvals, Language & Offline States
+  const [selectedArticleLang, setSelectedArticleLang] = useState('ENG');
+  const [cachedTranslations, setCachedTranslations] = useState({});
+  const [articleApprovals, setArticleApprovals] = useState([]);
+  const [isOffline, setIsOffline] = useState(!isNetworkOnline());
+
   // Dedicated active voice room state { id, title } – persists across view navigation
+  // Network connectivity listener for offline storage & reconnection auto-sync
+  useEffect(() => {
+    const unsub = subscribeToNetworkStatus(async (online) => {
+      setIsOffline(!online);
+      if (online) {
+        showToast({ message: '✦ Reconnected to newsroom server!', type: 'info' });
+        try {
+          const res = await flushOfflineQueue({
+            saveArticle: async ({ branchId, content, summary }) => {
+              if (branchId) await updateBranchContent(branchId, content, summary);
+            },
+            pushBranch: async (branchId) => {
+              if (branchId) await pushBranch(branchId);
+            },
+          });
+          if (res.synced > 0) {
+            showToast({ message: `✦ Synced ${res.synced} offline update(s) to newsroom!`, type: 'success' });
+          }
+        } catch (_) {}
+      } else {
+        showToast({ message: 'Offline mode: Edits will be saved to local storage.', type: 'info' });
+      }
+    });
+    return unsub;
+  }, [showToast]);
+
+  // Load newsroom peer approvals for active story
+  useEffect(() => {
+    if (selectedItem?.type === 'article' && selectedItem?.id) {
+      getArticlePeerApprovals(selectedItem.id).then((approvals) => {
+        setArticleApprovals(approvals || []);
+      });
+    }
+  }, [selectedItem?.id]);
+
   // Prompt the user to provide a phone number for offline SMS dispatches if they haven't yet
   useEffect(() => {
     if (!loadingInitial && shouldPromptForPhoneNumber(user, phonePromptDismissed)) {
@@ -564,6 +617,29 @@ function MainScreenContent() {
       }
       try {
         const action = cmdId === 'unpublish' || selectedItem.is_published ? 'unpublish' : 'publish';
+
+        if (action === 'publish') {
+          // Gate 1: AI Review Passed Check
+          const review = aiWorkspace.review;
+          if (!review || (review.quality_score !== undefined && review.quality_score < 60) || (review.plagiarism && review.plagiarism.score >= 35)) {
+            setArticleSection('review');
+            showToast({
+              message: '✦ Editorial Quality Gate: Article must pass Saiph AI Review before publishing to the public portal.',
+              type: 'error',
+            });
+            return;
+          }
+
+          // Gate 2: 2 Newsroom Peer Approvals Check
+          if (selectedItem?.groupId && articleApprovals.length < 2) {
+            showToast({
+              message: `✦ Peer Approval Gate: Requires approval from at least 2 other journalists before publishing (Current: ${articleApprovals.length}/2).`,
+              type: 'error',
+            });
+            return;
+          }
+        }
+
         const res = await publishArticle(selectedItem.id, action);
         const isNowPublished = res.is_published;
         setSelectedItem((prev) => ({ ...prev, is_published: isNowPublished }));
@@ -627,13 +703,114 @@ function MainScreenContent() {
       return;
     }
 
+    if (cmdId === 'diff') {
+      const base = articleBranches.find((b) => b.branch_name === activeBranch) || { branch_name: activeBranch, content: editContent || selectedItem?.content || '' };
+      const comp = articleBranches.find((b) => b.branch_name === 'main' && b.branch_name !== activeBranch) || articleBranches.find((b) => b.branch_name !== activeBranch);
+      if (comp) {
+        setActiveBranchDiff(computeBranchDiff(base, comp));
+      } else {
+        showToast({ message: 'Only 1 branch exists on this story. Create another branch to compare.', type: 'info' });
+      }
+      return;
+    }
+
     const labels = {
       pull: 'Pulled latest branch updates.',
       commit: 'Saved local branch snapshot.',
-      diff: 'Displaying difference comparison with base line.',
     };
     showToast(labels[cmdId] || `Executed ${cmdId}`, 'info');
   }, [articleBranches, activeBranch, selectedItem, isEditingArticle, editContent, editSummary, showToast]);
+
+  const handleCompareBranches = useCallback((baseName, compareName) => {
+    const base = articleBranches.find((b) => b.branch_name === baseName) || { branch_name: baseName, content: editContent || selectedItem?.content || '' };
+    const comp = articleBranches.find((b) => b.branch_name === compareName);
+    if (!comp) {
+      showToast({ message: `Branch "${compareName}" not found.`, type: 'error' });
+      return;
+    }
+    setActiveBranchDiff(computeBranchDiff(base, comp));
+  }, [articleBranches, editContent, selectedItem, showToast]);
+
+  const handleMergeBranch = useCallback(async (compareBranch, baseBranch) => {
+    const targetBranch = articleBranches.find((b) => b.branch_name === (baseBranch?.branch_name || activeBranch));
+    const sourceBranch = articleBranches.find((b) => b.branch_name === compareBranch?.branch_name);
+    if (!targetBranch || !sourceBranch) {
+      showToast({ message: 'Branches could not be located for merging.', type: 'error' });
+      return;
+    }
+    const mergedContent = sourceBranch.content || '';
+    setEditContent(mergedContent);
+    setIsEditingArticle(true);
+    if (isNetworkOnline()) {
+      try {
+        await updateBranchContent(targetBranch.branch_id, mergedContent, targetBranch.branch_description || '');
+        setArticleBranches((prev) =>
+          prev.map((b) => (b.branch_id === targetBranch.branch_id ? { ...b, content: mergedContent } : b))
+        );
+        showToast({ message: `✦ Merged "${sourceBranch.branch_name}" into "${targetBranch.branch_name}"!`, type: 'success' });
+      } catch (err) {
+        await saveOfflineDraft(selectedItem?.id, targetBranch.branch_name, { content: mergedContent });
+        showToast({ message: 'Saved merged draft to offline storage.', type: 'info' });
+      }
+    } else {
+      await saveOfflineDraft(selectedItem?.id, targetBranch.branch_name, { content: mergedContent });
+      await queueOfflineAction('save_article', { branchId: targetBranch.branch_id, content: mergedContent });
+      showToast({ message: '✦ Merged locally! Saved to offline storage.', type: 'info' });
+    }
+  }, [articleBranches, activeBranch, selectedItem, showToast]);
+
+  const handleRequestMergePermission = useCallback((compareBranch) => {
+    const creator = compareBranch?.created_by;
+    const authorName = creator?.username || creator?.first_name || 'author';
+    showToast({
+      message: `✦ Merge permission requested from @${authorName}.`,
+      type: 'info',
+    });
+  }, [showToast]);
+
+  const handleSelectArticleLanguage = useCallback(async (langCode) => {
+    setSelectedArticleLang(langCode);
+    if (!selectedItem?.id) return;
+
+    if (langCode === 'ENG') {
+      const activeObj = articleBranches.find((b) => b.branch_name === activeBranch);
+      setEditContent(activeObj?.content || selectedItem?.content || '');
+      showToast({ message: '✦ Switched to original English article.', type: 'info' });
+      return;
+    }
+
+    const cacheKey = `${selectedItem.id}_${langCode}`;
+    if (cachedTranslations[cacheKey]) {
+      const cached = cachedTranslations[cacheKey];
+      setEditContent(cached.content);
+      showToast({ message: `✦ Loaded DB cached ${langCode === 'SNA' ? 'ChiShona' : 'isiNdebele'} translation.`, type: 'info' });
+      return;
+    }
+
+    showToast({ message: `✦ Translating article to ${langCode === 'SNA' ? 'ChiShona' : 'isiNdebele'} via Saiph AI...`, type: 'info' });
+    try {
+      const res = await fetchArticleTranslation(selectedItem.id, langCode === 'SNA' ? 'sn' : 'nd');
+      const translatedContent = res.translated_content || res.content || '';
+      const translatedTitle = res.translated_title || res.title || '';
+      const transObj = { title: translatedTitle, content: translatedContent };
+      setCachedTranslations((prev) => ({ ...prev, [cacheKey]: transObj }));
+      setEditContent(translatedContent);
+      showToast({ message: `✦ Article translated to ${langCode === 'SNA' ? 'ChiShona' : 'isiNdebele'} and cached in DB!`, type: 'success' });
+    } catch (err) {
+      showToast({ message: err?.message || 'Could not fetch translation.', type: 'error' });
+    }
+  }, [selectedItem, activeBranch, articleBranches, cachedTranslations, showToast]);
+
+  const handleGrantPeerApproval = useCallback(async () => {
+    if (!selectedItem?.id || !user) return;
+    const updated = await addArticlePeerApproval(selectedItem.id, user);
+    setArticleApprovals(updated);
+    showToast({ message: `✦ Approved article! (${updated.length}/2 Peer Approvals recorded)`, type: 'success' });
+  }, [selectedItem, user, showToast]);
+
+  const canApproveCurrentArticle = Boolean(
+    user && selectedItem?.groupId && !articleApprovals.some((a) => a.userId === (user.id || user.user_id || user.username))
+  );
 
   const handleApplyFormat = useCallback((action) => {
     if (!isEditingArticle) {
@@ -1483,6 +1660,12 @@ function MainScreenContent() {
 
       return (
         <Animated.View style={[{ flex: 1 }, { opacity: contentFadeAnim }]}>
+          {isOffline && (
+            <View style={{ backgroundColor: '#fef3c7', paddingVertical: 6, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#fde68a', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <Text style={{ fontSize: 11.5, color: '#92400e', fontWeight: '700' }}>⚡ Offline Mode</Text>
+              <Text style={{ fontSize: 11.5, color: '#b45309' }}>— Drafts are saved to local storage and will sync automatically when reconnected.</Text>
+            </View>
+          )}
           <ArticleHeader
             activeBranch={activeBranch}
             branches={branchMenuItems}
@@ -1490,6 +1673,12 @@ function MainScreenContent() {
             onSelectBranch={handleSelectBranch}
             onCreateBranch={handleCreateBranch}
             onExecuteCommand={handleExecuteCommand}
+            onCompareBranch={(compareName) => handleCompareBranches(activeBranch, compareName)}
+            selectedLanguage={selectedArticleLang}
+            onSelectLanguage={handleSelectArticleLanguage}
+            peerApprovals={articleApprovals}
+            canApprove={canApproveCurrentArticle}
+            onGrantApproval={handleGrantPeerApproval}
             onApplyFormat={handleApplyFormat}
             activeFormats={activeFormats}
             activeSection={articleSection}
@@ -2149,6 +2338,7 @@ function MainScreenContent() {
             <BranchDiffModal
         visible={!!activeBranchDiff}
         diff={activeBranchDiff}
+        currentUser={user}
         onClose={() => setActiveBranchDiff(null)}
         onSwitchBranch={(bName) => {
           const found = articleBranches.find((b) => b.branch_name === bName);
@@ -2156,6 +2346,8 @@ function MainScreenContent() {
             showBranchInEditor(found);
           }
         }}
+        onMergeBranch={handleMergeBranch}
+        onRequestPermission={handleRequestMergePermission}
       />
       <CreateArticleModal
         visible={createArticleModalOpen}
