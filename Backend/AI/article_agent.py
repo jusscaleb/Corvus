@@ -1,3 +1,4 @@
+import difflib
 import json
 import math
 import re
@@ -46,6 +47,67 @@ def get_primary_branch(article, branch_id=None):
     )
 
 
+def calculate_branch_diff(base_branch: Branch, compare_branch: Branch) -> dict:
+    """
+    Computes unified line diff, character similarity, line additions/deletions,
+    and structured diff chunks between two branches of an article.
+    """
+    base_text = (base_branch.content or "").strip()
+    compare_text = (compare_branch.content or "").strip()
+
+    base_lines = [l + "\n" for l in base_text.splitlines()]
+    compare_lines = [l + "\n" for l in compare_text.splitlines()]
+
+    diff_gen = difflib.unified_diff(
+        base_lines,
+        compare_lines,
+        fromfile=base_branch.branch_name,
+        tofile=compare_branch.branch_name,
+        lineterm=""
+    )
+    diff_lines = list(diff_gen)
+    diff_text = "\n".join(diff_lines)
+
+    added_lines = sum(1 for line in diff_lines if line.startswith('+') and not line.startswith('+++'))
+    removed_lines = sum(1 for line in diff_lines if line.startswith('-') and not line.startswith('---'))
+
+    matcher = difflib.SequenceMatcher(None, base_text, compare_text)
+    similarity = round(matcher.ratio() * 100, 1)
+
+    chunks = []
+    for line in diff_lines:
+        if line.startswith('+++') or line.startswith('---') or line.startswith('@@'):
+            chunks.append({"type": "meta", "text": line})
+        elif line.startswith('+'):
+            chunks.append({"type": "added", "text": line[1:]})
+        elif line.startswith('-'):
+            chunks.append({"type": "removed", "text": line[1:]})
+        else:
+            chunks.append({"type": "context", "text": line.lstrip(' ')})
+
+    return {
+        "base_branch": {
+            "branch_id": str(base_branch.branch_id),
+            "branch_name": base_branch.branch_name,
+            "is_main": base_branch.is_main,
+        },
+        "compare_branch": {
+            "branch_id": str(compare_branch.branch_id),
+            "branch_name": compare_branch.branch_name,
+            "is_main": compare_branch.is_main,
+        },
+        "stats": {
+            "similarity_percent": similarity,
+            "added_lines": added_lines,
+            "removed_lines": removed_lines,
+            "base_word_count": len(base_text.split()) if base_text else 0,
+            "compare_word_count": len(compare_text.split()) if compare_text else 0,
+        },
+        "diff_text": diff_text,
+        "chunks": chunks,
+    }
+
+
 def _extract_json_block(raw_text, fallback):
     """Safely extracts JSON from an LLM response (handling markdown code fences or prose)."""
     if not raw_text:
@@ -80,8 +142,15 @@ def generate_article_draft_from_brief(title: str, brief: str, category: str = "I
     clean_brief = (brief or clean_title).strip()
     lang = getattr(user, 'preffered_language', 'english') if user else 'english'
 
+    # Mandatory live web search grounding strictly for Zimbabwe
+    search_topic = clean_title if clean_title != "Untitled Investigation" else clean_brief
+    web_findings = search_zimbabwe_web(search_topic, max_results=3)
+    web_context = format_search_results_for_prompt(web_findings)
+
     system_prompt = (
-        "You are Saiph, Senior Investigative Editor at Corvus Newsroom. "
+        "You are Saiph, Senior Investigative Editor at Corvus Newsroom, focused strictly and exclusively on Zimbabwe. "
+        "MANDATORY ACCURACY RULE: You must ground all facts, locations (cities/provinces), founding dates, statistics, "
+        "and names strictly in verified Zimbabwean facts and the live web context below. NEVER hallucinate or guess locations. "
         f"Write in {lang}. Return ONLY valid JSON with keys:\n"
         '{\n'
         '  "headline": "Refined punchy headline",\n'
@@ -94,7 +163,8 @@ def generate_article_draft_from_brief(title: str, brief: str, category: str = "I
         f"Headline / Topic: {clean_title}\n"
         f"Desk / Category: {category}\n"
         f"Reporter's Brief Summary: {clean_brief}\n\n"
-        "Generate a thorough, well-structured journalistic draft based on this brief."
+        f"Verified Live Web Findings:\n{web_context}\n\n"
+        "Generate a thorough, factually verified journalistic draft grounded in these verified findings."
     )
 
     fallback = _build_fallback_draft(clean_title, clean_brief, category)
@@ -174,11 +244,13 @@ def generate_article_mindmap(article: Article, branch: Branch = None, user=None)
         '  ]\n'
         "}"
     )
+    fresh_nonce = uuid.uuid4().hex[:6]
     user_prompt = (
         f"Article Title: {article.title}\n"
         f"Summary: {summary}\n"
         f"Saved Memory Facts: {memories}\n"
-        f"Draft Content:\n{content[:3500]}"
+        f"Draft Content:\n{content[:3500]}\n\n"
+        f"Fresh Generation Cycle {fresh_nonce}: Explore new distinct story branches, investigation leads, and unexplored angles."
     )
 
     mindmap = fallback
@@ -262,8 +334,8 @@ def _build_fallback_mindmap(title: str, summary: str, content: str, memories: li
 
 def generate_article_board(article: Article, branch: Branch = None, user=None) -> list:
     """
-    Generates actionable editorial suggestions and recommended research sources/verification leads
-    for `article` and persists them to `ArticleWorkspace.board_items`.
+    Generates completely fresh, actionable research sources, public records, and verification leads
+    strictly grounded in Zimbabwe, with zero hallucinated suggestion boxes or fake quotes.
     """
     target_branch = branch or get_primary_branch(article)
     content = (target_branch.content if target_branch else "") or ""
@@ -271,28 +343,30 @@ def generate_article_board(article: Article, branch: Branch = None, user=None) -
 
     fallback = _build_fallback_board(article.title, summary, content)
     lang = getattr(user, 'preffered_language', 'english') if user else 'english'
+    fresh_nonce = uuid.uuid4().hex[:6]
 
     system_prompt = (
-        "You are Saiph, an investigative editor and research librarian. "
-        "Review the article and return ONLY a JSON array of 4 to 6 items mixing "
-        '"suggestion" (editorial improvements, angles, structure) and "source" '
-        "(specific types of documents, public records, datasets, or expert sources to cite):\n"
+        "You are Saiph, Senior Investigative Research Editor for Corvus Newsroom, focused strictly on Zimbabwe.\n"
+        "Generate a fresh, diverse set of 4 to 6 verified research leads, official public records, and datasets to investigate.\n"
+        "Do NOT output generic writing tips, suggestion boxes, or made-up quotes.\n"
+        "Return ONLY a JSON array with items:\n"
         "[\n"
         "  {\n"
         '    "id": "b1",\n'
-        '    "kind": "suggestion" | "source",\n'
-        '    "title": "Short clear title",\n'
-        '    "detail": "Simple, practical explanation of what to add or check",\n'
-        '    "category": "Lead" | "Evidence" | "Clarity" | "Primary Record" | "Expert Source" | "Data",\n'
+        '    "kind": "source",\n'
+        '    "title": "Official document or public record name",\n'
+        '    "detail": "Actionable explanation of what to inspect, request, or verify in this source",\n'
+        '    "category": "Primary Record" | "Public Ledger" | "Official Gazette" | "Audit Report" | "Data",\n'
         '    "priority": "high" | "medium",\n'
-        '    "snippet": "Optional ready-to-insert text or citation template"\n'
+        '    "snippet": ""\n'
         "  }\n"
         "]"
     )
     user_prompt = (
         f"Article Title: {article.title}\n"
         f"Summary: {summary}\n"
-        f"Draft Content:\n{content[:3500]}"
+        f"Draft Content:\n{content[:3500]}\n\n"
+        f"Fresh Generation Cycle {fresh_nonce}: Provide completely new, varied investigative sources and records."
     )
 
     items = fallback
@@ -304,14 +378,14 @@ def generate_article_board(article: Article, branch: Branch = None, user=None) -
             for idx, item in enumerate(parsed):
                 if isinstance(item, dict) and item.get("title"):
                     normalized.append({
-                        "id": str(item.get("id") or f"board_{idx+1}_{uuid.uuid4().hex[:6]}"),
-                        "kind": "source" if item.get("kind") == "source" else "suggestion",
-                        "title": item.get("title", "Editorial Note"),
+                        "id": str(item.get("id") or f"src_{idx+1}_{uuid.uuid4().hex[:6]}"),
+                        "kind": "source",
+                        "title": item.get("title", "Verified Record Lead"),
                         "detail": item.get("detail", ""),
-                        "category": item.get("category") or ("Source" if item.get("kind") == "source" else "Editorial"),
+                        "category": item.get("category") or "Primary Record",
                         "priority": item.get("priority") if item.get("priority") in ("high", "medium", "low") else "medium",
-                        "snippet": item.get("snippet", ""),
-                        "applied": bool(item.get("applied", False)),
+                        "snippet": "",
+                        "applied": False,
                     })
             if normalized:
                 items = normalized
@@ -325,93 +399,49 @@ def generate_article_board(article: Article, branch: Branch = None, user=None) -
 
 
 def _build_fallback_board(title: str, summary: str, content: str) -> list:
-    word_count = len(content.split())
-    has_quotes = bool(re.search(r'[""].+?[""]|^>\s+', content, flags=re.MULTILINE))
-    has_numbers = bool(re.search(r'\b\d+(?:\.\d+)?%?\b', content))
-
-    items = [
+    nonce = uuid.uuid4().hex[:4]
+    return [
         {
-            "id": "sug_lead_hook",
-            "kind": "suggestion",
-            "title": "Sharpen the opening lead paragraph",
-            "detail": (
-                "State the single most important finding and who it affects in the first two sentences "
-                "so readers immediately grasp why this story matters."
-            ),
-            "category": "Lead",
-            "priority": "high",
-            "snippet": f"**Key Finding:** New evidence in *{title}* reveals immediate impacts for the community.",
-            "applied": False,
-        },
-        {
-            "id": "sug_voices",
-            "kind": "suggestion",
-            "title": "Add a direct human quote" if not has_quotes else "Balance stakeholder perspectives",
-            "detail": (
-                "Readers connect best with real voices. Include at least one direct quote from an affected "
-                "person or eyewitness, plus the official response."
-                if not has_quotes
-                else "Ensure every named party or institution subject to criticism has their response clearly noted."
-            ),
-            "category": "Evidence",
-            "priority": "high" if not has_quotes else "medium",
-            "snippet": '> "We need transparency and clear timelines," said a spokesperson familiar with the matter.',
-            "applied": False,
-        },
-        {
-            "id": "sug_data_depth",
-            "kind": "suggestion",
-            "title": "Anchor claims with specific numbers or dates" if not has_numbers else "Add a clear timeline box",
-            "detail": (
-                f"Your draft is currently {word_count} words. Adding concrete dates, figures, or percentages "
-                "turns general statements into verifiable journalism."
-            ),
-            "category": "Clarity",
-            "priority": "medium",
-            "snippet": "## Key Timeline\n• **Initial Filing:** Documented in public records\n• **Latest Update:** Under review",
-            "applied": False,
-        },
-        {
-            "id": "src_public_records",
+            "id": f"src_audit_{nonce}",
             "kind": "source",
-            "title": f"Official Public Filings & Gazette Records on {title}",
-            "detail": (
-                "Cross-check contract numbers, budgets, or regulatory notices in municipal/ministry archives "
-                "and parliamentary committee reports."
-            ),
-            "category": "Primary Record",
+            "title": "Auditor-General & Parliamentary Public Accounts Records",
+            "detail": f"Inspect the official compliance audit and annual budget allocation filings related to {title}.",
+            "category": "Audit Report",
             "priority": "high",
-            "snippet": "(Source: Official Public Registry & Gazette Filings, verified 2026)",
+            "snippet": "",
             "applied": False,
         },
         {
-            "id": "src_independent_audit",
+            "id": f"src_gazette_{nonce}",
             "kind": "source",
-            "title": "Independent Sector & Academic Data Benchmarks",
-            "detail": (
-                "Compare local figures against regional benchmarks, auditor-general reports, or peer-reviewed "
-                "research to give readers context."
-            ),
+            "title": "Zimbabwe Government Gazette & Statutory Instruments Archive",
+            "detail": "Cross-reference statutory oversight mandates and recent policy changes published in the national gazette.",
+            "category": "Official Gazette",
+            "priority": "high",
+            "snippet": "",
+            "applied": False,
+        },
+        {
+            "id": f"src_data_{nonce}",
+            "kind": "source",
+            "title": "ZIMSTAT & Institutional Statistical Releases",
+            "detail": "Compare historical figures and statistical benchmarks to independently substantiate all claimed metrics.",
             "category": "Data",
             "priority": "medium",
-            "snippet": "(Source: Independent Sector Audit & Regional Benchmark Report)",
+            "snippet": "",
             "applied": False,
         },
         {
-            "id": "src_right_of_reply",
+            "id": f"src_stakeholder_{nonce}",
             "kind": "source",
-            "title": "Right-of-Reply & Stakeholder Statements Log",
-            "detail": (
-                "Keep a dated log of questions sent to officials and their exact replies to protect the newsroom "
-                "and strengthen credibility."
-            ),
-            "category": "Expert Source",
+            "title": "Institutional Statements & Official Right-of-Reply",
+            "detail": "Obtain written, verified responses from all public bodies, ministries, and affected stakeholders.",
+            "category": "Primary Record",
             "priority": "medium",
-            "snippet": "The department was contacted for comment and stated that the matter is under active review.",
+            "snippet": "",
             "applied": False,
         },
     ]
-    return items
 
 
 # ─── 4. Review, Plagiarism Check, AI-Writing Check & Simple Improvements ─────
@@ -1013,6 +1043,75 @@ def interact_with_article_agent(
                 "label": f"Pushed branch '{target_branch.branch_name}' to newsroom",
             })
 
+                # 2b. Branch diff / comparison
+        # e.g. "compare draft-v2 and water-crisis", "diff draft-v2", "diff", "what changed"
+        is_diff_request = any(
+            re.search(r"\b" + re.escape(w) + r"\b", lower)
+            for w in ("diff", "compare", "changes", "difference", "differences")
+        ) or any(
+            phrase in lower
+            for phrase in ("what changed", "show changes", "see changes", "diff with main", "compare to main")
+        )
+
+        if is_diff_request:
+            all_branches = list(Branch.objects.filter(article=article))
+            main_branch = next((b for b in all_branches if b.is_main), None) or (all_branches[0] if all_branches else None)
+
+            # Detect mentioned branch names ordered by their appearance in the message
+            branch_positions = []
+            for b in all_branches:
+                pat = r"\b" + re.escape(b.branch_name.lower()) + r"\b"
+                m = re.search(pat, lower)
+                if m:
+                    branch_positions.append((m.start(), b))
+            branch_positions.sort(key=lambda x: x[0])
+            detected_branches = []
+            for _, b in branch_positions:
+                if b not in detected_branches:
+                    detected_branches.append(b)
+
+            base_b = None
+            comp_b = None
+
+            if len(detected_branches) >= 2:
+                # Both branches mentioned: compare A vs B
+                if detected_branches[0].is_main:
+                    base_b = detected_branches[0]
+                    comp_b = detected_branches[1]
+                elif detected_branches[1].is_main:
+                    base_b = detected_branches[1]
+                    comp_b = detected_branches[0]
+                else:
+                    base_b = detected_branches[0]
+                    comp_b = detected_branches[1]
+            elif len(detected_branches) == 1:
+                # Single branch mentioned: compare with main!
+                single_b = detected_branches[0]
+                if single_b.is_main:
+                    other_b = target_branch if (target_branch and not target_branch.is_main) else next((b for b in all_branches if not b.is_main), None)
+                    base_b = main_branch
+                    comp_b = other_b or main_branch
+                else:
+                    base_b = main_branch
+                    comp_b = single_b
+            else:
+                # Zero branches mentioned: compare active branch with main!
+                if target_branch and not target_branch.is_main:
+                    base_b = main_branch
+                    comp_b = target_branch
+                else:
+                    other_b = next((b for b in all_branches if not b.is_main), None)
+                    base_b = main_branch
+                    comp_b = other_b or main_branch
+
+            if base_b and comp_b:
+                diff_data = calculate_branch_diff(base_b, comp_b)
+                workspace_payload["branch_diff"] = diff_data
+                actions_taken.append({
+                    "type": "branch_diff",
+                    "label": f"Compared '{comp_b.branch_name}' against '{base_b.branch_name}' ({diff_data['stats']['similarity_percent']}% similarity)",
+                })
+
         # Rename article headline (e.g. "change headline to ...", "rename article to ...")
         title_match = re.search(
             r"(?:change|update|set|rename)\s+(?:the\s+)?(?:article\s+)?(?:title|headline|name)\s+to\s+[\"']?(.+?)[\"']?$",
@@ -1265,6 +1364,25 @@ def _build_fallback_chat_reply(clean_msg, article, branch, actions_taken, worksp
     if actions_taken:
         labels = "; ".join(a["label"] for a in actions_taken)
         parts.append(f"Done — {labels}.")
+
+    if "branch_diff" in workspace_payload:
+        bd = workspace_payload["branch_diff"]
+        base_name = bd["base_branch"]["branch_name"]
+        comp_name = bd["compare_branch"]["branch_name"]
+        stats = bd["stats"]
+        parts.append(
+            f"Here is the diff comparing **`{comp_name}`** against **`{base_name}`**: "
+            f"**{stats['similarity_percent']}% similarity**, "
+            f"**+{stats['added_lines']}** lines added, "
+            f"**-{stats['removed_lines']}** lines removed "
+            f"({stats['compare_word_count']} words vs {stats['base_word_count']} words)."
+        )
+        if bd.get("diff_text"):
+            preview_lines = [l for l in bd["diff_text"].splitlines() if not l.startswith('---') and not l.startswith('+++')][:10]
+            if preview_lines:
+                parts.append("\n```diff\n" + "\n".join(preview_lines) + "\n```")
+        else:
+            parts.append("Both branches have identical draft content.")
 
     if "review" in workspace_payload:
         rev = workspace_payload["review"]

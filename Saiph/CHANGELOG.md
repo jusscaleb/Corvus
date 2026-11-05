@@ -6,11 +6,17 @@ All notable changes to the Saiph AI Agent are documented here. The format is bas
 
 ### Added
 
+- **Editorial Branch Diffing (`diff_article_branches`)**:
+  - Compares any two article branches or a single branch against `main` (with active branch fallback).
+  - Employs Python's built-in `difflib` for unified diff lines, additions/deletions counts, and sequence similarity percentage.
+  - Returns structured chunks (`type: "added" | "removed" | "context" | "meta"`) for rich frontend UI rendering.
+  - Interactive `BranchDiffModal` component in frontend with stats bar (`+N`, `-N`, similarity %) and color-coded line diffs.
 - **Live Tavily Web Search Tool (`search_zimbabwe_web_tool`)**:
-  - Direct REST integration with Tavily Search API (`https://api.tavily.com/search`) using `httpx`.
+  - Integrated with the official `tavily-python` SDK (`TavilyClient`) following official Quickstart specifications.
   - In-memory result caching (10-minute TTL) to optimize API usage and latency.
   - Automatically formats verified source titles, URLs, and snippets for prompt injection.
   - Registered inside `ALL_AGENT_TOOLS` for autonomous ReAct execution by the LangGraph agent.
+  - Enforced mandatory verification directive in Saiph system prompt and tool docstrings to eliminate hallucinations and factual errors.
 - **Zimbabwe Geolocation & Editorial Constraint**:
   - Updated agent system prompt in `Saiph/graph.py` to enforce strict Zimbabwe reporting, legal frameworks, public institutions, and cultural context.
   - Automatic query normalization to append Zimbabwean contextual anchors to broad queries.

@@ -19,6 +19,8 @@ import NewsroomHeader from './NewsroomHeader';
 import CreateNewsroomModal from './CreateNewsroomModal';
 import NewDMModal from './NewDMModal';
 import CreateArticleModal from './CreateArticleModal';
+import BranchDiffModal from './BranchDiffModal';
+import MarkdownRenderer from './MarkdownRenderer';
 import PhonePromptModal, { shouldPromptForPhoneNumber } from './PhonePromptModal';
 import { LockIcon, UsersIcon, EditIcon, FilePdfIcon, PrinterIcon, EyeIcon, SaveIcon, TrashIcon, FileTextIcon } from './AppIcons';
 import { exportArticleToPdf, openPdfDocument } from '../utils/pdfExporter';
@@ -257,119 +259,7 @@ function renderInlineFormatted(text, colors) {
 }
 
 function FormattedArticleBody({ content, colors, styles }) {
-  const lines = String(content || '').split('\n');
-  return (
-    <View style={{ gap: 8 }}>
-      {lines.map((rawLine, idx) => {
-        const line = rawLine.trimEnd();
-        const trimmed = line.trim();
-        if (!trimmed) {
-          return <View key={idx} style={{ height: 6 }} />;
-        }
-        if (/^(?:---|___|\*\*\*)$/.test(trimmed)) {
-          return (
-            <View
-              key={idx}
-              style={{
-                height: 1,
-                backgroundColor: colors.line || '#cbd5e1',
-                marginVertical: 10,
-              }}
-            />
-          );
-        }
-        if (line.startsWith('# ')) {
-          return (
-            <Text
-              key={idx}
-              style={{
-                color: colors.ink,
-                fontFamily: 'serif',
-                fontSize: 25,
-                fontWeight: '800',
-                lineHeight: 32,
-                marginTop: 10,
-                marginBottom: 4,
-              }}
-            >
-              {renderInlineFormatted(line.slice(2), colors)}
-            </Text>
-          );
-        }
-        if (line.startsWith('## ')) {
-          return (
-            <Text
-              key={idx}
-              style={{
-                color: colors.ink,
-                fontFamily: 'serif',
-                fontSize: 19,
-                fontWeight: '700',
-                lineHeight: 26,
-                marginTop: 8,
-                marginBottom: 2,
-              }}
-            >
-              {renderInlineFormatted(line.slice(3), colors)}
-            </Text>
-          );
-        }
-        if (line.startsWith('### ')) {
-          return (
-            <Text
-              key={idx}
-              style={{
-                color: colors.ink,
-                fontSize: 16,
-                fontWeight: '700',
-                lineHeight: 23,
-                marginTop: 6,
-              }}
-            >
-              {renderInlineFormatted(line.slice(4), colors)}
-            </Text>
-          );
-        }
-        if (line.startsWith('> ')) {
-          return (
-            <View
-              key={idx}
-              style={{
-                borderLeftWidth: 3,
-                borderLeftColor: colors.orange || colors.forest,
-                paddingLeft: 12,
-                paddingVertical: 6,
-                marginVertical: 4,
-                backgroundColor: colors.note || 'rgba(0,0,0,0.03)',
-                borderRadius: 4,
-              }}
-            >
-              <Text style={{ color: colors.ink, fontStyle: 'italic', fontSize: 15, lineHeight: 23 }}>
-                {renderInlineFormatted(line.slice(2), colors)}
-              </Text>
-            </View>
-          );
-        }
-        const isWholeLineItalic = /^\*[^*\s][^*]*\*$/.test(trimmed);
-        if (!isWholeLineItalic && /^(?:•|-|\*)\s+/.test(trimmed)) {
-          const itemText = trimmed.replace(/^(?:•|-|\*)\s+/, '');
-          return (
-            <View key={idx} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingLeft: 6 }}>
-              <Text style={{ color: colors.forest, fontSize: 16, fontWeight: '800', lineHeight: 24 }}>•</Text>
-              <Text style={[styles.articleBody, { flex: 1 }]}>
-                {renderInlineFormatted(itemText, colors)}
-              </Text>
-            </View>
-          );
-        }
-        return (
-          <Text key={idx} style={styles.articleBody}>
-            {renderInlineFormatted(line, colors)}
-          </Text>
-        );
-      })}
-    </View>
-  );
+  return <MarkdownRenderer content={content} customColors={colors} />;
 }
 
 // --- Main screen --------------------------------------------------------------
@@ -429,10 +319,11 @@ function MainScreenContent() {
   const [phoneModalOpen, setPhoneModalOpen] = useState(false);
   const [phonePromptDismissed, setPhonePromptDismissed] = useState(false);
   const [aiWorkspace, setAiWorkspace] = useState({ mindmap: null, board: [], review: null });
+  const [activeBranchDiff, setActiveBranchDiff] = useState(null);
   const [activeFormats, setActiveFormats] = useState(DEFAULT_ACTIVE_FORMATS);
   const richEditorRef = useRef(null);
 
-  // Dedicated active voice room state { id, title } â€“ persists across view navigation
+  // Dedicated active voice room state { id, title } – persists across view navigation
   // Prompt the user to provide a phone number for offline SMS dispatches if they haven't yet
   useEffect(() => {
     if (!loadingInitial && shouldPromptForPhoneNumber(user, phonePromptDismissed)) {
@@ -444,7 +335,7 @@ function MainScreenContent() {
   // (allows users to browse/edit articles, switch channels, and multitask while remaining on voice)
   const [activeVoiceRoom, setActiveVoiceRoom] = useState(null);
 
-  // Voice session room ID â€“ stays anchored to activeVoiceRoom during an ongoing call
+  // Voice session room ID – stays anchored to activeVoiceRoom during an ongoing call
   const currentVoiceRoomId = activeVoiceRoom?.id || selectedItem?.id || 'newsroom-general';
   const voiceChat = useVoiceChat(currentVoiceRoomId, user, { autoJoin: false });
 
@@ -461,7 +352,7 @@ function MainScreenContent() {
     }
   }, [voiceChat.isConnected]);
 
-  // Real-time chat WebSocket â€“ delivers voice_call_status events sent by
+  // Real-time chat WebSocket – delivers voice_call_status events sent by
   // the backend VoiceSignalingConsumer through ChatConsumer to all channel members
   useChatSocket(activeConversationId, {
     onVoiceStatus: (msg) => {
@@ -694,7 +585,7 @@ function MainScreenContent() {
     if (cmdId === 'push') {
       if (!current) return;
       if (!selectedItem?.groupId) {
-        showToast({ message: 'This is a personal story â€“ there is no newsroom to share it with.', type: 'info' });
+        showToast({ message: 'This is a personal story – there is no newsroom to share it with.', type: 'info' });
         return;
       }
       if (current.is_main || current.is_public) {
@@ -708,7 +599,7 @@ function MainScreenContent() {
       try {
         const updated = await pushBranch(current.branch_id);
         setArticleBranches((prev) => prev.map((b) => (b.branch_id === updated.branch_id ? updated : b)));
-        showToast({ message: `Pushed ${activeBranch} â€“ your newsroom can now see it.`, type: 'info' });
+        showToast({ message: `Pushed ${activeBranch} – your newsroom can now see it.`, type: 'info' });
         const smsCount = updated?.sms_notification?.recipient_count || 0;
         const smsSuffix =
           smsCount > 0
@@ -726,7 +617,7 @@ function MainScreenContent() {
         ? 'main line, shared'
         : current.is_public
           ? 'shared with newsroom'
-          : 'private â€“ only you can see it';
+          : 'private – only you can see it';
       const unsaved = isEditingArticle &&
         (editContent !== (selectedItem?.content || '') || editSummary !== (selectedItem?.summary || ''));
       showToast({
@@ -799,7 +690,7 @@ function MainScreenContent() {
       setEditSummary(newArt.summary || '');
       setArticleSection('article');
       showToast({
-        message: `âœ¦ Saiph AI created and drafted "${newArt.title}"!`,
+        message: `✦ Saiph AI created and drafted "${newArt.title}"!`,
         type: 'info',
       });
     }
@@ -812,7 +703,7 @@ function MainScreenContent() {
         prev.map((a) => (a.id === selectedArticleId ? { ...a, title: res.updated_title } : a))
       );
       showToast({
-        message: `âœ¦ Saiph AI updated headline to "${res.updated_title}".`,
+        message: `✦ Saiph AI updated headline to "${res.updated_title}".`,
         type: 'info',
       });
     }
@@ -832,8 +723,15 @@ function MainScreenContent() {
       richEditorRef.current?.resetContent?.(targetSwitchedBranch.content || '');
       showToast({
         message: res.created_branch
-          ? `âœ¦ Saiph AI created & switched to branch "${targetSwitchedBranch.branch_name}".`
-          : `âœ¦ Saiph AI switched to branch "${targetSwitchedBranch.branch_name}".`,
+          ? `✦ Saiph AI created & switched to branch "${targetSwitchedBranch.branch_name}".`
+          : `✦ Saiph AI switched to branch "${targetSwitchedBranch.branch_name}".`,
+        type: 'info',
+      });
+    }
+        if (res.branch_diff) {
+      setActiveBranchDiff(res.branch_diff);
+      showToast({
+        message: `Branch Diff: ${res.branch_diff.compare_branch?.branch_name} vs ${res.branch_diff.base_branch?.branch_name} (${res.branch_diff.stats?.similarity_percent}% similarity)`,
         type: 'info',
       });
     }
@@ -842,7 +740,7 @@ function MainScreenContent() {
         prev.map((b) => (b.branch_id === res.pushed_branch.branch_id ? res.pushed_branch : b))
       );
       showToast({
-        message: `âœ¦ Saiph AI pushed branch "${res.pushed_branch.branch_name}" to newsroom.`,
+        message: `✦ Saiph AI pushed branch "${res.pushed_branch.branch_name}" to newsroom.`,
         type: 'info',
       });
     }
@@ -1562,7 +1460,7 @@ function MainScreenContent() {
               onPress={() => setAiModalOpen(true)}
               style={styles.welcomeSecondaryBtn}
             >
-              <Text style={styles.welcomeSecondaryBtnText}>âœ¦ Ask Saiph AI Agent</Text>
+              <Text style={styles.welcomeSecondaryBtnText}>✦ Ask Saiph AI Agent</Text>
             </Pressable>
           </View>
         </Animated.View>
@@ -1755,7 +1653,7 @@ function MainScreenContent() {
                   }}
                   style={styles.titleCancelBtn}
                 >
-                  <Text style={styles.titleCancelBtnText}>âœ•</Text>
+                  <Text style={styles.titleCancelBtnText}>✕</Text>
                 </Pressable>
               </View>
             ) : (
@@ -1832,7 +1730,7 @@ function MainScreenContent() {
                 </View>
               ) : selectedItem.summary ? (
                 <View style={styles.summaryBox}>
-                  <Text style={styles.summaryText}>{stripRichFormatting(selectedItem.summary)}</Text>
+                  <MarkdownRenderer content={selectedItem.summary} customColors={colors} />
                 </View>
               ) : null
             )}
@@ -1924,9 +1822,11 @@ function MainScreenContent() {
               >
                 <Text style={styles.messageSender}>{message.sender}</Text>
                 <View style={[styles.messageBubble, isMe && styles.messageBubbleMe]}>
-                  <Text style={[styles.messageText, isMe && styles.messageTextMe]}>
-                    {message.text}
-                  </Text>
+                  <MarkdownRenderer
+                    content={message.text}
+                    isUser={isMe}
+                    customColors={colors}
+                  />
                 </View>
                 <Text style={styles.messageTime}>{message.time}</Text>
               </View>
@@ -2246,6 +2146,17 @@ function MainScreenContent() {
       />
 
       {/* Create Article / PDF Modal */}
+            <BranchDiffModal
+        visible={!!activeBranchDiff}
+        diff={activeBranchDiff}
+        onClose={() => setActiveBranchDiff(null)}
+        onSwitchBranch={(bName) => {
+          const found = articleBranches.find((b) => b.branch_name === bName);
+          if (found) {
+            showBranchInEditor(found);
+          }
+        }}
+      />
       <CreateArticleModal
         visible={createArticleModalOpen}
         onClose={() => setCreateArticleModalOpen(false)}

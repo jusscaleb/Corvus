@@ -348,6 +348,82 @@ class ArticleAgentAPITests(APITestCase):
         action_types = {a["type"] for a in res3.data["actions_taken"]}
         self.assertIn("branch_switched", action_types)
 
+    @patch('AI.article_agent.is_prompt_safe', return_value=True)
+    @patch('AI.article_agent.chat_with_groq', side_effect=RuntimeError("Offline fallback test"))
+    def test_branch_diff_operations(self, _mock_llm, _mock_safe):
+        """
+        Tests branch diffing across all scenarios:
+        1. Two branches explicitly mentioned -> compares A vs B
+        2. One branch mentioned -> compares with main
+        3. No branch mentioned -> compares active branch with main
+        4. Identical content returns 100% similarity and 0 changes
+        """
+        from AI.article_agent import calculate_branch_diff
+
+        # Create two custom branches for comparison
+        branch_a = Branch.objects.create(
+            article=self.article,
+            branch_name="angle-harare",
+            content="Water shortages hit Harare northern suburbs.\nDam levels drop to 28%.\nRationing begins Monday.",
+            created_by=self.user1,
+        )
+        branch_b = Branch.objects.create(
+            article=self.article,
+            branch_name="angle-bulawayo",
+            content="Water shortages hit Harare northern suburbs.\nDam levels drop to 28%.\nRationing begins Monday.\nBulawayo city council offers 10 bowsers.",
+            created_by=self.user1,
+        )
+
+        # 1. Direct calculate_branch_diff check
+        diff_res = calculate_branch_diff(branch_a, branch_b)
+        self.assertEqual(diff_res["base_branch"]["branch_name"], "angle-harare")
+        self.assertEqual(diff_res["compare_branch"]["branch_name"], "angle-bulawayo")
+        self.assertEqual(diff_res["stats"]["added_lines"], 1)
+        self.assertEqual(diff_res["stats"]["removed_lines"], 0)
+        self.assertGreater(diff_res["stats"]["similarity_percent"], 70.0)
+
+        # 2. Conversational: Mention both branches -> compares angle-harare vs angle-bulawayo
+        chat_url = reverse('ai_agent_chat')
+        res_both = self.client.post(chat_url, {
+            "article_id": self.article.article_id,
+            "branch_id": self.main_branch.branch_id,
+            "content": "compare angle-harare and angle-bulawayo",
+        })
+        self.assertEqual(res_both.status_code, status.HTTP_200_OK)
+        self.assertIn("branch_diff", res_both.data["workspace"])
+        bd_both = res_both.data["workspace"]["branch_diff"]
+        self.assertEqual(bd_both["base_branch"]["branch_name"], "angle-harare")
+        self.assertEqual(bd_both["compare_branch"]["branch_name"], "angle-bulawayo")
+        self.assertEqual(bd_both["stats"]["added_lines"], 1)
+
+        # 3. Conversational: Mention only one branch -> compares with main
+        res_one = self.client.post(chat_url, {
+            "article_id": self.article.article_id,
+            "branch_id": self.main_branch.branch_id,
+            "content": "diff angle-harare",
+        })
+        self.assertEqual(res_one.status_code, status.HTTP_200_OK)
+        self.assertIn("branch_diff", res_one.data["workspace"])
+        bd_one = res_one.data["workspace"]["branch_diff"]
+        self.assertEqual(bd_one["base_branch"]["branch_name"], "main")
+        self.assertEqual(bd_one["compare_branch"]["branch_name"], "angle-harare")
+
+        # 4. Conversational: No branch mentioned -> compares active branch with main
+        res_none = self.client.post(chat_url, {
+            "article_id": self.article.article_id,
+            "branch_id": branch_b.branch_id,
+            "content": "show diff",
+        })
+        self.assertEqual(res_none.status_code, status.HTTP_200_OK)
+        self.assertIn("branch_diff", res_none.data["workspace"])
+        bd_none = res_none.data["workspace"]["branch_diff"]
+        self.assertEqual(bd_none["base_branch"]["branch_name"], "main")
+        self.assertEqual(bd_none["compare_branch"]["branch_name"], "angle-bulawayo")
+
+        # 5. Fallback chat text includes diff summary stats
+        self.assertIn("similarity", res_both.data["reply"].lower())
+
+
 
 
 class TavilySearchServiceTests(TestCase):
@@ -439,12 +515,12 @@ class TavilySearchServiceTests(TestCase):
             self.assertEqual(res, [])
 
     @override_settings(TAVILY_API_KEY="tvly-mock-test-key")
-    @patch('requests.post')
-    def test_search_zimbabwe_web_success(self, mock_post):
+    @patch('AI.tavily_search_service.TavilyClient')
+    def test_search_zimbabwe_web_success(self, mock_client_class):
         """Executes search, normalizes query, and parses results into structured dicts."""
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.json.return_value = {
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+        mock_client.search.return_value = {
             "results": [
                 {
                     "title": "ZMC Hackathon Winners Announced",
@@ -455,7 +531,6 @@ class TavilySearchServiceTests(TestCase):
                 }
             ]
         }
-        mock_post.return_value = mock_resp
 
         results = search_zimbabwe_web("ZMC hackathon", max_results=3)
         self.assertEqual(len(results), 1)
@@ -463,42 +538,47 @@ class TavilySearchServiceTests(TestCase):
         self.assertEqual(results[0]["url"], "https://cite.org.zw/hackathon")
         self.assertEqual(results[0]["score"], 0.98)
 
-        mock_post.assert_called_once()
-        called_payload = mock_post.call_args[1]["json"]
-        self.assertEqual(called_payload["api_key"], "tvly-mock-test-key")
-        self.assertEqual(called_payload["query"], "ZMC hackathon Zimbabwe")
+        mock_client_class.assert_called_once_with(api_key="tvly-mock-test-key")
+        mock_client.search.assert_called_once_with(
+            query="ZMC hackathon Zimbabwe",
+            search_depth="basic",
+            max_results=3,
+            include_answer=False,
+        )
 
     @override_settings(TAVILY_API_KEY="tvly-mock-test-key")
-    @patch('requests.post')
-    def test_search_zimbabwe_web_caching_prevents_duplicate_calls(self, mock_post):
+    @patch('AI.tavily_search_service.TavilyClient')
+    def test_search_zimbabwe_web_caching_prevents_duplicate_calls(self, mock_client_class):
         """Identical subsequent searches within TTL hit cache without repeating HTTP requests."""
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.json.return_value = {"results": [{"title": "Cached News", "url": "https://c.co.zw"}]}
-        mock_post.return_value = mock_resp
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+        mock_client.search.return_value = {"results": [{"title": "Cached News", "url": "https://c.co.zw"}]}
 
         res1 = search_zimbabwe_web("Harare council budget")
         res2 = search_zimbabwe_web("Harare council budget")
 
         self.assertEqual(len(res1), 1)
         self.assertEqual(len(res2), 1)
-        self.assertEqual(mock_post.call_count, 1)
+        self.assertEqual(mock_client.search.call_count, 1)
 
     @override_settings(TAVILY_API_KEY="tvly-mock-test-key")
-    @patch('requests.post')
-    def test_search_zimbabwe_web_handles_api_error_gracefully(self, mock_post):
-        """Non-200 responses return [] without crashing."""
-        mock_resp = MagicMock()
-        mock_resp.status_code = 502
-        mock_resp.text = "Bad Gateway"
-        mock_post.return_value = mock_resp
+    @patch('AI.tavily_search_service.TavilyClient')
+    def test_search_zimbabwe_web_handles_api_error_gracefully(self, mock_client_class):
+        """API errors return [] without crashing."""
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+        mock_client.search.side_effect = Exception("Tavily API error: 502 Bad Gateway")
 
         res = search_zimbabwe_web("inflation rate")
         self.assertEqual(res, [])
 
     @override_settings(TAVILY_API_KEY="tvly-mock-test-key")
-    @patch('requests.post', side_effect=requests.RequestException("Connection timeout"))
-    def test_search_zimbabwe_web_handles_request_exception(self, _mock_post):
+    @patch('AI.tavily_search_service.TavilyClient')
+    def test_search_zimbabwe_web_handles_request_exception(self, mock_client_class):
         """Network and connection exceptions return [] cleanly."""
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+        mock_client.search.side_effect = RuntimeError("Connection timeout")
+
         res = search_zimbabwe_web("currency stabilization")
         self.assertEqual(res, [])

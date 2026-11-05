@@ -413,7 +413,7 @@ test('Feature 7: Editorial Board Section (suggestions, sources, filtering, and M
   assert.match(articleHeader, /id:\s*'board'/);
   assert.match(aiWorkspace, /export function ArticleBoardSection/);
   assert.match(aiWorkspace, /Suggestions & Verified Source Leads/);
-  assert.match(aiWorkspace, /Insert into Article/);
+  assert.match(aiWorkspace, /Mark Done/);
   assert.match(mainScreen, /<ArticleBoardSection/);
 
   const { api, calls, setMockResponse } = loadApiServiceWithMockFetch();
@@ -892,5 +892,51 @@ test('Feature 15: Offline SMS Phone Number Check, PhonePromptModal & updateUserP
   assert.deepEqual(calls.at(-1).body, { phone_number: '+263771234567' });
   assert.equal(updated.phone_number, '+263771234567');
   assert.equal(api.authStorage.getUser().phone_number, '+263771234567');
+});
+
+test('Feature 16: Universal MarkdownRenderer & Table Support for AI Messages & Articles', () => {
+  // 1. Verify MarkdownRenderer is referenced in components
+  const aiWorkspaceCode = readSrc('components/ArticleAIWorkspace.jsx');
+  assert.match(aiWorkspaceCode, /import MarkdownRenderer from '\.\/MarkdownRenderer'/);
+  assert.match(aiWorkspaceCode, /<MarkdownRenderer\s+content=\{m\.content\}/);
+
+  const mainScreenCode = readSrc('components/MainScreen.jsx');
+  assert.match(mainScreenCode, /import MarkdownRenderer from '\.\/MarkdownRenderer'/);
+  assert.match(mainScreenCode, /<MarkdownRenderer\s+content=\{message\.text\}/);
+
+  // 2. Test table detection regex and parsing
+  const sampleTableMd = [
+    '| Faculty | Established | Focus |',
+    '| :--- | :---: | ---: |',
+    '| Engineering | 1991 | Civil & Electrical |',
+    '| Health Sciences | 2005 | Medicine |',
+  ];
+
+  const sepRegex = /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/;
+  assert.equal(sepRegex.test(sampleTableMd[1]), true);
+
+  const splitRow = (line) => {
+    let clean = line;
+    if (clean.startsWith('|')) clean = clean.slice(1);
+    if (clean.endsWith('|')) clean = clean.slice(0, -1);
+    return clean.split('|').map((c) => c.trim());
+  };
+
+  const headers = splitRow(sampleTableMd[0]);
+  assert.deepEqual(headers, ['Faculty', 'Established', 'Focus']);
+
+  const rows = [splitRow(sampleTableMd[2]), splitRow(sampleTableMd[3])];
+  assert.deepEqual(rows[0], ['Engineering', '1991', 'Civil & Electrical']);
+  assert.deepEqual(rows[1], ['Health Sciences', '2005', 'Medicine']);
+
+  // 3. Test standalone bold lead line detection (e.g. **Summary – NUST Zimbabwe**)
+  const leadMatch = '**Summary – NUST Zimbabwe**'.match(/^\*\*([^*]+)\*\*$/);
+  assert.notEqual(leadMatch, null);
+  assert.equal(leadMatch[1], 'Summary – NUST Zimbabwe');
+
+  // 4. Test bullet list with bold prefix tokenization
+  const bulletMatch = '- **History & Growth:** Gained full university status'.match(/^(?:•|-|\*)\s+(.*)$/);
+  assert.notEqual(bulletMatch, null);
+  assert.equal(bulletMatch[1], '**History & Growth:** Gained full university status');
 });
 
