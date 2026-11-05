@@ -38,25 +38,8 @@ export default function UserSite() {
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Initial submissions list so the Posts page has immediate context
-  const [submissions, setSubmissions] = useState([
-    {
-      id: 'lead-baseline-101',
-      headline: 'Water Supply Outage and Distribution Failures in Eastern Suburbs',
-      details:
-        'Residential neighborhoods across eastern wards experienced unannounced potable water cutoffs lasting beyond 48 hours. Field teams observed community reliance on private boreholes.',
-      location: 'Bulawayo East Ward 4',
-      category: 'Local News',
-      urgency: 'Breaking News',
-      verification: { eyewitness: true, evidence: true },
-      evidenceNotes: 'Photographic logs of dry municipal taps and private water tanker receipts.',
-      isAnonymous: false,
-      contactInfo: 'civic.watch@bulawayo.org',
-      status: 'Under Review',
-      submittedDate: 'Nov 3, 2026',
-      submittedAt: '09:15 AM',
-    },
-  ]);
+  // User-submitted leads from current session
+  const [submissions, setSubmissions] = useState([]);
 
   const handleAddSubmission = (newLead) => {
     setSubmissions((prev) => [newLead, ...prev]);
@@ -73,9 +56,9 @@ export default function UserSite() {
         backgroundColor={colors.headerBg || colors.paper}
       />
 
-      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {/* PUBLIC-FACING EDITORIAL HEADER                                      */}
-      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <View style={styles.header}>
         <View style={styles.headerInner}>
           {/* Left: Brand Wordmark + Language Selector */}
@@ -103,7 +86,7 @@ export default function UserSite() {
                   <Path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
                 </Svg>
                 <Text style={styles.langSelectorText}>{selectedLang}</Text>
-                <Text style={styles.dropdownCaret}>{showLangMenu ? '▲' : '▼'}</Text>
+                <Text style={styles.dropdownCaret}>{showLangMenu ? 'â–²' : 'â–¼'}</Text>
               </TouchableOpacity>
 
               {showLangMenu && (
@@ -189,7 +172,7 @@ export default function UserSite() {
               accessibilityRole="button"
               accessibilityLabel="Toggle navigation menu"
             >
-              <Text style={styles.hamburgerIcon}>{mobileMenuOpen ? '✕' : '☰'}</Text>
+              <Text style={styles.hamburgerIcon}>{mobileMenuOpen ? 'âœ•' : 'â˜°'}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -273,9 +256,9 @@ export default function UserSite() {
         )}
       </View>
 
-      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {/* ACTIVE PAGE CONTENT RENDERER                                        */}
-      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <View style={styles.body}>
         {activeTab === 'news' && (
           <NewsArticles

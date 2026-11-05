@@ -25,6 +25,8 @@ class Article(models.Model):
         null=True,
         related_name='created_articles',
     )
+    is_published = models.BooleanField(default=False)
+    published_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -59,7 +61,7 @@ class Branch(models.Model):
                               default='draft')
     is_main = models.BooleanField(default=False)
 
-    # Visibility flag – false = private (only creator sees),
+    # Visibility flag â€“ false = private (only creator sees),
     # true = public (visible to newsroom)
     is_public = models.BooleanField(default=False)
 

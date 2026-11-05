@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.shortcuts import get_object_or_404
 from django.db import transaction, IntegrityError
 from django.db.models import Q, Prefetch
+from django.utils import timezone
 
 from Newsroom.models import Group
 from .models import Article, Branch
@@ -49,9 +50,7 @@ class PublicArticleListView(APIView):
     def get(self, request):
         user = request.user if request.user.is_authenticated else None
         articles = (
-            Article.objects.filter(
-                Q(branches__is_public=True) | Q(branches__status='merged') | Q(branches__is_main=True)
-            )
+            Article.objects.filter(is_published=True)
             .select_related('group', 'author')
             .prefetch_related(
                 Prefetch(
@@ -61,7 +60,7 @@ class PublicArticleListView(APIView):
                 )
             )
             .distinct()
-            .order_by('-updated_at')
+            .order_by('-published_at', '-updated_at')
         )
         serializer = ArticleSerializer(articles, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -244,6 +243,59 @@ class ArticleDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+class PublishArticleView(APIView):
+    """
+    POST: Publish or unpublish an article for public portal view.
+    Only article author or members of the article's newsroom group can publish.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, article_id):
+        article = get_object_or_404(Article.objects.select_related('group'), pk=article_id)
+
+        is_author = article.author_id == request.user.pk
+        is_member = bool(article.group and check_group_membership(request.user, article.group))
+        if not (is_author or is_member):
+            return Response(
+                {"detail": "You do not have permission to publish this story."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        action = request.data.get('action', 'publish')
+        if action == 'unpublish':
+            article.is_published = False
+            article.published_at = None
+            article.save(update_fields=['is_published', 'published_at'])
+            return Response(
+                {
+                    "message": "Article unpublished from public portal.",
+                    "is_published": False,
+                    "article": ArticleSerializer(article, context={'request': request}).data,
+                },
+                status=status.HTTP_200_OK
+            )
+
+        article.is_published = True
+        article.published_at = timezone.now()
+        article.save(update_fields=['is_published', 'published_at'])
+
+        # If article has branches, make sure main branch is marked public
+        main_branch = article.branches.filter(is_main=True).first()
+        if main_branch and not main_branch.is_public:
+            main_branch.is_public = True
+            main_branch.status = 'merged'
+            main_branch.save(update_fields=['is_public', 'status'])
+
+        return Response(
+            {
+                "message": "Article published to public portal.",
+                "is_published": True,
+                "article": ArticleSerializer(article, context={'request': request}).data,
+            },
+            status=status.HTTP_200_OK
+        )
+
+
 class ArticleBranchListCreateView(APIView):
     """
     GET: List all branches of an article.
@@ -304,7 +356,7 @@ class ArticleBranchListCreateView(APIView):
 
 class BranchPushView(APIView):
     """POST: Mark a branch as public and broadcast a notification to the newsroom.
-    Only the branch's creator can push it – nobody else should publish someone's private draft.
+    Only the branch's creator can push it â€“ nobody else should publish someone's private draft.
     """
     permission_classes = [IsAuthenticated]
 

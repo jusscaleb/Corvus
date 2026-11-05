@@ -236,7 +236,7 @@ class ProjectTests(APITestCase):
         self.assertNotIn(private_branch.branch_id, other_ids)
         self.assertTrue(any(b['is_main'] for b in other))
 
-    # ─── Backend review fixes ─────────────────────────────────────────────
+    # â”€â”€â”€ Backend review fixes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _article_with_private_branch(self):
         article = Article.objects.create(title="Review Fix Test", group=self.group, author=self.user1)
@@ -349,3 +349,67 @@ class ProjectTests(APITestCase):
         group_res = self.client.get(create_url)
         self.assertEqual(group_res.status_code, status.HTTP_200_OK)
         self.assertTrue(any(a['article_id'] == article_id for a in group_res.data))
+
+    def test_publish_article_workflow_and_public_visibility(self):
+        # 1. Author creates an article
+        article = Article.objects.create(title="Breaking Water Report", group=self.group, author=self.user1)
+        main_branch = Branch.objects.create(
+            branch_name='main',
+            content='Full investigation report details.',
+            branch_description='Water crisis investigation',
+            article=article,
+            created_by=self.user1,
+            is_main=True,
+            is_public=False,
+        )
+
+        publish_url = reverse('article_publish', kwargs={'article_id': article.article_id})
+        public_url = reverse('public_article_list')
+
+        # 2. Before publishing, verify unauthenticated public list does NOT return this unpublished article
+        self.client.credentials()  # unauthenticated
+        res_before = self.client.get(public_url)
+        self.assertEqual(res_before.status_code, status.HTTP_200_OK)
+        self.assertFalse(any(a['article_id'] == article.article_id for a in res_before.data))
+
+        # 3. Unauthorized outsider cannot publish
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token2}')
+        # remove user2 from group temporarily
+        Member.objects.filter(member=self.user2, group=self.group).delete()
+        fail_res = self.client.post(publish_url)
+        self.assertEqual(fail_res.status_code, status.HTTP_403_FORBIDDEN)
+
+        # 4. Author publishes the article
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token1}')
+        pub_res = self.client.post(publish_url)
+        self.assertEqual(pub_res.status_code, status.HTTP_200_OK)
+        self.assertTrue(pub_res.data['is_published'])
+
+        # Refresh from db
+        article.refresh_from_db()
+        self.assertTrue(article.is_published)
+        self.assertIsNotNone(article.published_at)
+
+        # 5. Public portal now lists the published article with content
+        self.client.credentials()  # unauthenticated
+        res_after = self.client.get(public_url)
+        self.assertEqual(res_after.status_code, status.HTTP_200_OK)
+        published_match = [a for a in res_after.data if a['article_id'] == article.article_id]
+        self.assertEqual(len(published_match), 1)
+        self.assertEqual(published_match[0]['title'], "Breaking Water Report")
+        self.assertTrue(published_match[0]['is_published'])
+
+        # 6. Author unpublishes the article
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token1}')
+        unpub_res = self.client.post(publish_url, {"action": "unpublish"})
+        self.assertEqual(unpub_res.status_code, status.HTTP_200_OK)
+        self.assertFalse(unpub_res.data['is_published'])
+
+        article.refresh_from_db()
+        self.assertFalse(article.is_published)
+        self.assertIsNone(article.published_at)
+
+        # 7. Public portal no longer shows it
+        self.client.credentials()
+        res_unpub = self.client.get(public_url)
+        self.assertFalse(any(a['article_id'] == article.article_id for a in res_unpub.data))

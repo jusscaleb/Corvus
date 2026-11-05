@@ -25,130 +25,11 @@ const CATEGORIES = [
   'Politics',
 ];
 
-const INITIAL_ARTICLES = [
-  {
-    id: 'art-1',
-    title: 'Investigation: Water Distribution Infrastructure and Urban Supply Deficits',
-    category: 'Local News',
-    author: 'Nyasha Moyo',
-    authorRole: 'Senior Investigative Reporter',
-    date: 'Nov 4, 2026',
-    time: '08:45 AM',
-    readTime: '6 min read',
-    imageUrl: 'https://images.unsplash.com/photo-1541888946425-d0fbb186c5f7?auto=format&fit=crop&w=1200&q=80',
-    caption: 'Water distribution trunk lines undergoing emergency pipe replacement along the eastern corridor.',
-    excerpt: 'An in-depth inquiry into municipal water trunk lines reveals recurring maintenance backlogs, unannounced pressure reductions, and community-led contingency responses across metropolitan wards.',
-    content: `Residents across eastern metropolitan districts have experienced extended potable water supply interruptions over the past six weeks, prompting municipal authorities to convene emergency hearings with engineering inspectors.
-
-Field audits conducted across three distribution zones documented recurring pressure drops at critical pumping junctures. Engineers attributed the primary bottleneck to aged cast-iron piping installed over four decades ago that has deteriorated under seasonal soil expansion.
-
-According to municipal logbooks reviewed by Corvus, scheduled maintenance for the primary booster station was postponed twice in the preceding fiscal quarter due to supply chain delays for replacement pressure valves. In response, local resident coalitions have mobilized independent water-testing committees and shared logistics for regional tanker distribution.
-
-The municipal engineering council announced that a targeted rehabilitation project will commence within the fortnight, prioritizing health facility supply lines and residential secondary mains before expanding to outer feeder grids.`,
-    sources: 'Verified municipal maintenance logs, district engineer testimonies, and independent water purity assays conducted on Nov 2, 2026.',
-  },
-  {
-    id: 'art-2',
-    title: 'Regional Agricultural AI and Sensor Systems Reshape Smallholder Crop Forecasting',
-    category: 'Technology',
-    author: 'Kudakwashe Shumba',
-    authorRole: 'Technology & Agribusiness Desk',
-    date: 'Nov 3, 2026',
-    time: '11:15 AM',
-    readTime: '4 min read',
-    imageUrl: 'https://images.unsplash.com/photo-1586771107445-d3ca888129ff?auto=format&fit=crop&w=1200&q=80',
-    caption: 'Agronomists deploying low-power soil moisture sensors at a cooperative demonstration plot.',
-    excerpt: 'Collaborative pilots combining edge computing sensors and multilingual SMS advisory feeds are empowering regional farming cooperatives to anticipate dry spells and optimize harvest yields.',
-    content: `A decentralized consortium of regional agricultural researchers has deployed low-cost sensor nodes across twenty-two cooperative farming belts, bringing predictive microclimate modeling directly to rural smallholders.
-
-The sensor network continuously tracks soil moisture saturation, ambient canopy temperatures, and relative humidity, transmitting telemetry over lightweight cellular packets to an open analytics repository. Agronomists translate these algorithmic models into actionable crop guidance disseminated in Shona, Ndebele, and English.
-
-During the recent transition into the early planting cycle, cooperative members utilizing the predictive bulletins adjusted sowing dates by eleven days, mitigating initial seedling heat stress. The project leaders plan to expand the sensor network to include livestock waterhole monitoring before the upcoming dry interval.`,
-    sources: 'Regional Agronomy Collaborative Report 2026; field surveys across Mashonaland and Matabeleland cooperative stations.',
-  },
-  {
-    id: 'art-3',
-    title: 'Commuter Rail Line Modernization: Electrification Feasibility and Route Timetables',
-    category: 'Transit',
-    author: 'Sipho Ndlovu',
-    authorRole: 'Urban Infrastructure Reporter',
-    date: 'Nov 3, 2026',
-    time: '02:30 PM',
-    readTime: '5 min read',
-    imageUrl: 'https://images.unsplash.com/photo-1515165562839-978bbcf18277?auto=format&fit=crop&w=1200&q=80',
-    caption: 'Commuter rail terminus during early morning passenger boarding trials.',
-    excerpt: 'Transport ministry planners release preliminary environmental and route assessments for high-capacity suburban electric train sets aimed at alleviating arterial highway congestion.',
-    content: `Urban commuter corridors are poised for major operational restructuring under a modernized passenger rail overhaul submitted to the transport board this week.
-
-The proposal outlines the phased introduction of dual-mode electric-diesel trainsets designed to operate on high-density radial lines connecting suburban population centres with core commercial districts. Estimated passenger capacity is projected to triple current diesel locomotive throughput while cutting average commute intervals by twenty-four minutes.
-
-Financial feasibility audits indicate capital expenditure will be partially amortized through clean mobility development grants. Public consultations regarding station park-and-ride facilities and feeder minibus interchange points are scheduled across civic centres throughout the month.`,
-    sources: 'Ministry of Transport Preliminary Railway Feasibility Dossier (Ref: TR-2026-088).',
-  },
-  {
-    id: 'art-4',
-    title: 'Reforestation Corridors Restore Watershed Ecology in Eastern Mountain Reserves',
-    category: 'Environment',
-    author: 'Chipo Mutasa',
-    authorRole: 'Environmental Affairs Editor',
-    date: 'Nov 2, 2026',
-    time: '10:00 AM',
-    readTime: '5 min read',
-    imageUrl: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1200&q=80',
-    caption: 'Native canopy saplings planted along riparian buffer zones to stabilize vulnerable riverbanks.',
-    excerpt: 'Community-led forestry reserves report documented recovery of indigenous tree canopies and reduced soil runoff along vulnerable headwater tributaries.',
-    content: `Five years after severe illegal logging depleted upper watershed catchments, a coordinated ecological rehabilitation program has restored continuous vegetative cover across 1,800 hectares of highland reserve terrain.
-
-Community forest scouts working in partnership with conservation botanists planted more than 140,000 indigenous saplings, with an emphasis on taproot species that stabilize steep escarpment soils. Aerial lidar surveys confirmed that sediment runoff into downstream irrigation reservoirs has dropped by thirty-two percent since project inception.
-
-Water quality testing at riverside collection stations indicates a measurable stabilization of year-round streamflow, ensuring dependable water access for downstream horticultural growers even during seasonal dry periods.`,
-    sources: 'Eastern Highlands Watershed Conservation Conservancy annual ecological audit, October 2026.',
-  },
-  {
-    id: 'art-5',
-    title: 'Bilingual Digital Curricula Rolled Out Across Regional Primary School Classrooms',
-    category: 'Education',
-    author: 'Thabani Khumalo',
-    authorRole: 'Education Policy Desk',
-    date: 'Nov 1, 2026',
-    time: '01:20 PM',
-    readTime: '4 min read',
-    imageUrl: 'https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=1200&q=80',
-    caption: 'Primary school learners engaging with localized digital reading applications.',
-    excerpt: 'Classroom pilot programs integrating vernacular language instruction alongside scientific literacy demonstrate marked gains in student retention and foundational numeracy.',
-    content: `An educational curriculum initiative featuring simultaneous instruction in Shona, Ndebele, and English has been introduced across forty-eight pilot primary schools following successful regional testing.
-
-Pedagogical researchers noted that children introduced to scientific and mathematical terminology in their primary home language before transitioning to standardized technical English showed a forty percent faster concept acquisition rate than traditional single-medium classrooms.
-
-The education ministry plans to provide solar-rechargeable classroom tablets loaded with open educational courseware to an additional one hundred rural schools before the start of the upcoming academic calendar.`,
-    sources: 'National Curriculum Development Institute pedagogical review; field assessments across pilot districts.',
-  },
-  {
-    id: 'art-6',
-    title: 'Parliamentary Committee Demands Transparency in Regional Mineral Concession Pacts',
-    category: 'Politics',
-    author: 'Farai Marange',
-    authorRole: 'Parliamentary Bureau Chief',
-    date: 'Oct 31, 2026',
-    time: '04:10 PM',
-    readTime: '7 min read',
-    imageUrl: 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?auto=format&fit=crop&w=1200&q=80',
-    caption: 'Parliamentary committee chambers during public hearings on extractives governance.',
-    excerpt: 'Legislators table a bipartisan resolution requiring full public disclosure of royalty schedules, community trust distributions, and environmental compliance bonds.',
-    content: `In a landmark legislative session, the Parliamentary Portfolio Committee on Mines and Energy voted unanimously to mandate public registry publication for all extractive resource concessions exceeding ten million dollars in valuation.
-
-The resolution mandates that concession contracts include itemized fiscal schedules detailing corporate tax contributions, surface rentals, and direct allocations earmarked for surrounding community development trusts. Lawmakers emphasized that historical ambiguities surrounding revenue-sharing mechanisms have disadvantaged district councils attempting to fund road and health infrastructure.
-
-Industry representatives present during the legislative debate expressed conditional endorsement, provided that fiscal disclosures maintain standard confidentiality protections for proprietary geological exploration models.`,
-    sources: 'Parliamentary Hansard Official Records; Committee on Mines and Energy Report No. 14.',
-  },
-];
-
 export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
   const { colors, isDark } = useTheme();
   const { width } = useWindowDimensions();
 
-  const [articles, setArticles] = useState(INITIAL_ARTICLES);
+  const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -191,11 +72,12 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
             };
           });
 
-          // Prepend backend articles so they appear at the top, followed by curated baseline stories
-          setArticles([...formatted, ...INITIAL_ARTICLES]);
+          setArticles(formatted);
+        } else if (isMounted) {
+          setArticles([]);
         }
       } catch (err) {
-        // Fallback smoothly to baseline editorial stories
+        if (isMounted) setArticles([]);
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -234,9 +116,9 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
 
   const styles = makeStyles(colors, isDark);
 
-  // ─────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // VIEW: INDIVIDUAL ARTICLE DETAIL
-  // ─────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (selectedArticle) {
     return (
       <ScrollView style={styles.detailContainer} contentContainerStyle={styles.detailContentContainer}>
@@ -247,7 +129,7 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
           accessibilityRole="button"
           accessibilityLabel="Back to news articles"
         >
-          <Text style={styles.backButtonArrow}>←</Text>
+          <Text style={styles.backButtonArrow}>â†</Text>
           <Text style={styles.backButtonText}>{t('backToDispatches', selectedLang)}</Text>
         </TouchableOpacity>
 
@@ -255,7 +137,7 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
         <View style={styles.detailCategoryRow}>
           <Text style={styles.detailCategoryBadge}>{detailArticle.category.toUpperCase()}</Text>
           <Text style={styles.detailTimeBadge}>
-            {detailArticle.date} • {detailArticle.time}
+            {detailArticle.date} â€¢ {detailArticle.time}
           </Text>
         </View>
 
@@ -272,7 +154,7 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
           <View style={styles.bylineInfo}>
             <Text style={styles.bylineAuthor}>{t('bylinePrefix', selectedLang)} {detailArticle.author}</Text>
             <Text style={styles.bylineRole}>
-              {detailArticle.authorRole || 'Investigative Journalist'} • {detailArticle.readTime}
+              {detailArticle.authorRole || 'Investigative Journalist'} â€¢ {detailArticle.readTime}
             </Text>
           </View>
         </View>
@@ -330,7 +212,7 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
                   {rel.title}
                 </Text>
                 <Text style={styles.relatedMeta}>
-                  By {rel.author} • {rel.readTime}
+                  By {rel.author} â€¢ {rel.readTime}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -342,16 +224,16 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
           style={[styles.backButton, { marginTop: 28 }]}
           onPress={() => setSelectedArticle(null)}
         >
-          <Text style={styles.backButtonArrow}>←</Text>
+          <Text style={styles.backButtonArrow}>â†</Text>
           <Text style={styles.backButtonText}>{t('backToDispatches', selectedLang)}</Text>
         </TouchableOpacity>
       </ScrollView>
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // VIEW: MAIN NEWS ARTICLES PAGE
-  // ─────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       {/* Top Editorial Kicker */}
@@ -360,7 +242,7 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
           <Text style={styles.editionTitle}>{t('newsBannerKicker', selectedLang)}</Text>
           <Text style={styles.editionSubtitle}>{t('newsBannerSubtitle', selectedLang)}</Text>
         </View>
-        <Text style={styles.editionIssue}>CORVUS GAZETTE • ISSUE 2026.11</Text>
+        <Text style={styles.editionIssue}>CORVUS GAZETTE â€¢ ISSUE 2026.11</Text>
       </View>
 
       <View style={styles.mainDivider} />
@@ -382,7 +264,7 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.searchClearBtn}>
-              <Text style={styles.searchClearText}>✕</Text>
+              <Text style={styles.searchClearText}>âœ•</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -398,7 +280,7 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
               accessibilityLabel="Select news category"
             >
               <Text style={styles.categoryDropdownText}>{getCategoryTranslation(selectedCategory, selectedLang)}</Text>
-              <Text style={styles.dropdownArrow}>{showCategoryDropdown ? '▲' : '▼'}</Text>
+              <Text style={styles.dropdownArrow}>{showCategoryDropdown ? 'â–²' : 'â–¼'}</Text>
             </TouchableOpacity>
 
             {showCategoryDropdown && (
@@ -467,19 +349,27 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
           <View style={styles.emptyIconBox}>
             <Text style={styles.emptyIconText}>📰</Text>
           </View>
-          <Text style={styles.emptyHeadline}>{t('noArticlesFound', selectedLang)}</Text>
-          <Text style={styles.emptySubtitle}>
-            We could not find any stories matching "{searchQuery}" under the "{selectedCategory}" desk.
+          <Text style={styles.emptyHeadline}>
+            {searchQuery || selectedCategory !== 'All'
+              ? t('noArticlesFound', selectedLang)
+              : 'No Published Dispatches Yet'}
           </Text>
-          <TouchableOpacity
-            style={styles.resetButton}
-            onPress={() => {
-              setSearchQuery('');
-              setSelectedCategory('All');
-            }}
-          >
-            <Text style={styles.resetButtonText}>Reset All Filters</Text>
-          </TouchableOpacity>
+          <Text style={styles.emptySubtitle}>
+            {searchQuery || selectedCategory !== 'All'
+              ? `We could not find any stories matching "${searchQuery}" under the "${selectedCategory}" desk.`
+              : 'Investigative reports and articles published by journalists will appear here once published.'}
+          </Text>
+          {(searchQuery || selectedCategory !== 'All') && (
+            <TouchableOpacity
+              style={styles.resetButton}
+              onPress={() => {
+                setSearchQuery('');
+                setSelectedCategory('All');
+              }}
+            >
+              <Text style={styles.resetButtonText}>Reset All Filters</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -532,7 +422,7 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
 
               {/* Read Action Button */}
               <View style={styles.cardActionRow}>
-                <Text style={styles.readActionText}>Read Full Article →</Text>
+                <Text style={styles.readActionText}>Read Full Article â†’</Text>
               </View>
             </TouchableOpacity>
           );
@@ -889,9 +779,9 @@ function makeStyles(colors, isDark) {
       letterSpacing: 0.3,
     },
 
-    // ─────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // INDIVIDUAL ARTICLE DETAIL VIEW STYLES
-    // ─────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     detailContainer: {
       flex: 1,
       backgroundColor: paper,
