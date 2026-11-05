@@ -224,6 +224,12 @@ export default function ArticleHeader({
   onSelectBranch = () => {},
   onCreateBranch = null,
   onExecuteCommand = () => {},
+  onCompareBranch = null,
+  selectedLanguage = 'ENG',
+  onSelectLanguage = null,
+  peerApprovals = [],
+  canApprove = false,
+  onGrantApproval = null,
   onApplyFormat = () => {},
   activeFormats = {},
   activeSection = 'article', // 'article' | 'mindmap' | 'board' | 'review'
