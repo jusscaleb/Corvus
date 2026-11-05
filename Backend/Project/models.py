@@ -89,3 +89,34 @@ class Branch(models.Model):
 
     def __str__(self):
         return f"{self.article.title} -> {self.branch_name}"
+
+
+class ArticleTranslation(models.Model):
+    translation_id = models.CharField(
+        primary_key=True,
+        max_length=256,
+        default=generate_uuid,
+        editable=False,
+    )
+    article = models.ForeignKey(
+        Article,
+        on_delete=models.CASCADE,
+        related_name='translations',
+    )
+    language_code = models.CharField(max_length=10)  # 'en', 'sn', 'nd'
+    title = models.CharField(max_length=256)
+    content = models.TextField(blank=True, default="")
+    excerpt = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=('article', 'language_code'),
+                name='unique_article_translation_per_language',
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.article.title} ({self.language_code})"
