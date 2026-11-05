@@ -11,6 +11,7 @@ from Project.models import Article, Branch
 from Project.views import check_group_membership, branch_name_taken
 from .models import ArticleWorkspace, AgentMemory, AgentConversationMessage
 from .groq_service import chat_with_groq, is_prompt_safe
+from .tavily_search_service import search_zimbabwe_web, format_search_results_for_prompt
 
 
 # ─── Access Control Helpers ───────────────────────────────────────────────────
