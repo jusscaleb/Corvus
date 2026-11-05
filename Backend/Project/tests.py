@@ -635,7 +635,7 @@ class ProjectTests(APITestCase):
         # 3. Third newsroom member grants approval
         user3 = User.objects.create_user(username='colleague3', email='c3@news.org', password='Password123!')
         Member.objects.create(member=user3, group=self.group)
-        token3 = str(AccessToken.for_user(user3))
+        token3 = str(RefreshToken.for_user(user3).access_token)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token3}')
         appr3_res = self.client.post(approve_url)
         self.assertEqual(appr3_res.status_code, status.HTTP_200_OK)
