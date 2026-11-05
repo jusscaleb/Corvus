@@ -1,11 +1,14 @@
 from datetime import datetime, timezone
 from functools import lru_cache
+import logging
 import uuid
 from django.conf import settings
 from bson import ObjectId
 from bson.errors import InvalidId
 from pymongo import ASCENDING, DESCENDING, MongoClient
 from pymongo.errors import PyMongoError
+
+logger = logging.getLogger(__name__)
 
 
 class MongoChatStoreUnavailable(RuntimeError):
@@ -18,10 +21,16 @@ def _get_mongo_db():
         raise MongoChatStoreUnavailable("MongoDB is not configured. Set MONGODB_URI.")
 
     try:
-        client = MongoClient(
-            settings.MONGODB_URI,
-            serverSelectionTimeoutMS=settings.MONGODB_SERVER_SELECTION_TIMEOUT_MS,
-        )
+        mongo_uri = settings.MONGODB_URI
+        client_kwargs = {
+            "serverSelectionTimeoutMS": settings.MONGODB_SERVER_SELECTION_TIMEOUT_MS,
+        }
+        # Standalone single-node deployments (e.g. Railway internal network) require
+        # directConnection=True to avoid topology discovery timeouts.
+        if not mongo_uri.startswith("mongodb+srv://") and "directConnection" not in mongo_uri:
+            client_kwargs["directConnection"] = True
+
+        client = MongoClient(mongo_uri, **client_kwargs)
         db = client[settings.MONGODB_DATABASE]
 
         db["conversations"].create_index([("type", ASCENDING), ("participants", ASCENDING)])
@@ -30,6 +39,8 @@ def _get_mongo_db():
 
         return db
     except PyMongoError as exc:
+        logger.error(f"[MongoDB Error] Connection failed: {exc}", exc_info=True)
+        print(f"[MongoDB Error] Connection failed: {exc}", flush=True)
         raise MongoChatStoreUnavailable(f"Could not connect to MongoDB: {exc}") from exc
 
 

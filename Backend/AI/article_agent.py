@@ -1001,7 +1001,11 @@ def interact_with_article_agent(
             if not target_branch.is_public and not target_branch.is_main:
                 target_branch.is_public = True
                 target_branch.save(update_fields=['is_public', 'updated_at'])
+            from Project.sms_service import notify_newsroom_branch_published
+
+            sms_info = notify_newsroom_branch_published(target_branch, pushed_by=user)
             payload = _serialize_branch(target_branch)
+            payload["sms_notification"] = sms_info
             workspace_payload["pushed_branch"] = payload
             actions_taken.append({
                 "type": "branch_pushed",

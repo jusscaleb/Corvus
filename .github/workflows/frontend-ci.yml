@@ -1,0 +1,45 @@
+name: Frontend CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - 'frontend*'
+      - 'feature/**'
+      - 'v*'
+      - 'v**'
+  pull_request:
+    branches:
+      - main
+      - master
+      - 'frontend*'
+      - 'v*'
+      - 'v**'
+
+jobs:
+  test:
+    name: Run Frontend Node Unit Tests
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: Frontend/corvus-mobile
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: Frontend/corvus-mobile/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci || npm install --no-audit --no-fund
+
+      - name: Run Frontend Unit Tests (node --test)
+        run: node --test test.jsx
+

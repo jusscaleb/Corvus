@@ -686,6 +686,14 @@ const RichTextEditor = forwardRef(function RichTextEditor(
   useEffect(() => {
     if (Platform.OS !== 'web' || !domRef.current) return;
     if (value === lastEmittedRef.current) return;
+    // Never overwrite the live contentEditable DOM while the user is actively focused and typing in it
+    if (
+      typeof document !== 'undefined' &&
+      document.activeElement === domRef.current &&
+      lastEmittedRef.current !== null
+    ) {
+      return;
+    }
 
     const richHtml = contentToRichHtml(value);
     domRef.current.innerHTML = richHtml || '';
