@@ -1,7 +1,7 @@
 import httpx
 from langchain_core.tools import tool
 from langchain_core.runnables import RunnableConfig
-from .config import BACKEND_BASE_URL
+from .config import BACKEND_BASE_URL, TAVILY_API_KEY
 
 
 def _resolve_token(token: str = "", config: RunnableConfig = None) -> str:
@@ -167,7 +167,54 @@ def get_user_profile(token: str = "", config: RunnableConfig = None) -> str:
         return f"Error {res.status_code}: {res.text}"
 
 
+# 5. Live Zimbabwe Web Search Tool (Tavily)
+@tool
+def search_zimbabwe_web_tool(query: str) -> str:
+    """
+    Searches the live web for verified facts, recent news, official gazettes, and statistics strictly focused on Zimbabwe.
+    Always use this tool when the user asks about current events, external sources, statistics, or real-world verification in Zimbabwe.
+    """
+    clean_q = (query or "").strip()
+    if not clean_q:
+        return "Please provide a search query."
+    
+    # Enforce Zimbabwe geographical context
+    if "zimbabwe" not in clean_q.lower() and not any(k in clean_q.lower() for k in ("harare", "bulawayo", "mutare", "gweru")):
+        clean_q = f"{clean_q} Zimbabwe"
+
+    if not TAVILY_API_KEY:
+        return "Tavily web search API key is not configured."
+
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            res = client.post(
+                "https://api.tavily.com/search",
+                json={
+                    "api_key": TAVILY_API_KEY,
+                    "query": clean_q,
+                    "search_depth": "basic",
+                    "max_results": 5,
+                }
+            )
+            if res.status_code == 200:
+                results = res.json().get("results", [])
+                if not results:
+                    return f"No verified web results found in Zimbabwe for: '{clean_q}'"
+                formatted = []
+                for idx, r in enumerate(results, 1):
+                    formatted.append(
+                        f"[{idx}] {r.get('title')} ({r.get('published_date', 'Recent')})\n"
+                        f"    URL: {r.get('url')}\n"
+                        f"    Summary: {r.get('content')}"
+                    )
+                return "\n\n".join(formatted)
+            return f"Search error ({res.status_code}): {res.text}"
+    except Exception as e:
+        return f"Web search request failed: {e}"
+
+
 ALL_AGENT_TOOLS = [
+    search_zimbabwe_web_tool,
     list_newsroom_groups,
     get_group_members,
     list_articles_in_group,

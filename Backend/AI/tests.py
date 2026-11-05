@@ -7,7 +7,14 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
+import requests
 from AI.groq_service import is_prompt_safe, chat_with_groq, get_groq_client
+from AI.tavily_search_service import (
+    normalize_zimbabwe_query,
+    search_zimbabwe_web,
+    format_search_results_for_prompt,
+    _SEARCH_CACHE,
+)
 from AI.models import ArticleWorkspace, AgentMemory, AgentConversationMessage
 from Newsroom.models import Group, Member
 from Project.models import Article, Branch
@@ -341,3 +348,157 @@ class ArticleAgentAPITests(APITestCase):
         action_types = {a["type"] for a in res3.data["actions_taken"]}
         self.assertIn("branch_switched", action_types)
 
+
+
+class TavilySearchServiceTests(TestCase):
+    """
+    Test suite for Tavily Search Service with strict Zimbabwe geographic grounding:
+    - Query normalization & geographic keyword appending
+    - Caching and cache-hit behavior
+    - Result formatting for LLM context injection
+    - API error and missing key graceful fallbacks
+    """
+
+    def setUp(self):
+        _SEARCH_CACHE.clear()
+
+    def test_normalize_zimbabwe_query_appends_country(self):
+        """Generic queries without Zimbabwean entities automatically get 'Zimbabwe' appended."""
+        self.assertEqual(
+            normalize_zimbabwe_query("drought relief food distribution"),
+            "drought relief food distribution Zimbabwe",
+        )
+        self.assertEqual(
+            normalize_zimbabwe_query("healthcare funding in public hospitals"),
+            "healthcare funding in public hospitals Zimbabwe",
+        )
+
+    def test_normalize_zimbabwe_query_preserves_existing_anchors(self):
+        """Queries that already specify Zimbabwean cities, state bodies, or entities are preserved."""
+        test_queries = [
+            "Harare water supply crisis",
+            "Bulawayo council road repairs",
+            "ZESA nationwide load shedding",
+            "ZIMRA corporate tax revenue",
+            "RBZ monetary policy statement",
+            "Victoria Falls tourism boom",
+            "zim mining regulations",
+        ]
+        for q in test_queries:
+            self.assertEqual(normalize_zimbabwe_query(q), q)
+
+    def test_normalize_zimbabwe_query_empty_or_none(self):
+        """Empty, whitespace-only, or None queries safely return empty string."""
+        self.assertEqual(normalize_zimbabwe_query(""), "")
+        self.assertEqual(normalize_zimbabwe_query("   "), "")
+        self.assertEqual(normalize_zimbabwe_query(None), "")
+
+    def test_format_search_results_for_prompt_empty(self):
+        """Empty results list returns a clear fallback message."""
+        self.assertEqual(
+            format_search_results_for_prompt([]),
+            "No external web findings available.",
+        )
+
+    def test_format_search_results_for_prompt_structured_output(self):
+        """Formats list of dict results into numbered context with titles, URLs, and summaries."""
+        results = [
+            {
+                "title": "Harare Borehole Project",
+                "url": "https://example.co.zw/water",
+                "published_date": "2026-11-04",
+                "content": "Government commissions 50 new community boreholes.",
+            },
+            {
+                "title": "Bulawayo Industrial Hub",
+                "url": "https://example.co.zw/industry",
+                "content": "Special economic zone launches in Belmont.",
+            },
+        ]
+        formatted = format_search_results_for_prompt(results)
+        self.assertIn("[1] Harare Borehole Project (2026-11-04)", formatted)
+        self.assertIn("URL: https://example.co.zw/water", formatted)
+        self.assertIn("Summary: Government commissions 50 new community boreholes.", formatted)
+        self.assertIn("[2] Bulawayo Industrial Hub", formatted)
+
+    def test_format_search_results_character_limit_truncation(self):
+        """Truncates results when cumulative length exceeds max_chars."""
+        results = [
+            {"title": "Story 1", "url": "https://a.co.zw", "content": "A" * 200},
+            {"title": "Story 2", "url": "https://b.co.zw", "content": "B" * 200},
+        ]
+        formatted = format_search_results_for_prompt(results, max_chars=150)
+        self.assertIn("[1] Story 1", formatted)
+        self.assertNotIn("[2] Story 2", formatted)
+
+    @override_settings(TAVILY_API_KEY=None)
+    def test_search_zimbabwe_web_missing_key_returns_empty_list(self):
+        """When no Tavily API key is configured, returns [] safely without throwing."""
+        with patch.dict('os.environ', {}, clear=True):
+            res = search_zimbabwe_web("agriculture loans")
+            self.assertEqual(res, [])
+
+    @override_settings(TAVILY_API_KEY="tvly-mock-test-key")
+    @patch('requests.post')
+    def test_search_zimbabwe_web_success(self, mock_post):
+        """Executes search, normalizes query, and parses results into structured dicts."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "results": [
+                {
+                    "title": "ZMC Hackathon Winners Announced",
+                    "url": "https://cite.org.zw/hackathon",
+                    "content": "Innovators develop journalism tools for regional newsrooms.",
+                    "score": 0.98,
+                    "published_date": "2026-11-03",
+                }
+            ]
+        }
+        mock_post.return_value = mock_resp
+
+        results = search_zimbabwe_web("ZMC hackathon", max_results=3)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["title"], "ZMC Hackathon Winners Announced")
+        self.assertEqual(results[0]["url"], "https://cite.org.zw/hackathon")
+        self.assertEqual(results[0]["score"], 0.98)
+
+        mock_post.assert_called_once()
+        called_payload = mock_post.call_args[1]["json"]
+        self.assertEqual(called_payload["api_key"], "tvly-mock-test-key")
+        self.assertEqual(called_payload["query"], "ZMC hackathon Zimbabwe")
+
+    @override_settings(TAVILY_API_KEY="tvly-mock-test-key")
+    @patch('requests.post')
+    def test_search_zimbabwe_web_caching_prevents_duplicate_calls(self, mock_post):
+        """Identical subsequent searches within TTL hit cache without repeating HTTP requests."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"results": [{"title": "Cached News", "url": "https://c.co.zw"}]}
+        mock_post.return_value = mock_resp
+
+        res1 = search_zimbabwe_web("Harare council budget")
+        res2 = search_zimbabwe_web("Harare council budget")
+
+        self.assertEqual(len(res1), 1)
+        self.assertEqual(len(res2), 1)
+        self.assertEqual(mock_post.call_count, 1)
+
+    @override_settings(TAVILY_API_KEY="tvly-mock-test-key")
+    @patch('requests.post')
+    def test_search_zimbabwe_web_handles_api_error_gracefully(self, mock_post):
+        """Non-200 responses return [] without crashing."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 502
+        mock_resp.text = "Bad Gateway"
+        mock_post.return_value = mock_resp
+
+        res = search_zimbabwe_web("inflation rate")
+        self.assertEqual(res, [])
+
+    @override_settings(TAVILY_API_KEY="tvly-mock-test-key")
+    @patch('requests.post', side_effect=requests.RequestException("Connection timeout"))
+    def test_search_zimbabwe_web_handles_request_exception(self, _mock_post):
+        """Network and connection exceptions return [] cleanly."""
+        res = search_zimbabwe_web("currency stabilization")
+        self.assertEqual(res, [])

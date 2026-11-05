@@ -29,6 +29,7 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 GROQ_API_KEY = os.getenv('GROQ_API_KEY')
 GROQ_GUARD_MODEL = os.getenv('GROQ_GUARD_MODEL', 'meta-llama/llama-prompt-guard-2-22m')
 GROQ_CHAT_MODEL = os.getenv('GROQ_CHAT_MODEL', 'openai/gpt-oss-120b')
+TAVILY_API_KEY = os.getenv('TAVILY_API_KEY')
 
 # Twilio SMS Configuration (recipient numbers come dynamically from newsroom members in DB)
 TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID', '')
