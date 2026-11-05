@@ -20,8 +20,26 @@ All notable changes to the Saiph AI Agent are documented here. The format is bas
 - **Zimbabwe Geolocation & Editorial Constraint**:
   - Updated agent system prompt in `Saiph/graph.py` to enforce strict Zimbabwe reporting, legal frameworks, public institutions, and cultural context.
   - Automatic query normalization to append Zimbabwean contextual anchors to broad queries.
+- **Universal Markdown & Table Renderer (`MarkdownRenderer.jsx`)**:
+  - Full GFM markdown rendering support for mobile article previews and 1-to-1 AI messages.
+  - Accommodates formatted tables, bold, italics, headers, lists, and inline code without raw asterisk/pipe syntax.
 - **Configuration**:
   - Added `TAVILY_API_KEY` environment configuration in `Saiph/config.py`.
+
+### Changed
+
+- **Editorial Board & Fresh Generation**:
+  - Removed generic editorial suggestion boxes, refocusing the Board exclusively on verified primary sources, official gazettes, and public datasets.
+  - Removed "Insert into Article" buttons from Board cards in favor of a clean "Mark Done" toggle.
+  - Injected dynamic cycle nonces on refresh calls to guarantee fresh, non-cached investigative angles and source leads.
+  - Removed hardcoded example cities and entities across agent prompts, tools, and query normalizers.
+
+### Fixed
+
+- **AI Review & Plagiarism Checker**:
+  - Restored missing `AI_CLICHE_PHRASES` in `Backend/AI/article_agent.py` resolving a `NameError` on review executions.
+- **Safe Import Fallback**:
+  - Added `try...except ImportError` fallback for `TavilyClient` preventing Django boot crashes when dependencies are missing from virtual environments.
 
 ## [1.0.0] - 2026-10-31
 

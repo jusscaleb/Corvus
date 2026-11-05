@@ -402,6 +402,16 @@ def _build_fallback_board(title: str, summary: str, content: str) -> list:
     nonce = uuid.uuid4().hex[:4]
     return [
         {
+            "id": f"sug_angle_{nonce}",
+            "kind": "suggestion",
+            "title": "Investigative Angle & Story Focus",
+            "detail": f"Focus on how budget allocations and governance decisions in {title} directly impact the public.",
+            "category": "Lead",
+            "priority": "high",
+            "snippet": "",
+            "applied": False,
+        },
+        {
             "id": f"src_audit_{nonce}",
             "kind": "source",
             "title": "Auditor-General & Parliamentary Public Accounts Records",
@@ -427,16 +437,6 @@ def _build_fallback_board(title: str, summary: str, content: str) -> list:
             "title": "ZIMSTAT & Institutional Statistical Releases",
             "detail": "Compare historical figures and statistical benchmarks to independently substantiate all claimed metrics.",
             "category": "Data",
-            "priority": "medium",
-            "snippet": "",
-            "applied": False,
-        },
-        {
-            "id": f"src_stakeholder_{nonce}",
-            "kind": "source",
-            "title": "Institutional Statements & Official Right-of-Reply",
-            "detail": "Obtain written, verified responses from all public bodies, ministries, and affected stakeholders.",
-            "category": "Primary Record",
             "priority": "medium",
             "snippet": "",
             "applied": False,

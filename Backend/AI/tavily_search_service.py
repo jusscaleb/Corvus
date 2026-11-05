@@ -14,7 +14,9 @@ _SEARCH_CACHE = {}
 _CACHE_TTL = 600  # seconds
 
 ZIMBABWE_GEOGRAPHIC_TERMS = {
-    "zimbabwe"
+    "zimbabwe", "zim", "harare", "bulawayo", "chitungwiza", "mutare", "gweru",
+    "kwekwe", "kadoma", "masvingo", "chinhoyi", "marondera", "hwange", "beitbridge",
+    "vic falls", "victoria falls", "zesa", "zimra", "rbz", "potraz", "zupco"
 }
 
 
@@ -89,8 +91,13 @@ def search_zimbabwe_web(query: str, max_results: int = 5, search_depth: str = "b
             return cached_results
 
     try:
-        data = client.search(query)
-        raw_results = data
+        data = client.search(
+            query=norm_query,
+            search_depth=search_depth,
+            max_results=max(1, min(max_results, 10)),
+            include_answer=False,
+        )
+        raw_results = data.get("results", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
 
         normalized = []
         for r in raw_results:
@@ -103,8 +110,7 @@ def search_zimbabwe_web(query: str, max_results: int = 5, search_depth: str = "b
             })
 
         _SEARCH_CACHE[cache_key] = (now, normalized)
-        print(raw_results)
-        return raw_results
+        return normalized
 
     except Exception as exc:
         logger.warning(f"Tavily search request failed for '{norm_query}': {exc}")
