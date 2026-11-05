@@ -75,12 +75,14 @@ class ArticleSerializer(serializers.ModelSerializer):
             'group',
             'group_name',
             'author',
+            'is_published',
+            'published_at',
             'branch_count',
             'branches',
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['article_id', 'group', 'group_name', 'author', 'created_at', 'updated_at']
+        read_only_fields = ['article_id', 'group', 'group_name', 'author', 'is_published', 'published_at', 'created_at', 'updated_at']
 
     def _visible(self, obj):
         # Cache per article so branches + branch_count share one lookup
