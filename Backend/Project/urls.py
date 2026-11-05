@@ -6,6 +6,7 @@ from .views import (
     GroupArticleListCreateView,
     ArticleDetailView,
     PublishArticleView,
+    ArticleTranslationView,
     ArticleBranchListCreateView,
     BranchDetailView,
     BranchPushView,
@@ -24,6 +25,7 @@ urlpatterns = [
     path('groups/<str:group_id>/articles/', GroupArticleListCreateView.as_view(), name='group_article_list_create'),
     path('articles/<str:article_id>/', ArticleDetailView.as_view(), name='article_detail'),
     path('articles/<str:article_id>/publish/', PublishArticleView.as_view(), name='article_publish'),
+    path('articles/<str:article_id>/translate/', ArticleTranslationView.as_view(), name='article_translate'),
 
     # Push a branch to make it public
     path('branches/<str:branch_id>/push/', BranchPushView.as_view(), name='branch_push'),

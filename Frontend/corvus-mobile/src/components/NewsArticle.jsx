@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { useTheme } from '../context/ThemeContext';
-import { fetchPublicArticles } from '../services/api';
+import { fetchPublicArticles, fetchArticleTranslation } from '../services/api';
 import { t, getTranslatedArticle, getCategoryTranslation } from '../services/userSiteTranslations';
 
 const CATEGORIES = [
@@ -31,6 +31,7 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
 
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedArticle, setSelectedArticle] = useState(null);
@@ -44,22 +45,25 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
   const isTablet = width >= 640 && width < 992;
   const numColumns = isDesktop ? 3 : isTablet ? 2 : 1;
 
-  // Load published articles dynamically from existing backend
+  // Load published articles dynamically from existing backend with localized translations
   useEffect(() => {
     let isMounted = true;
     async function loadBackendArticles() {
       try {
         setLoading(true);
-        const backendData = await fetchPublicArticles();
+        const backendData = await fetchPublicArticles(selectedLang);
         if (isMounted && Array.isArray(backendData) && backendData.length > 0) {
           // Normalize backend articles to match card view
           const formatted = backendData.map((item, index) => {
             const mainBranch = item.branches?.find((b) => b.is_main) || item.branches?.[0] || {};
-            const content = mainBranch.content || '';
-            const excerpt = mainBranch.branch_description || content.slice(0, 160) || 'Editorial report currently published on Corvus.';
+            const content = item.translated_content || mainBranch.content || '';
+            const excerpt = item.translated_excerpt || mainBranch.branch_description || content.slice(0, 160) || 'Editorial report currently published on Corvus.';
+            const title = item.translated_title || item.title || 'Untitled Report';
             return {
               id: item.article_id || `backend-${index}`,
-              title: item.title || 'Untitled Report',
+              articleId: item.article_id,
+              title: title,
+              rawTitle: item.title,
               category: item.group_name || 'Investigation',
               author: item.author?.full_name || item.author?.username || 'Editorial Desk',
               authorRole: 'Corvus Contributor',
@@ -68,6 +72,8 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
               readTime: `${Math.max(3, Math.ceil((content.length || 500) / 450))} min read`,
               excerpt: excerpt,
               content: content || excerpt,
+              currentLang: item.current_lang || selectedLang.toLowerCase(),
+              translated: Boolean(item.translated_title),
               sources: 'Published via Corvus newsroom desk verification workflow.',
             };
           });
@@ -87,7 +93,43 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [selectedLang]);
+
+  // On-demand translation for reader view via Saiph AI
+  useEffect(() => {
+    let isMounted = true;
+    if (selectedArticle && selectedLang !== 'EN') {
+      const artId = selectedArticle.articleId || selectedArticle.id;
+      if (selectedArticle.currentLang === selectedLang.toLowerCase() && selectedArticle.translated) {
+        return;
+      }
+      setIsTranslating(true);
+      fetchArticleTranslation(artId, selectedLang)
+        .then((res) => {
+          if (isMounted && res && res.title) {
+            setSelectedArticle((prev) => {
+              if (!prev || (prev.articleId !== artId && prev.id !== artId)) return prev;
+              return {
+                ...prev,
+                title: res.title,
+                content: res.content || prev.content,
+                excerpt: res.excerpt || prev.excerpt,
+                currentLang: selectedLang.toLowerCase(),
+                translated: true,
+                cached: res.cached,
+              };
+            });
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (isMounted) setIsTranslating(false);
+        });
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedArticle?.id, selectedLang]);
 
   // Filter articles by category and search query
   const filteredArticles = useMemo(() => {
@@ -120,6 +162,7 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
   // VIEW: INDIVIDUAL ARTICLE DETAIL
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (selectedArticle) {
+    const detailArticle = getTranslatedArticle(selectedArticle, selectedLang);
     return (
       <ScrollView style={styles.detailContainer} contentContainerStyle={styles.detailContentContainer}>
         {/* Back navigation */}
@@ -129,9 +172,29 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
           accessibilityRole="button"
           accessibilityLabel="Back to news articles"
         >
-          <Text style={styles.backButtonArrow}>â†</Text>
+          <Text style={styles.backButtonArrow}>← </Text>
           <Text style={styles.backButtonText}>{t('backToDispatches', selectedLang)}</Text>
         </TouchableOpacity>
+
+        {/* Translation Banner if viewing in Shona or Ndebele */}
+        {selectedLang !== 'EN' && (
+          <View style={styles.translationBanner}>
+            <Text style={styles.translationBannerIcon}>🌍</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.translationBannerTitle}>
+                {selectedLang === 'SN' ? 'Shanduro yeChiShona (Saiph AI)' : 'Ukuhumusha kweSiNdebele (Saiph AI)'}
+              </Text>
+              <Text style={styles.translationBannerSubtitle}>
+                {isTranslating
+                  ? 'Translating dispatch via Saiph AI...'
+                  : selectedArticle.cached
+                  ? 'Instant cached editorial translation'
+                  : 'Authentic Zimbabwean dialect translation'}
+              </Text>
+            </View>
+            {isTranslating && <ActivityIndicator size="small" color={colors.forest || '#315E4A'} />}
+          </View>
+        )}
 
         {/* Category & Kicker */}
         <View style={styles.detailCategoryRow}>
@@ -224,7 +287,7 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
           style={[styles.backButton, { marginTop: 28 }]}
           onPress={() => setSelectedArticle(null)}
         >
-          <Text style={styles.backButtonArrow}>â†</Text>
+          <Text style={styles.backButtonArrow}>â†</Text>
           <Text style={styles.backButtonText}>{t('backToDispatches', selectedLang)}</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -792,6 +855,32 @@ function makeStyles(colors, isDark) {
       maxWidth: 820,
       width: '100%',
       alignSelf: 'center',
+    },
+    translationBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: isDark ? '#1F2A24' : '#EBF3EE',
+      borderWidth: 1,
+      borderColor: forest,
+      borderRadius: 3,
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      marginBottom: 16,
+      gap: 12,
+    },
+    translationBannerIcon: {
+      fontSize: 20,
+    },
+    translationBannerTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: forest,
+      letterSpacing: 0.5,
+    },
+    translationBannerSubtitle: {
+      fontSize: 12,
+      color: muted,
+      marginTop: 2,
     },
     backButton: {
       flexDirection: 'row',

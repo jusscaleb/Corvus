@@ -1,4 +1,5 @@
 import uuid
+from unittest.mock import patch
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -6,7 +7,7 @@ from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from Newsroom.models import Group, Member
-from .models import Article, Branch
+from .models import Article, Branch, ArticleTranslation
 
 User = get_user_model()
 
@@ -413,3 +414,70 @@ class ProjectTests(APITestCase):
         self.client.credentials()
         res_unpub = self.client.get(public_url)
         self.assertFalse(any(a['article_id'] == article.article_id for a in res_unpub.data))
+
+    @patch('Project.views.translate_text')
+    def test_article_translation_and_caching_workflow(self, mock_translate):
+        # Mock translate function to return simulated Shona and Ndebele text
+        def fake_translate(text, target_language, source_language='auto'):
+            if target_language == 'sn':
+                return f"[SN] {text}"
+            elif target_language == 'nd':
+                return f"[ND] {text}"
+            return text
+        mock_translate.side_effect = fake_translate
+
+        # 1. Create and publish an article with main branch content
+        article = Article.objects.create(
+            title="Clean Water for Bulawayo Suburbs",
+            group=self.group,
+            author=self.user1,
+            is_published=True,
+        )
+        Branch.objects.create(
+            branch_name='main',
+            branch_description='Water reservoir repair updates',
+            content='Municipal engineers have successfully repaired the main water valve.',
+            is_main=True,
+            is_public=True,
+            article=article,
+            created_by=self.user1,
+        )
+
+        translate_url = reverse('article_translate', kwargs={'article_id': article.article_id})
+
+        # 2. Translate to Shona (unauthenticated public user)
+        self.client.credentials()
+        res_sn = self.client.get(f"{translate_url}?lang=sn")
+        self.assertEqual(res_sn.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_sn.data['language_code'], 'sn')
+        self.assertEqual(res_sn.data['title'], "[SN] Clean Water for Bulawayo Suburbs")
+        self.assertEqual(res_sn.data['content'], "[SN] Municipal engineers have successfully repaired the main water valve.")
+        self.assertFalse(res_sn.data['cached'])
+        self.assertTrue(mock_translate.called)
+
+        # 3. Verify it was persisted to ArticleTranslation in database
+        db_translation = ArticleTranslation.objects.get(article=article, language_code='sn')
+        self.assertEqual(db_translation.title, "[SN] Clean Water for Bulawayo Suburbs")
+
+        # 4. Request again: must return cached version with zero external AI calls
+        mock_translate.reset_mock()
+        res_cached = self.client.get(f"{translate_url}?lang=sn")
+        self.assertEqual(res_cached.status_code, status.HTTP_200_OK)
+        self.assertTrue(res_cached.data['cached'])
+        self.assertEqual(res_cached.data['title'], "[SN] Clean Water for Bulawayo Suburbs")
+        self.assertFalse(mock_translate.called)
+
+        # 5. Query public article list with ?lang=sn
+        public_url = reverse('public_article_list')
+        res_pub_sn = self.client.get(f"{public_url}?lang=sn")
+        self.assertEqual(res_pub_sn.status_code, status.HTTP_200_OK)
+        art_data = next(a for a in res_pub_sn.data if a['article_id'] == article.article_id)
+        self.assertEqual(art_data['translated_title'], "[SN] Clean Water for Bulawayo Suburbs")
+        self.assertEqual(art_data['translated_content'], "[SN] Municipal engineers have successfully repaired the main water valve.")
+
+        # 6. Request in English returns canonical without calling translation
+        res_en = self.client.get(f"{translate_url}?lang=en")
+        self.assertEqual(res_en.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_en.data['title'], "Clean Water for Bulawayo Suburbs")
+        self.assertTrue(res_en.data['cached'])
+

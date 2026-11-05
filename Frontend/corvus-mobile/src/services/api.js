@@ -417,12 +417,20 @@ export async function deleteAgentMemory(memoryId) {
 
 // â”€â”€â”€ Public Portal & Lead Submissions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-export async function fetchPublicArticles() {
+export async function fetchPublicArticles(lang = 'EN') {
   try {
-    return await apiRequest('/api/project/public/', { method: 'GET', requireAuth: false });
+    const langParam = lang && lang.toUpperCase() !== 'EN' ? `?lang=${encodeURIComponent(lang.toLowerCase())}` : '';
+    return await apiRequest(`/api/project/public/${langParam}`, { method: 'GET', requireAuth: false });
   } catch (err) {
     return [];
   }
+}
+
+export async function fetchArticleTranslation(articleId, targetLang = 'sn') {
+  return await apiRequest(
+    `/api/project/articles/${encodeURIComponent(articleId)}/translate/?lang=${encodeURIComponent(targetLang.toLowerCase())}`,
+    { method: 'GET', requireAuth: false }
+  );
 }
 
 export async function submitLead({ headline, details, desk = 'General News', urgency = 'Lead Tip', contact_info = 'Anonymous', is_anonymous = false, location = '' }) {

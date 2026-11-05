@@ -799,3 +799,36 @@ test('Feature 13: Saiph AI Branch Switching (single-turn, multi-turn, checkout) 
   assert.deepEqual(replyFallback, { action: 'create', branchName: 'draft-v2' });
 });
 
+test('Feature 14: Article Translation System (Saiph AI Groq translation, multilingual fetch & caching)', async () => {
+  const { api, calls } = loadApiServiceWithMockFetch();
+
+  // 1. fetchPublicArticles() defaults to EN without ?lang
+  await api.fetchPublicArticles();
+  const call1 = calls[calls.length - 1];
+  assert.equal(call1.url, 'http://localhost:8000/api/project/public/');
+
+  // 2. fetchPublicArticles('SN') appends ?lang=sn
+  await api.fetchPublicArticles('SN');
+  const call2 = calls[calls.length - 1];
+  assert.equal(call2.url, 'http://localhost:8000/api/project/public/?lang=sn');
+
+  // 3. fetchArticleTranslation calls translate endpoint
+  await api.fetchArticleTranslation('art-123', 'nd');
+  const call3 = calls[calls.length - 1];
+  assert.equal(call3.url, 'http://localhost:8000/api/project/articles/art-123/translate/?lang=nd');
+
+  // 4. Verify NewsArticle.jsx integration
+  const newsArticleCode = readSrc('components/NewsArticle.jsx');
+  assert.match(newsArticleCode, /fetchArticleTranslation/);
+  assert.match(newsArticleCode, /isTranslating/);
+  assert.match(newsArticleCode, /translationBanner/);
+  assert.match(newsArticleCode, /Shanduro yeChiShona/);
+  assert.match(newsArticleCode, /Ukuhumusha kweSiNdebele/);
+  assert.match(newsArticleCode, /getTranslatedArticle\(selectedArticle,\s*selectedLang\)/);
+
+  // 5. Verify UserSite.jsx passes selectedLang
+  const userSiteCode = readSrc('components/UserSite.jsx');
+  assert.match(userSiteCode, /selectedLang=\{selectedLang\}/);
+});
+
+
