@@ -158,9 +158,9 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
 
   const styles = makeStyles(colors, isDark);
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -----------------------------------------------------------------------------
   // VIEW: INDIVIDUAL ARTICLE DETAIL
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -----------------------------------------------------------------------------
   if (selectedArticle) {
     const detailArticle = getTranslatedArticle(selectedArticle, selectedLang);
     return (
@@ -200,7 +200,7 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
         <View style={styles.detailCategoryRow}>
           <Text style={styles.detailCategoryBadge}>{detailArticle.category.toUpperCase()}</Text>
           <Text style={styles.detailTimeBadge}>
-            {detailArticle.date} â€¢ {detailArticle.time}
+            {detailArticle.date} • {detailArticle.time}
           </Text>
         </View>
 
@@ -217,7 +217,7 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
           <View style={styles.bylineInfo}>
             <Text style={styles.bylineAuthor}>{t('bylinePrefix', selectedLang)} {detailArticle.author}</Text>
             <Text style={styles.bylineRole}>
-              {detailArticle.authorRole || 'Investigative Journalist'} â€¢ {detailArticle.readTime}
+              {detailArticle.authorRole || 'Investigative Journalist'} • {detailArticle.readTime}
             </Text>
           </View>
         </View>
@@ -275,7 +275,7 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
                   {rel.title}
                 </Text>
                 <Text style={styles.relatedMeta}>
-                  By {rel.author} â€¢ {rel.readTime}
+                  By {rel.author} • {rel.readTime}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -287,16 +287,16 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
           style={[styles.backButton, { marginTop: 28 }]}
           onPress={() => setSelectedArticle(null)}
         >
-          <Text style={styles.backButtonArrow}>â†</Text>
+          <Text style={styles.backButtonArrow}>←</Text>
           <Text style={styles.backButtonText}>{t('backToDispatches', selectedLang)}</Text>
         </TouchableOpacity>
       </ScrollView>
     );
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -----------------------------------------------------------------------------
   // VIEW: MAIN NEWS ARTICLES PAGE
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -----------------------------------------------------------------------------
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       {/* Top Editorial Kicker */}
@@ -305,7 +305,7 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
           <Text style={styles.editionTitle}>{t('newsBannerKicker', selectedLang)}</Text>
           <Text style={styles.editionSubtitle}>{t('newsBannerSubtitle', selectedLang)}</Text>
         </View>
-        <Text style={styles.editionIssue}>CORVUS GAZETTE â€¢ ISSUE 2026.11</Text>
+        <Text style={styles.editionIssue}>CORVUS GAZETTE • ISSUE 2026.11</Text>
       </View>
 
       <View style={styles.mainDivider} />
@@ -327,7 +327,7 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.searchClearBtn}>
-              <Text style={styles.searchClearText}>âœ•</Text>
+              <Text style={styles.searchClearText}>✕</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -343,7 +343,7 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
               accessibilityLabel="Select news category"
             >
               <Text style={styles.categoryDropdownText}>{getCategoryTranslation(selectedCategory, selectedLang)}</Text>
-              <Text style={styles.dropdownArrow}>{showCategoryDropdown ? 'â–²' : 'â–¼'}</Text>
+              <Text style={styles.dropdownArrow}>{showCategoryDropdown ? '▲' : '▼'}</Text>
             </TouchableOpacity>
 
             {showCategoryDropdown && (
@@ -485,7 +485,7 @@ export default function NewsArticles({ selectedLang = 'EN', setSelectedLang }) {
 
               {/* Read Action Button */}
               <View style={styles.cardActionRow}>
-                <Text style={styles.readActionText}>Read Full Article â†’</Text>
+                <Text style={styles.readActionText}>Read Full Article →</Text>
               </View>
             </TouchableOpacity>
           );
@@ -842,9 +842,9 @@ function makeStyles(colors, isDark) {
       letterSpacing: 0.3,
     },
 
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // -------------------------------------------------------------------------
     // INDIVIDUAL ARTICLE DETAIL VIEW STYLES
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // -------------------------------------------------------------------------
     detailContainer: {
       flex: 1,
       backgroundColor: paper,

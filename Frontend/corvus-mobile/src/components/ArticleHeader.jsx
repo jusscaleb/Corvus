@@ -15,7 +15,7 @@ import Svg, { Path, Line, Circle, Polyline, Rect } from 'react-native-svg';
 import { useTheme } from '../context/ThemeContext';
 import { lightColors } from '../theme/colors';
 
-// â”€â”€â”€ Crisp SVG Icons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Crisp SVG Icons ----------------------------------------------------------
 
 function GitBranchIcon({ size = 14, color = '#666' }) {
   return (
@@ -215,7 +215,7 @@ function PlusIcon({ size = 13, color = '#666' }) {
 // Branch names can't contain spaces â€“ turn "water angle" into "water-angle"
 const slugifyBranch = (value) => value.trim().replace(/\s+/g, '-');
 
-// â”€â”€â”€ Main Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Main Component -----------------------------------------------------------
 
 export default function ArticleHeader({
   activeBranch = 'main',
@@ -384,7 +384,7 @@ export default function ArticleHeader({
         },
       ]}
     >
-      {/* â”€â”€â”€ ROW 1: Version Control + Article Workspace Section Switcher + 1-to-1 AI Agent Button â”€â”€â”€ */}
+      {/* --- ROW 1: Version Control + Article Workspace Section Switcher + 1-to-1 AI Agent Button --- */}
       <View
         style={[
           styles.headerContainer,
@@ -418,7 +418,7 @@ export default function ArticleHeader({
             </View>
           )}
           <Text style={[styles.caret, { color: themeColors.muted || '#666666' }]}>
-            {activeModal === 'branch' ? 'â–²' : 'â–¼'}
+            {activeModal === 'branch' ? '▲' : '▼'}
           </Text>
         </TouchableOpacity>
 
@@ -444,7 +444,7 @@ export default function ArticleHeader({
           </View>
           <Text style={[styles.tabText, { color: themeColors.ink || '#333333' }]}>Commands</Text>
           <Text style={[styles.caret, { color: themeColors.muted || '#666666' }]}>
-            {activeModal === 'commands' ? 'â–²' : 'â–¼'}
+            {activeModal === 'commands' ? '▲' : '▼'}
           </Text>
         </TouchableOpacity>
 
@@ -506,7 +506,7 @@ export default function ArticleHeader({
         )}
       </View>
 
-      {/* â”€â”€â”€ ROW 2: Direct Word Tools Ribbon (Out of the Dropdown!) â”€â”€â”€ */}
+      {/* --- ROW 2: Direct Word Tools Ribbon (Out of the Dropdown!) --- */}
       <View
         style={[
           styles.wordToolsRibbon,
@@ -601,7 +601,7 @@ export default function ArticleHeader({
             ]}
             onPress={(e) => e.stopPropagation()}
           >
-            {/* â”€â”€â”€ BRANCHES DROPDOWN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+            {/* --- BRANCHES DROPDOWN --------------------------------- */}
             {activeModal === 'branch' && (
               <View>
                 <View style={[styles.menuHeaderBar, { borderBottomColor: themeColors.line || '#f1f5f9' }]}>
@@ -666,7 +666,7 @@ export default function ArticleHeader({
                   })}
                 </ScrollView>
 
-                {/* â”€â”€â”€ New branch: collapsed button â†’ inline form â”€â”€â”€ */}
+                {/* --- New branch: collapsed button → inline form --- */}
                 {onCreateBranch && (
                   <View style={[styles.newBranchArea, { borderTopColor: themeColors.line || '#f1f5f9' }]}>
                     {!newBranchOpen ? (
@@ -751,7 +751,7 @@ export default function ArticleHeader({
               </View>
             )}
 
-            {/* â”€â”€â”€ COMMANDS DROPDOWN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+            {/* --- COMMANDS DROPDOWN --------------------------------- */}
             {activeModal === 'commands' && (
               <View>
                 <View style={[styles.menuHeaderBar, { borderBottomColor: themeColors.line || '#f1f5f9' }]}>
@@ -885,7 +885,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 
-  // â”€â”€ Direct Word Tools Ribbon (Exposed on Toolbar) â”€â”€
+  // -- Direct Word Tools Ribbon (Exposed on Toolbar) --
   wordToolsRibbon: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -953,7 +953,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
 
-  // â”€â”€ Branch Menu Styling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Branch Menu Styling --------------------------------------------------
   branchMenuItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1079,7 +1079,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // â”€â”€ Commands Menu Styling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Commands Menu Styling ------------------------------------------------
   cmdMenuItem: {
     flexDirection: 'row',
     alignItems: 'center',
