@@ -1,8 +1,11 @@
 import os
 import time
 import logging
-import requests
 from django.conf import settings
+try:
+    from tavily import TavilyClient
+except ImportError:
+    TavilyClient = None
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +31,20 @@ def _get_tavily_key() -> str:
     return os.getenv('TAVILY_API_KEY') or ""
 
 
+def _get_tavily_client():
+    if TavilyClient is None:
+        logger.warning("tavily-python is not installed. Run: pip install tavily-python")
+        return None
+    api_key = _get_tavily_key()
+    if not api_key:
+        return None
+    try:
+        return TavilyClient(api_key=api_key)
+    except Exception as e:
+        logger.warning(f"Failed to initialize TavilyClient: {e}")
+        return None
+
+
 def normalize_zimbabwe_query(query: str) -> str:
     """
     Enforces a strict Zimbabwe geographical and editorial scope on all search queries.
@@ -47,7 +64,7 @@ def normalize_zimbabwe_query(query: str) -> str:
 
 def search_zimbabwe_web(query: str, max_results: int = 5, search_depth: str = "basic") -> list[dict]:
     """
-    Executes a web search via the Tavily Search API, strictly scoped to Zimbabwe.
+    Executes a web search via the official TavilyClient SDK, strictly scoped to Zimbabwe.
     
     Args:
         query (str): The search topic or headline.
@@ -57,8 +74,8 @@ def search_zimbabwe_web(query: str, max_results: int = 5, search_depth: str = "b
     Returns:
         list[dict]: List of verified search results with title, url, content, score, published_date.
     """
-    api_key = _get_tavily_key()
-    if not api_key:
+    client = _get_tavily_client()
+    if not client:
         logger.warning("TAVILY_API_KEY is not configured. Web search unavailable.")
         return []
 
@@ -73,23 +90,14 @@ def search_zimbabwe_web(query: str, max_results: int = 5, search_depth: str = "b
         if now - cached_time < _CACHE_TTL:
             return cached_results
 
-    endpoint = "https://api.tavily.com/search"
-    payload = {
-        "api_key": api_key,
-        "query": norm_query,
-        "search_depth": search_depth,
-        "include_answer": False,
-        "max_results": max(1, min(max_results, 10)),
-    }
-
     try:
-        response = requests.post(endpoint, json=payload, timeout=8.0)
-        if response.status_code != 200:
-            logger.warning(f"Tavily search error ({response.status_code}): {response.text}")
-            return []
-
-        data = response.json()
-        raw_results = data.get("results", [])
+        data = client.search(
+            query=norm_query,
+            search_depth=search_depth,
+            max_results=max(1, min(max_results, 10)),
+            include_answer=False,
+        )
+        raw_results = data.get("results", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
 
         normalized = []
         for r in raw_results:

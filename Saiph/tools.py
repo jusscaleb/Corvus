@@ -1,4 +1,8 @@
 import httpx
+try:
+    from tavily import TavilyClient
+except ImportError:
+    TavilyClient = None
 from langchain_core.tools import tool
 from langchain_core.runnables import RunnableConfig
 from .config import BACKEND_BASE_URL, TAVILY_API_KEY
@@ -103,6 +107,64 @@ def update_branch_content(branch_id: str, content: str, token: str = "", config:
         return f"Error {res.status_code}: {res.text}"
 
 
+
+@tool
+def diff_article_branches(article_id: str, branch_a: str, branch_b: str = "main", token: str = "", config: RunnableConfig = None) -> str:
+    """
+    Compares two branches of an article (or compares branch_a with 'main' if branch_b is omitted or 'main').
+    Returns line additions, deletions, similarity percentage, and unified diff output.
+    """
+    import difflib
+    with httpx.Client(base_url=BACKEND_BASE_URL, headers=_get_headers(token, config), timeout=10.0) as client:
+        res = client.get(f"/project/articles/{article_id}/")
+        if res.status_code != 200:
+            return f"Error retrieving article details ({res.status_code}): {res.text}"
+        art = res.json()
+        branches = art.get("branches", [])
+        if not branches:
+            return "Article has no branches to compare."
+
+        b_map = {b.get("branch_name", "").lower(): b for b in branches}
+        target_a = b_map.get(branch_a.lower())
+        target_b = b_map.get(branch_b.lower())
+
+        if not target_a:
+            return f"Branch '{branch_a}' not found. Available branches: {', '.join(b.get('branch_name', '') for b in branches)}"
+        if not target_b:
+            target_b = next((b for b in branches if b.get("is_main")), branches[0])
+
+        content_a = (target_a.get("content") or "").strip()
+        content_b = (target_b.get("content") or "").strip()
+
+        lines_a = [l + "\n" for l in content_a.splitlines()]
+        lines_b = [l + "\n" for l in content_b.splitlines()]
+
+        diff_gen = difflib.unified_diff(
+            lines_b,
+            lines_a,
+            fromfile=target_b.get("branch_name", "base"),
+            tofile=target_a.get("branch_name", "compare"),
+            lineterm=""
+        )
+        diff_lines = list(diff_gen)
+        added = sum(1 for l in diff_lines if l.startswith('+') and not l.startswith('+++'))
+        removed = sum(1 for l in diff_lines if l.startswith('-') and not l.startswith('---'))
+
+        matcher = difflib.SequenceMatcher(None, content_b, content_a)
+        similarity = round(matcher.ratio() * 100, 1)
+
+        diff_text = "\n".join(diff_lines[:40])
+        preview = f"\n```diff\n{diff_text}\n```" if diff_text else "Identical content."
+
+        return (
+            f"Diff: '{target_a.get('branch_name')}' vs '{target_b.get('branch_name')}':\n"
+            f"• Similarity: {similarity}%\n"
+            f"• Additions: +{added} lines\n"
+            f"• Deletions: -{removed} lines\n"
+            f"{preview}"
+        )
+
+
 # 3. AI Editorial Workspace, Mindmap, Board, Review & Memory Tools
 @tool
 def generate_draft_from_summary(title: str, brief: str, token: str = "", config: RunnableConfig = None) -> str:
@@ -171,49 +233,48 @@ def get_user_profile(token: str = "", config: RunnableConfig = None) -> str:
 @tool
 def search_zimbabwe_web_tool(query: str) -> str:
     """
-    Searches the live web for verified facts, recent news, official gazettes, and statistics strictly focused on Zimbabwe.
-    Always use this tool when the user asks about current events, external sources, statistics, or real-world verification in Zimbabwe.
+    MANDATORY LIVE WEB SEARCH: Searches the live web for verified facts, recent news, official gazettes, university locations, and statistics strictly focused on Zimbabwe.
+    Always invoke this tool first whenever the user asks for facts, summaries, background information, history, institutions, or news in Zimbabwe to prevent false information or hallucinations.
     """
     clean_q = (query or "").strip()
     if not clean_q:
         return "Please provide a search query."
     
     # Enforce Zimbabwe geographical context
-    if "zimbabwe" not in clean_q.lower() and not any(k in clean_q.lower() for k in ("harare", "bulawayo", "mutare", "gweru")):
+    if "zimbabwe" not in clean_q.lower():
         clean_q = f"{clean_q} Zimbabwe"
 
     if not TAVILY_API_KEY:
         return "Tavily web search API key is not configured."
 
+    if TavilyClient is None:
+        return "tavily-python package is not installed in the environment."
+
     try:
-        with httpx.Client(timeout=10.0) as client:
-            res = client.post(
-                "https://api.tavily.com/search",
-                json={
-                    "api_key": TAVILY_API_KEY,
-                    "query": clean_q,
-                    "search_depth": "basic",
-                    "max_results": 5,
-                }
+        client = TavilyClient(api_key=TAVILY_API_KEY)
+        data = client.search(
+            query=clean_q,
+            search_depth="basic",
+            max_results=5,
+            include_answer=False,
+        )
+        results = data.get("results", []) if isinstance(data, dict) else []
+        if not results:
+            return f"No verified web results found in Zimbabwe for: '{clean_q}'"
+        formatted = []
+        for idx, r in enumerate(results, 1):
+            formatted.append(
+                f"[{idx}] {r.get('title')} ({r.get('published_date', 'Recent')})\n"
+                f"    URL: {r.get('url')}\n"
+                f"    Summary: {r.get('content')}"
             )
-            if res.status_code == 200:
-                results = res.json().get("results", [])
-                if not results:
-                    return f"No verified web results found in Zimbabwe for: '{clean_q}'"
-                formatted = []
-                for idx, r in enumerate(results, 1):
-                    formatted.append(
-                        f"[{idx}] {r.get('title')} ({r.get('published_date', 'Recent')})\n"
-                        f"    URL: {r.get('url')}\n"
-                        f"    Summary: {r.get('content')}"
-                    )
-                return "\n\n".join(formatted)
-            return f"Search error ({res.status_code}): {res.text}"
+        return "\n\n".join(formatted)
     except Exception as e:
         return f"Web search request failed: {e}"
 
 
 ALL_AGENT_TOOLS = [
+    diff_article_branches,
     search_zimbabwe_web_tool,
     list_newsroom_groups,
     get_group_members,

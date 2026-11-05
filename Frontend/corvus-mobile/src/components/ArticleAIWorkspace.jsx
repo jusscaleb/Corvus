@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import Svg, { Path, Circle, Line, Polyline, Rect } from 'react-native-svg';
 import { useTheme } from '../context/ThemeContext';
+import MarkdownRenderer from './MarkdownRenderer';
 import { useToast } from '../context/ToastContext';
 import {
   generateArticleMindmap,
@@ -257,10 +258,12 @@ export function ArticleBoardSection({
   const theme = useTheme();
   const { showToast } = useToast();
   const colors = externalColors || theme.colors;
-  const [filter, setFilter] = useState('all'); // 'all' | 'suggestion' | 'source'
+  const [filter, setFilter] = useState('all');
   const [internalLoading, setInternalLoading] = useState(false);
   const loading = Boolean(externalLoading || internalLoading);
-  const items = Array.isArray(boardItems) ? boardItems : Array.isArray(board) ? board : [];
+  const allItems = Array.isArray(boardItems) ? boardItems : Array.isArray(board) ? board : [];
+  // Exclude generic suggestion boxes, keeping strictly verified research sources & public records
+  const items = allItems.filter((item) => item.kind !== 'suggestion');
 
   const handleRefreshBoard = async () => {
     if (onRegenerate) {
@@ -278,10 +281,10 @@ export function ArticleBoardSection({
           : Array.isArray(res)
             ? res
             : [];
-      if (onBoardUpdated) onBoardUpdated(nextItems);
-      showToast({ message: '✦ Saiph AI refreshed editorial suggestions & sources!', type: 'info' });
+      if (onBoardUpdated) onBoardUpdated(nextItems.filter((i) => i.kind !== 'suggestion'));
+      showToast({ message: '✦ Saiph AI generated brand-new verified sources!', type: 'info' });
     } catch (err) {
-      showToast({ message: err?.message || 'Could not generate board.', type: 'error' });
+      showToast({ message: err?.message || 'Could not generate sources.', type: 'error' });
     } finally {
       setInternalLoading(false);
     }
@@ -301,7 +304,7 @@ export function ArticleBoardSection({
           ? res.items
           : null;
       if (nextItems && onBoardUpdated) {
-        onBoardUpdated(nextItems);
+        onBoardUpdated(nextItems.filter((i) => i.kind !== 'suggestion'));
       }
     } catch (err) {
       showToast({ message: 'Could not update board item status.', type: 'error' });
@@ -314,13 +317,14 @@ export function ArticleBoardSection({
     }
   }, [articleId]);
 
+  const recordCount = items.filter((i) => (i.category || '').toLowerCase().includes('record') || (i.category || '').toLowerCase().includes('audit')).length;
+  const gazetteCount = items.filter((i) => (i.category || '').toLowerCase().includes('gazette')).length;
+  const dataCount = items.filter((i) => (i.category || '').toLowerCase().includes('data')).length;
+
   const filtered = items.filter((item) => {
     if (filter === 'all') return true;
-    return item.kind === filter;
+    return (item.category || '').toLowerCase().includes(filter);
   });
-
-  const suggestionCount = items.filter((i) => i.kind === 'suggestion').length;
-  const sourceCount = items.filter((i) => i.kind === 'source').length;
 
   return (
     <ScrollView contentContainerStyle={{ padding: 20 }}>
@@ -329,11 +333,11 @@ export function ArticleBoardSection({
         <View style={{ flex: 1 }}>
           <View style={s.eyebrowRow}>
             <BoardPinIcon size={13} color={colors.orange} />
-            <Text style={[s.eyebrowText, { color: colors.orange }]}>SAIPH RESEARCH DESK • EDITORIAL BOARD</Text>
+            <Text style={[s.eyebrowText, { color: colors.orange }]}>SAIPH RESEARCH DESK • VERIFIED SOURCES</Text>
           </View>
           <Text style={[s.sectionTitle, { color: colors.ink }]}>Suggestions & Verified Source Leads</Text>
           <Text style={[s.sectionSubtitle, { color: colors.muted }]}>
-            Actionable story improvements and primary sources curated by your AI agent.
+            Primary public records, archives, and official datasets to corroborate your investigation.
           </Text>
         </View>
         <Pressable
@@ -341,7 +345,7 @@ export function ArticleBoardSection({
           disabled={loading}
           style={[s.primaryActionBtn, { backgroundColor: colors.forest }, loading && { opacity: 0.6 }]}
           accessibilityRole="button"
-          accessibilityLabel="Refresh Board Suggestions and Sources"
+          accessibilityLabel="Refresh Board Sources"
         >
           {loading ? (
             <ActivityIndicator size="small" color="#fff" />
@@ -357,9 +361,10 @@ export function ArticleBoardSection({
       {/* Filter Pills */}
       <View style={[s.boardFilterBar, { borderBottomColor: colors.line }]}>
         {[
-          { id: 'all', label: `All Items (${items.length})` },
-          { id: 'suggestion', label: `Editorial Suggestions (${suggestionCount})` },
-          { id: 'source', label: `Sources & Citations (${sourceCount})` },
+          { id: 'all', label: `All Sources (${items.length})` },
+          { id: 'record', label: `Records & Audits (${recordCount})` },
+          { id: 'gazette', label: `Gazettes (${gazetteCount})` },
+          { id: 'data', label: `Datasets (${dataCount})` },
         ].map((tab) => {
           const active = filter === tab.id;
           return (
@@ -423,22 +428,7 @@ export function ArticleBoardSection({
               <Text style={[s.boardCardTitle, { color: colors.ink }]}>{item.title}</Text>
               <Text style={[s.boardCardDetail, { color: colors.muted }]}>{item.detail}</Text>
 
-              {!!item.snippet && (
-                <View style={[s.snippetBox, { backgroundColor: colors.cardBg, borderColor: colors.line }]}>
-                  <Text style={[s.snippetLabel, { color: colors.muted }]}>SUGGESTED TEXT / CITATION</Text>
-                  <Text style={[s.snippetText, { color: colors.ink }]}>{item.snippet}</Text>
-                </View>
-              )}
-
               <View style={s.boardCardFooter}>
-                {!!item.snippet && onApplySnippet && (
-                  <Pressable
-                    onPress={() => onApplySnippet(typeof item.snippet === 'string' ? item.snippet : item.detail)}
-                    style={[s.boardInsertBtn, { backgroundColor: colors.forest }]}
-                  >
-                    <Text style={s.boardInsertBtnText}>Insert into Article</Text>
-                  </Pressable>
-                )}
                 <Pressable
                   onPress={() => handleToggleItem(item.id, !item.applied)}
                   style={[
@@ -667,13 +657,7 @@ export function ArticleReviewSection({
                   {tip.how_to_fix}
                 </Text>
 
-                {!!tip.example && (
-                  <View style={[s.exampleBox, { backgroundColor: colors.cardBg, borderColor: colors.line }]}>
-                    <Text style={[s.exampleText, { color: colors.muted }]}>
-                      Example: {tip.example}
-                    </Text>
-                  </View>
-                )}
+
               </View>
             ))}
           </View>
@@ -1050,9 +1034,11 @@ export function SaiphAgentModal({
                               : { backgroundColor: colors.paper, borderWidth: 1, borderColor: colors.line },
                           ]}
                         >
-                          <Text style={[s.chatBubbleText, { color: isUser ? '#fff' : colors.ink }]}>
-                            {m.content}
-                          </Text>
+                          <MarkdownRenderer
+                            content={m.content}
+                            isUser={isUser}
+                            customColors={colors}
+                          />
 
                           {/* Actions Taken Pills */}
                           {Array.isArray(m.actions_taken) && m.actions_taken.length > 0 && (

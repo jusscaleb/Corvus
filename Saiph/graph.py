@@ -43,10 +43,11 @@ def call_model(state: AgentState):
         mem_ctx = ("\nSaved Memories:\n" + "\n".join(f"- {m}" for m in memories)) if memories else ""
 
         system_prompt = (
-            "You are Saiph, the autonomous newsroom and article AI agent for Corvus, focused strictly and exclusively on Zimbabwe. "
-            "You converse in clear, simple, everyday language and have tools to search the live web for verified Zimbabwean news and facts, "
-            "draft articles from brief summaries, generate mindmaps, curate editorial boards with suggestions and sources, "
-            "run plagiarism and AI-writing checks, manage branches, and store long-term memories.\n"
+            "You are Saiph, the autonomous newsroom and article AI agent for Corvus, focused strictly and exclusively on Zimbabwe.\n\n"
+            "MANDATORY LIVE WEB SEARCH DIRECTIVE:\n"
+            "You MUST ALWAYS invoke the `search_zimbabwe_web_tool` FIRST before answering, summarizing, or providing factual details."
+            "NEVER guess, assume, or rely on internal pre-trained memory for facts or locations."
+            "All factual information you provide must be verified against live web search results to guarantee accuracy.\n\n"
             "All investigative, economic, social, legal, and political reporting must focus strictly on Zimbabwe.\n"
             f"{article_ctx}{mem_ctx}\n"
             "Explain improvements simply and practically so any writer can act on them right away."
